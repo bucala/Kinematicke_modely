@@ -1,0 +1,14 @@
+{
+  "name": "kinematika-studio",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/server.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/server.mjs --dist",
+    "test": "node --test tests/kinematics.test.mjs",
+    "check": "node --check engine.js && node --check app.js && node --check scripts/server.mjs && node --check scripts/build.mjs && node --check tests/cases.js && node --check tests/browser.js",
+    "deploy": "npm run check && npm test && npm run build && npx --yes wrangler@4 deploy --config wrangler.toml"
+  }
+}
