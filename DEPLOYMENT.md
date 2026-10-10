@@ -11,7 +11,9 @@
 
 ## Skutočný stav
 
-**Používateľ potvrdil úspešný predchádzajúci push a funkčné nasadenie.** Rozšírený editor, projekt „Dvojite sklopeny suflik“, odhadová dynamika, exporty a Fusion doplnok sú lokálne; nebol vykonaný nový commit, push ani deploy.
+**Používateľ publikoval rozšírený editor v commite `7a527f6`.** Dodané logy GitHub Actions zachytili zlyhanie testu kontrolného súčtu PDF fontov: Git previedol päť CRLF koncov riadkov súboru `vendor/pdfmake/vfs_fonts.js` na LF. Ostatných 164 testov prešlo.
+
+Overená oprava zachováva pôvodné bajty cez `.gitattributes` a zahŕňa tento súbor do publikačného zoznamu. Izolovaný export cez Git s `core.autocrlf=input` prešiel kontrolou syntaxe, 167 JS testami, 20 Python testami a buildom. Používateľ schválil commit a push opravy do existujúceho `main`; vzdialené CI a Workers Builds treba potvrdiť po pushi. Samostatný log z Cloudflare nebol v priloženom ZIP; nižšie uvedený build aj deploy postup používa rovnaké `npm test`.
 
 Git, Node.js aj PowerShell sú dostupné. Lokálne kontroly, testy a build sú zaznamenané v `VALIDATION.md`. Aktuálnu konfiguráciu Workeru a Git-integrácie táto úprava nemení.
 
@@ -20,6 +22,7 @@ Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolova�
 ## Pripravené súbory
 
 - `.node-version`: Node.js 24 pre CI a build.
+- `.gitattributes`: zachovanie presných bajtov pripnutých PDF distribúcií pri pridaní do Gitu aj pri Windows / Linux checkoute.
 - `.github/workflows/ci.yml`: syntax, JavaScript regresné testy, izolované Python CAD testy a zostavenie.
 - `wrangler.toml`: existujúci Worker, jeho účet a `[assets]` z `dist`.
 - `npm run deploy`: syntax, JavaScript testy, build a následné produkčné nasadenie cez Wrangler 4. Lokálny deploy nevyžaduje Python; CAD testy spúšťa GitHub CI.
@@ -29,6 +32,8 @@ Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolova�
 - `dist/cad/KinmoFusion.zip`: vytvorený balík štyroch verejných súborov doplnku. Build nekopíruje testy, pracovné analýzy ani vzorové reporty.
 
 Konfiguračné súbory samy nepublikujú aplikáciu ani neprepájajú GitHub s Cloudflare.
+
+Pri publikovaní tejto opravy preneste spolu `.gitattributes`, opravené Git bajty `vendor/pdfmake/vfs_fonts.js`, aktualizované testy a `push-github.ps1`. Nestačí pridať iba atribúty: publikovaný fontový blob musí opäť zodpovedať pôvodnému SHA-256 z `vendor/pdfmake/PROVENANCE.md`. Nevypínajte kontrolu súčtu a nemeňte ju na hash poškodený normalizáciou.
 
 ## PowerShell skript na push
 

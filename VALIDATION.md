@@ -7,7 +7,7 @@ Aktualizované 10. 10. 2026 pre lokálnu verziu 2.0.0.
 Prostredie má funkčný PowerShell, Node.js 24.15.0 a Python dodaný s lokálne nainštalovaným Fusion. Pôvodné analytické šablóny a samostatný projekt „Dvojite sklopeny suflik“ zostávajú zachované. Voľná editácia vytvára nezávislé kópie.
 
 - `npm run check`: úspešná kontrola syntaxe aplikácie, modelov, editora, fyziky, exportov, CAD transportu, servera, buildu a JavaScriptových testov.
-- `npm test`: **165 úspešných JavaScriptových testov, 0 zlyhaní**. Z toho 151 zdieľaných modelových prípadov a 14 Node integračných prípadov.
+- `npm test`: **167 úspešných JavaScriptových testov, 0 zlyhaní**. Z toho 151 zdieľaných modelových prípadov a 16 Node integračných prípadov.
 - `python -B -m unittest discover -s tests -p test_fusion.py -v`: **20 úspešných testov, 0 zlyhaní**. Izolovaný lokálny transport, validácia, úlohy, ZIP a mock Fusion API, bez zásahu do bežiaceho Fusion.
 - `tests/browser.html`: **151 / 151 úspešných testov** v zabudovanom Chromium, samostatne cez HTTP aj `file://`.
 - `npm run build`: úspešné vytvorenie `dist/`, vrátane nových modulov, lokálnych PDF assetov, referenčného náčrtu a balíka `cad/KinmoFusion.zip`.
@@ -15,6 +15,14 @@ Prostredie má funkčný PowerShell, Node.js 24.15.0 a Python dodaný s lokálne
 - Zdrojový aj zostavený lokálny server servujú verejné moduly, PDF assety a ZIP s `nosniff`. Nesprístupňujú `.git/`, `.analysis/`, `tmp/` ani Python zdroje doplnku. Zostavený náhľad nesprístupňuje browser testy.
 - `git diff --check`: bez chýb whitespace; Git upozorňuje len na lokálne LF → CRLF prevody.
 - `push-github.ps1`: syntakticky overený PowerShell parserom; publikovanie nebolo spustené.
+
+### Oprava zlyhania CI po publikovaní
+
+Dodané logy pre commit `7a527f6` ukazujú 164 úspešných testov a jeden neúspešný: SHA-256 offline PDF fontov. Lokálny pôvodný súbor má 830 090 bajtov a päť CRLF koncov riadkov; publikovaný Git blob mal 830 085 bajtov a LF. Po odhliadnutí od koncov riadkov sú obsahovo totožné.
+
+`.gitattributes` teraz vypína konverziu koncov riadkov iba pre dve pripnuté PDF distribúcie. Fontový blob sa vracia k pôvodným bajtom; pôvodné očakávané hash hodnoty sa nemenia. Nové regresné overenie v dočasných Git repozitároch kontroluje staging aj checkout pri `core.autocrlf=true`, `input` a `false`. Druhý test kontroluje prítomnosť atribútov v publikačnom zozname.
+
+Rovnaký sled ako v CI prešiel na izolovanom exporte pracovných zmien cez Git index s `core.autocrlf=input`: syntax, **167 JS / 20 Python testov** a statický build. Fonty mali pôvodný kontrolný súčet v indexe, exporte aj `dist`. Ide o lokálnu reprodukciu Git normalizácie, nie tvrdenie o novom vzdialenom behu Ubuntu alebo Cloudflare. Prehliadačové a PDF kontroly nižšie sú výsledky predchádzajúceho overenia nezmenenej aplikácie; pri tejto oprave koncov riadkov sa neopakovali.
 
 Pokrytie zahŕňa:
 
@@ -71,6 +79,6 @@ Dynamika je odhad jedného nezávislého pohonu; silové členy sú bezhmotnostn
 
 ## Publikovanie
 
-Používateľ potvrdil funkčné predchádzajúce nasadenie. Táto úprava zostáva lokálna: nebol vykonaný nový commit, push ani deploy. Konfigurácia existujúceho Workeru a jeho Git-integrácia neboli menené.
+Používateľ publikoval rozšírenie v commite `7a527f6` a dodal log zlyhania CI. Následne výslovne schválil commit a push overenej opravy do existujúceho `main`, bez prepisu histórie. Konfigurácia existujúceho Workeru a jeho Git-integrácia sa nemení. Push môže spustiť Workers Builds; úspech nového vzdialeného CI ani nasadenia sa neodvodzuje len z úspešných lokálnych kontrol.
 
 Zoznam publikovaných súborov v `push-github.ps1` zahŕňa nové moduly, testy, verejné zdroje doplnku a licencované PDF assety. Pomocné analýzy, lokálna PDF kontrola a CDP testy sú v ignorovaných `.analysis/`, `tmp/` a `outputs/`; nie sú súčasťou aplikácie ani publikovania. Dočasný PDF konverzný skript bol po kontrole odstránený.

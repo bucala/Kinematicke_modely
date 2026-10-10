@@ -1,0 +1,5 @@
+# Keep the official PDF browser distributions byte-for-byte intact.
+# Newline conversion would invalidate the pinned upstream SHA-256 hashes.
+# Recognize upstream CRLF as line endings during whitespace checks too.
+/vendor/pdfmake/pdfmake.min.js -text whitespace=cr-at-eol
+/vendor/pdfmake/vfs_fonts.js -text whitespace=cr-at-eol

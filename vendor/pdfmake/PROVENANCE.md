@@ -8,6 +8,7 @@ Unmodified browser distributions from the official npm package `pdfmake@0.2.20`.
 - Fonts: Roboto Classic, embedded by upstream in `vfs_fonts.js`. The embedded font metadata identifies **Copyright 2011 The Roboto Project Authors** and **SIL Open Font License 1.1**, included in `Roboto-LICENSE.txt`.
 - No runtime CDN, package installation or remote PDF conversion.
 - The isolated dependency installation passed `npm audit --omit=dev` with no known vulnerabilities. Temporary PDF tooling is not shipped.
+- `.gitattributes` disables Git newline conversion for the two browser distributions. In particular, upstream `vfs_fonts.js` includes CRLF endings that must be preserved in Git and on Linux checkouts. The publisher includes this policy; tests verify both staged and checked-out bytes under `core.autocrlf=true`, `input`, and `false`.
 
 SHA-256:
 

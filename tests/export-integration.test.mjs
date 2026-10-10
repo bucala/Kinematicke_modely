@@ -1,13 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, copyFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fusionArchive } from '../scripts/archive.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const pdfDistributions = [
+  ['pdfmake.min.js', 'c2fd3a5e24db096c9139bb7d266765de433b0b866d03ba356c2ef4d9ae1a53b7'],
+  ['vfs_fonts.js', 'f91db5690400fc851536c3a9322f822619f8e9f681abe42013e572d88d3c1f38'],
+];
 const source = await readFile(path.join(root, 'cad.js'), 'utf8');
 const mockKey = 'mock-pairing-value-not-a-real-key';
 const job = '1234567890abcdef1234567890abcdef';
@@ -98,12 +104,36 @@ test('Fusion ZIP is deterministic and contains only the four public add-in files
   assert.equal(bytes.readUInt16LE(bytes.length - 12), 4);
 });
 test('Offline PDF distribution matches the recorded upstream hashes', async () => {
-  for (const [name, hash] of [
-    ['pdfmake.min.js', 'c2fd3a5e24db096c9139bb7d266765de433b0b866d03ba356c2ef4d9ae1a53b7'],
-    ['vfs_fonts.js', 'f91db5690400fc851536c3a9322f822619f8e9f681abe42013e572d88d3c1f38'],
-  ]) assert.equal(createHash('sha256').update(await readFile(path.join(root, 'vendor/pdfmake', name))).digest('hex'), hash);
+  for (const [name, hash] of pdfDistributions) assert.equal(createHash('sha256').update(await readFile(path.join(root, 'vendor/pdfmake', name))).digest('hex'), hash, name);
   assert((await readFile(path.join(root, 'vendor/pdfmake/LICENSE'), 'utf8')).includes('MIT'));
   assert((await readFile(path.join(root, 'vendor/pdfmake/Roboto-LICENSE.txt'), 'utf8')).includes('SIL OPEN FONT LICENSE'));
+});
+test('Git preserves pinned PDF bytes when staging and checking out on any newline policy', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'kinmo-pdf-checkout-'));
+  const git = (cwd, args) => execFileSync('git', args, { cwd, maxBuffer: 5 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+  try {
+    for (const autocrlf of ['true', 'input', 'false']) {
+      const repository = path.join(directory, autocrlf), checkout = path.join(directory, `${autocrlf}-checkout`);
+      await mkdir(path.join(repository, 'vendor/pdfmake'), { recursive: true });
+      await copyFile(path.join(root, '.gitattributes'), path.join(repository, '.gitattributes'));
+      for (const [name] of pdfDistributions) await copyFile(path.join(root, 'vendor/pdfmake', name), path.join(repository, 'vendor/pdfmake', name));
+      git(repository, ['init', '--quiet']);
+      const policy = ['-c', `core.autocrlf=${autocrlf}`];
+      git(repository, [...policy, 'add', '--', '.gitattributes', ...pdfDistributions.map(([name]) => `vendor/pdfmake/${name}`)]);
+      const prefix = checkout.replace(/\\/g, '/') + '/';
+      git(repository, [...policy, 'checkout-index', '--all', `--prefix=${prefix}`]);
+      for (const [name, hash] of pdfDistributions) {
+        const staged = git(repository, ['show', `:vendor/pdfmake/${name}`]);
+        const checkedOut = await readFile(path.join(checkout, 'vendor/pdfmake', name));
+        for (const bytes of [staged, checkedOut]) assert.equal(createHash('sha256').update(bytes).digest('hex'), hash, `${name}, core.autocrlf=${autocrlf}`);
+      }
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+test('Publisher includes the PDF newline policy in its explicit file allowlist', async () => {
+  const publisher = await readFile(path.join(root, 'push-github.ps1'), 'utf8');
+  const files = publisher.match(/\$ProjectFiles = @\(([\s\S]*?)\n\)/)?.[1];
+  assert(files); assert.match(files, /^\s*'\.gitattributes'\s*$/m);
 });
 test('Production policy allows only the specific loopback CAD endpoint', async () => {
   const headers = await readFile(path.join(root, '_headers'), 'utf8');

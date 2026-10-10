@@ -30,6 +30,7 @@ $UserPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
 $Utf8 = [System.Text.UTF8Encoding]::new($false)
 $ProjectFiles = @(
     '.gitignore'
+    '.gitattributes'
     '.node-version'
     '.github/workflows/ci.yml'
     '_headers'
