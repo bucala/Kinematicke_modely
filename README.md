@@ -2,7 +2,7 @@
 
 Webové štúdio na tvorbu, analýzu a simuláciu rovinných mechanizmov. Rozhranie je v slovenčine a rozmery sa zadávajú v milimetroch a stupňoch.
 
-Pri prvom otvorení začína editor prázdny. Uložený projekt sa obnoví bez zmeny. Samostatný projekt **Dvojite sklopeny suflik** nájdete v ponuke **Projekty**, nie medzi všeobecnými šablónami.
+Pri prvom otvorení začína editor prázdny. Uložený projekt sa obnoví bez zmeny. Jedinú ponuku projektov a šablón otvoríte kliknutím na **názov projektu so šípkou v hlavičke**. Obsahuje všeobecné šablóny, samostatný projekt **Dvojite sklopeny suflik**, uložené projekty, import a premenovanie.
 
 ## Spustenie
 
@@ -76,7 +76,7 @@ Príkaz najprv kontroluje syntax, testuje a zostaví aplikáciu. Až potom nahra
 - Sily pružín/piestov, hmotnosť, ťažisko, zotrvačnosť, gravitácia, tlmenie, trenie a jeden vonkajší pohon; odhadová dynamika.
 - Automatické lokálne ukladanie, zoznam projektov, validovaný import `.kinmo` aj staršieho JSON.
 - Export `.kinmo`, JSON, CSV, SVG v mm, PNG, DXF a lokálne vytvoreného PDF/HTML reportu.
-- Tri trvalé vzhľady: biela/čierna, sivá/oranžová a tmavosivá/biela.
+- Tri trvalé vzhľady: biela/čierna, krémová/terakota a teplá tmavá/biela.
 - Voliteľný lokálny doplnok Autodesk Fusion na vytvorenie nového referenčného dokumentu.
 - Samostatný dvojkulisový projekt podľa náčrtu, obe trajektórie v sústave korpusu alebo zásuvky a viditeľné odhadové predpoklady.
 - Responzívne rozhranie a klávesové skratky.
@@ -119,7 +119,9 @@ Súradnice editora používajú SVG konvenciu: X rastie doprava a Y nadol. Kladn
 
 ## Voľná editácia a kóty
 
-**Úprava geometrie** ponechá navrhnuté polohy bez nútenia väzieb. **Simulácia** vynúti väzby; nekompatibilitu označí. Počas ťahania sa potlačí výber textu iba na pracovnej ploche a počas zachyteného presunu; vstupné polia zostávajú editovateľné.
+**Úprava geometrie** ponechá navrhnuté polohy bez nútenia väzieb. **Simulácia** vynúti väzby; nekompatibilitu označí. Texty rozhrania sa nedajú označovať, vrátane hlavičky a dialógov. Vstupné polia, textové oblasti a editovateľný obsah naďalej umožňujú výber textu aj Ctrl+A.
+
+Panel **Vlastnosti** je pri otvorení aplikácie a načítaní projektu skrytý. Otvorí sa iba tlačidlom panelu vedľa nastavení. Výber na plátne, pridanie prvku ani prepnutie na analýzu ho neotvoria. Už ručne otvorený panel môžete skryť rovnakým tlačidlom, krížikom alebo Escape mimo vstupného poľa.
 
 Parametrickú šablónu zmeníte bez obmedzení cez **Voľná kópia**. Originál zostane samostatne uložený. Kópia dvojkulisovej zásuvky zachová aktuálnu geometriu a presné profily, **nepreberá však predpísanú funkciu zadnej opory/západky**. Má jednu ďalšiu voľnú súradnicu; pred odhadovou dynamikou treba skutočne doplniť vhodné uloženie.
 
@@ -144,7 +146,7 @@ Katalógové príklady a zdroje sú v inšpektore pružných prvkov: Gutekunst D
 
 ## Vzhľady, súbory a reporty
 
-V **Nastaveniach → Vzhľad aplikácie** vyberte bielu/čiernu, sivú/oranžovú alebo tmavosivú/bielu. Nastavenia sa uchovajú lokálne. Mechanické farby členov a upozornení si zachovávajú význam vo všetkých vzhľadoch.
+V **Nastaveniach → Vzhľad aplikácie** vyberte bielu/čiernu, krémovú/terakotu alebo teplú tmavú/bielu. Krémový vzhľad vychádza z [palety Claude](https://mobbin.com/colors/brand/claude): Pampas `#F4F3EE`, biela `#FFFFFF`, terakota Crail `#C15F3C` a Cloudy `#B1ADA1` pre hlavné čiary mriežky. Drobný text používa tmavší odtieň kvôli čitateľnosti. Existujúce nastavenie `orange` automaticky použije novú krémovú paletu; identifikátory súborov a nastavení sa nemenia. Mechanické farby členov a upozornení si zachovávajú význam vo všetkých vzhľadoch.
 
 **Exportovať** ponúka:
 

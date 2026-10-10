@@ -7,9 +7,9 @@ Aktualizované 10. 10. 2026 pre lokálnu verziu 2.0.0.
 Prostredie má funkčný PowerShell, Node.js 24.15.0 a Python dodaný s lokálne nainštalovaným Fusion. Pôvodné analytické šablóny a samostatný projekt „Dvojite sklopeny suflik“ zostávajú zachované. Voľná editácia vytvára nezávislé kópie.
 
 - `npm run check`: úspešná kontrola syntaxe aplikácie, modelov, editora, fyziky, exportov, CAD transportu, servera, buildu a JavaScriptových testov.
-- `npm test`: **167 úspešných JavaScriptových testov, 0 zlyhaní**. Z toho 151 zdieľaných modelových prípadov a 16 Node integračných prípadov.
-- `python -B -m unittest discover -s tests -p test_fusion.py -v`: **20 úspešných testov, 0 zlyhaní**. Izolovaný lokálny transport, validácia, úlohy, ZIP a mock Fusion API, bez zásahu do bežiaceho Fusion.
-- `tests/browser.html`: **151 / 151 úspešných testov** v zabudovanom Chromium, samostatne cez HTTP aj `file://`.
+- `npm test`: **181 úspešných JavaScriptových testov, 0 zlyhaní**. Z toho 151 zdieľaných modelových prípadov, 16 Node integračných prípadov a 14 nových UI kontrolérskych/regresných prípadov.
+- Predchádzajúce overenie `python -B -m unittest discover -s tests -p test_fusion.py -v`: **20 úspešných testov, 0 zlyhaní**. Izolovaný lokálny transport, validácia, úlohy, ZIP a mock Fusion API, bez zásahu do bežiaceho Fusion. Pri tejto úprave rozhrania sa Python testy neopakovali; CAD zdroje sa nemenili.
+- Predchádzajúce overenie `tests/browser.html`: **151 / 151 úspešných testov** v zabudovanom Chromium, samostatne cez HTTP aj `file://`. Táto modelová browser sada sa pri úprave UI neopakovala; jej prípady znovu prešli v Node a nové kontroly rozhrania sú uvedené nižšie.
 - `npm run build`: úspešné vytvorenie `dist/`, vrátane nových modulov, lokálnych PDF assetov, referenčného náčrtu a balíka `cad/KinmoFusion.zip`.
 - Sedemnásť statických súborov zostavenia sa byte-for-byte zhoduje so zdrojmi. ZIP sa zhoduje s deterministickým generátorom; Python preveril obsah a CRC.
 - Zdrojový aj zostavený lokálny server servujú verejné moduly, PDF assety a ZIP s `nosniff`. Nesprístupňujú `.git/`, `.analysis/`, `tmp/` ani Python zdroje doplnku. Zostavený náhľad nesprístupňuje browser testy.
@@ -23,6 +23,20 @@ Dodané logy pre commit `7a527f6` ukazujú 164 úspešných testov a jeden neús
 `.gitattributes` teraz vypína konverziu koncov riadkov iba pre dve pripnuté PDF distribúcie. Fontový blob sa vracia k pôvodným bajtom; pôvodné očakávané hash hodnoty sa nemenia. Nové regresné overenie v dočasných Git repozitároch kontroluje staging aj checkout pri `core.autocrlf=true`, `input` a `false`. Druhý test kontroluje prítomnosť atribútov v publikačnom zozname.
 
 Rovnaký sled ako v CI prešiel na izolovanom exporte pracovných zmien cez Git index s `core.autocrlf=input`: syntax, **167 JS / 20 Python testov** a statický build. Fonty mali pôvodný kontrolný súčet v indexe, exporte aj `dist`. Ide o lokálnu reprodukciu Git normalizácie, nie tvrdenie o novom vzdialenom behu Ubuntu alebo Cloudflare. Prehliadačové a PDF kontroly nižšie sú výsledky predchádzajúceho overenia nezmenenej aplikácie; pri tejto oprave koncov riadkov sa neopakovali.
+
+### Úpravy rozhrania
+
+Nová sada `tests/ui.test.mjs` vykonáva skutočné privátne funkcie aplikácie v izolovanom VM, s náhradami renderovania a DOM. Kontroluje skrytý panel, ručné otváranie, správanie výberu pri 393/1440 px, návrat fokusu, jediný vstup k projektom, zachovanie šablón, výber textu, Ctrl+A/Meta+A a kompatibilné identifikátory palety. Nenahrádza skutočný prehliadač.
+
+Aktuálne rozhranie bolo samostatne overené v pridelenej Chromium karte: zdroj cez HTTP a finálne `dist/index.html` cez `file://`, na **1 440 × 900** aj **393 × 852**. Kontrolované boli DOM, skutočné vypočítané CSS, rozmery a obsluha udalostí, nie snímky obrazovky:
+
+- Vlastnosti sú skryté pri štarte a načítaní projektu. Výber geometrie, pridanie prvku ani analýza ich neotvoria. Ručné otvorenie, krížik a Escape mimo poľa fungujú; explicitne otvorený panel počas výberu zostáva otvorený.
+- V hlavnom rozhraní otvára kombinovanú ponuku iba hlavička. Obsahuje všetky štyri šablóny, samostatnú zásuvku, uložené projekty, import a premenovanie. Mobilný vstup zostáva viditeľný aj s dlhým názvom; dialóg a panel sa zmestia bez horizontálneho pretekania.
+- Všetky tri témy sa aplikovali a zapísali do pamäťových preferencií. Krémová téma používa `#F4F3EE`, `#FFFFFF`, `#C15F3C`, `#B1ADA1`; graf sleduje akcent. Teplá tmavá téma používa tmavé plochy a svetlý čitateľný text.
+- Hlavička, dialógy a needitovateľné značky majú `user-select: none`. Dokument blokuje `selectstart` a Ctrl+A mimo polí. Skutočné textové pole umožňuje výber cez `input.select()` a syntetické Ctrl+A nie je blokované; vnorený editovateľný aj needitovateľný obsah a formulárové polia zachovávajú správne výnimky.
+- Canvas výber bol kontrolovaný syntetickými pointer udalosťami s dočasnou náhradou pointer capture, ktorá sa hneď obnovila. Nie je to úplné natívne ťahanie. Chyby v selektoroch QA skriptu sa opravili; finálne kontroly aplikácie nezaznamenali JavaScriptové chyby.
+
+Finálna syntax, **181 JS testov**, build, zhoda všetkých 17 assetov, deterministický ZIP a parser publikačného skriptu prešli. Publikačný skript sa nespustil. PDF dokumenty ani živý Fusion sa pri tejto úprave UI znovu neoverovali.
 
 Pokrytie zahŕňa:
 
@@ -41,7 +55,7 @@ Overené v pridelenej karte zabudovaného Chromium na izolovaných lokálnych ad
 - Prvé otvorenie na novej lokálnej adrese zobrazí prázdny editor, bez automaticky spusteného modelu.
 - Katalóg, náčrt, polohy 0 / 60 / 300 mm a uhly 90° / 65° / 65°, obe fázy, obidve trajektórie a pevná / zásuvková sústava.
 - Zmena rozmerov, odmietnutie neplatného rozmeru, blokovaná kulisa, späť / znova, oddelené projekty a správanie nedostupného úložiska.
-- Editačný / simulačný režim, ponuka šiestich väzieb, pomenovaná trajektória a obrys. Potlačenie výberu textu je obmedzené na ťahanie plátna; test syntetického zrušenia nenahrádza úplné natívne ťahanie.
+- Editačný / simulačný režim, ponuka šiestich väzieb, pomenovaná trajektória a obrys. Aktuálne potlačenie výberu textu pokrýva celé rozhranie s výnimkami pre polia; syntetické pointer kontroly nenahrádzajú úplné natívne ťahanie.
 - Montáž a parametre pružných prvkov, osové sily, graf a ovládanie odhadovej dynamiky.
 - Všetky tri vzhľady sa aplikovali a zapísali do pamäťových preferencií. Zostavená aplikácia obnovila z `.kinmo` názov, polohu 70°, vzhľad, vypnutú mriežku a editačný režim.
 - Export `.kinmo`, staršieho JSON, oboch CSV, samostatného reportu, milimetrového SVG a DXF. Zachytené projektové dáta prešli opätovným parserom.
@@ -80,5 +94,7 @@ Dynamika je odhad jedného nezávislého pohonu; silové členy sú bezhmotnostn
 ## Publikovanie
 
 Používateľ publikoval rozšírenie v commite `7a527f6` a dodal log zlyhania CI. Následne výslovne schválil commit a push overenej opravy do existujúceho `main`, bez prepisu histórie. Konfigurácia existujúceho Workeru a jeho Git-integrácia sa nemení. Push môže spustiť Workers Builds; úspech nového vzdialeného CI ani nasadenia sa neodvodzuje len z úspešných lokálnych kontrol.
+
+Oprava CI je publikovaná v `fc04c71`. Následné úpravy panelu, ponuky, palety a výberu textu sú zatiaľ len lokálne. Nevytvoril sa pre ne commit, push ani nasadenie.
 
 Zoznam publikovaných súborov v `push-github.ps1` zahŕňa nové moduly, testy, verejné zdroje doplnku a licencované PDF assety. Pomocné analýzy, lokálna PDF kontrola a CDP testy sú v ignorovaných `.analysis/`, `tmp/` a `outputs/`; nie sú súčasťou aplikácie ani publikovania. Dočasný PDF konverzný skript bol po kontrole odstránený.

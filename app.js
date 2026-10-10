@@ -91,7 +91,7 @@
     grid: true, dimensions: true, ghosts: true, trace: true, collisions: true, snap: true,
     traceRef: initialProject.kind === DD.KIND ? { elementId: 'bearing-1', point: 'a' } : { elementId: initialSelection || '', point: 'b' },
     traceMode: initialProject.kind === DD.KIND ? 'bearings' : 'single', traceSpace: 'world',
-    tool: 'select', sidebarTab: 'elements', inspectorTab: 'geometry', analysis: false,
+    tool: 'select', sidebarTab: 'elements', inspectorTab: 'geometry', inspectorOpen: false, analysis: false,
     mode: initialProject.kind === 'custom' ? 'edit' : 'simulate',
     forceContext: null, forceCurve: [], forceError: '', dynamic: null, dynamicHistory: [], graphMode: 'angle', forceArrows: true,
     history: [], future: [], dirty: false, saved: !!loaded, storageFailed: false, view: null, baseView: null,
@@ -205,7 +205,7 @@
   function applyPreferences(value, persist = false) {
     Object.assign(state, X.preferences(value));
     document.documentElement.dataset.theme = state.theme;
-    document.querySelector('meta[name="theme-color"]').content = state.theme === 'dark' ? '#282b30' : state.theme === 'orange' ? '#ededed' : '#ffffff';
+    document.querySelector('meta[name="theme-color"]').content = state.theme === 'dark' ? '#262624' : state.theme === 'orange' ? '#f4f3ee' : '#ffffff';
     if ($('#speed')) $('#speed').value = String(state.speed);
     if (persist) {
       try { localStorage.setItem(settingsKey, JSON.stringify(X.preferences(state))); }
@@ -235,12 +235,30 @@
     state.baseView = { ...b }; state.view = { ...b };
   }
 
+  function updateInspectorVisibility() {
+    $('#workspace').classList.toggle('inspector-hidden', !state.inspectorOpen);
+    $('#properties-panel').hidden = !state.inspectorOpen;
+    const button = $('[data-action="toggle-inspector"]');
+    button.classList.toggle('is-active', state.inspectorOpen);
+    button.setAttribute('aria-expanded', state.inspectorOpen);
+    button.setAttribute('aria-label', state.inspectorOpen ? 'Skryť vlastnosti' : 'Zobraziť vlastnosti');
+    button.title = state.inspectorOpen ? 'Skryť vlastnosti' : 'Zobraziť vlastnosti';
+  }
+
+  function setInspectorOpen(open) {
+    state.inspectorOpen = open;
+    if (!open && $('#properties-panel').contains(document.activeElement)) $('[data-action="toggle-inspector"]').focus();
+    if (open) renderInspector();
+    updateInspectorVisibility();
+    fitView(); renderScene();
+  }
+
   function buildShell() {
     $('#app').innerHTML = `
       <header class="app-header">
         <div class="brand"><span class="brand-mark">${icon('mechanism', 27)}</span><span>kinematika<span class="brand-dot">.</span></span><span class="brand-studio">STUDIO</span></div>
         <div class="header-divider"></div>
-        <button class="project-name" data-action="projects" title="Otvoriť projekty"><span id="project-name">${escape(state.project.name)}</span>${icon('chevron', 14)}</button>
+        <button class="project-name" data-action="projects" title="Mechanizmy, šablóny a projekty" aria-haspopup="dialog"><span id="project-name">${escape(state.project.name)}</span>${icon('chevron', 14)}</button>
         <span class="save-status" id="save-status"><i></i>Lokálny projekt</span>
         <div class="header-actions">
           ${ib('help', 'help', 'Pomoc a klávesové skratky')}
@@ -253,18 +271,15 @@
           <button class="workspace-tab is-active" data-action="view-editor" aria-pressed="true">${icon('cursor', 16)}Editor</button>
           <button class="workspace-tab" data-action="view-analysis" aria-pressed="false">${icon('chart', 16)}Analýza</button>
         </div>
-        <div class="context-separator"></div>
-        <button class="subtle-button projects-button" data-action="projects" title="Samostatné a uložené projekty">${icon('folder', 16)}<span>Projekty</span></button>
-        <button class="subtle-button" data-action="templates">${icon('layers', 16)}<span>Šablóny mechanizmov</span>${icon('chevron', 13)}</button>
         <div class="context-right">
           <div class="history-controls">${ib('undo', 'undo', 'Späť (Ctrl+Z)')}${ib('redo', 'redo', 'Znova (Ctrl+Shift+Z)')}</div>
           <span class="units-tag">mm <span>/</span> °</span>
           ${ib('settings', 'settings', 'Nastavenia, vzhľad a export')}
-          ${ib('panel', 'toggle-inspector', 'Zobraziť alebo skryť vlastnosti')}
+          ${ib('panel', 'toggle-inspector', 'Zobraziť vlastnosti', false, 'aria-controls="properties-panel" aria-expanded="false"')}
           ${ib('menu', 'toggle-sidebar', 'Zobraziť prvky')}
         </div>
       </nav>
-      <main class="workspace" id="workspace">
+      <main class="workspace inspector-hidden" id="workspace">
         <aside class="sidebar" aria-label="Prvky mechanizmu">
           <div class="sidebar-heading"><span>Pracovný priestor</span><span class="small-tag">2D</span></div>
           <div class="segmented sidebar-tabs"><button data-action="sidebar-elements" class="is-active">Prvky</button><button data-action="sidebar-joints">Väzby <span id="joint-count">5</span></button></div>
@@ -283,10 +298,6 @@
             <div id="model-tree"></div>
             <div id="joint-list" hidden></div>
             <button class="add-element-button" data-action="add-menu">${icon('plus', 15)}Pridať prvok</button>
-          </div>
-          <div class="sidebar-bottom">
-            <button class="template-card" data-action="templates"><span class="template-icon">${icon('layers', 20)}</span><span>Od nápadu k pohybu<small>Preskúmajte hotové mechanizmy</small></span>${icon('arrow', 16)}</button>
-            <div class="sidebar-tip">${icon('cursor', 14)}<span>Potiahnite výsuv alebo čelo<br> a preskúmajte jeho pohyb.</span></div>
           </div>
         </aside>
         <section class="center-workspace">
@@ -313,7 +324,7 @@
             </div><div class="dynamics-readout" id="dynamics-readout" hidden></div>
           </section>
         </section>
-        <aside class="inspector" aria-label="Inšpektor vlastností"><div class="inspector-top"><div>${icon('settings', 16)}<span>Vlastnosti</span></div>${ib('close', 'toggle-inspector', 'Zavrieť vlastnosti')}</div><div id="inspector-content"></div></aside>
+        <aside class="inspector" id="properties-panel" aria-label="Inšpektor vlastností" hidden><div class="inspector-top"><div>${icon('settings', 16)}<span>Vlastnosti</span></div>${ib('close', 'close-inspector', 'Zavrieť vlastnosti')}</div><div id="inspector-content"></div></aside>
       </main>
       <footer class="status-bar"><div><span class="ready-dot" id="solver-dot"></span><span id="solver-status">Solver pripravený</span><span class="status-separator"></span><span id="solver-meta">1 stupeň voľnosti</span></div><div class="status-right"><span id="pointer-coordinates">X: 0,0 <span>Y: 0,0</span></span><span class="status-separator"></span><span>Pozícia v mm</span><span class="version">v2.0</span></div></footer>
     `;
@@ -430,7 +441,7 @@
       return;
     }
     if (!e) {
-      container.innerHTML = `<div class="empty-inspector">${icon('cursor', 34)}<h2>Priestor pre váš nápad</h2><p>Vyberte prvok na plátne alebo ho pridajte z knižnice. Pripravené projekty nájdete samostatne.</p><button class="button button-dark" data-action="projects">${icon('folder', 15)}Otvoriť projekt</button><button class="button button-secondary" data-action="templates">Vybrať šablónu</button></div>`;
+      container.innerHTML = `<div class="empty-inspector">${icon('cursor', 34)}<h2>Priestor pre váš nápad</h2><p>Vyberte prvok na plátne alebo ho pridajte z knižnice. Projekty a šablóny otvoríte cez názov mechanizmu v hlavičke.</p></div>`;
       return;
     }
     let geometry = '';
@@ -749,20 +760,20 @@
     state.graphScale = { min, max };
     const points = state.samples.map((s, i) => graphPoint(s, i, min, max));
     const range = K.driveRange(state.project);
-    let markup = `<defs><linearGradient id="motion-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#dbb574" stop-opacity=".18"/><stop offset="1" stop-color="#dbb574" stop-opacity=".015"/></linearGradient></defs>`;
+    let markup = `<defs><linearGradient id="motion-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="var(--accent)" stop-opacity=".18"/><stop offset="1" stop-color="var(--accent)" stop-opacity=".015"/></linearGradient></defs>`;
     if (isDoubleDrawer()) {
       const x = 43 + state.project.parameters.releaseTravel / (range.max - range.min) * 717;
-      markup += `<rect x="43" y="13" width="${x - 43}" height="53" fill="#faf4e8"/><line x1="${x}" x2="${x}" y1="13" y2="66" stroke="#b5bec6" stroke-dasharray="3 4"/><text x="${x + 6}" y="20" class="graph-tick">Sklopené → posuv</text>`;
+      markup += `<rect x="43" y="13" width="${x - 43}" height="53" fill="var(--accent-pale)"/><line x1="${x}" x2="${x}" y1="13" y2="66" stroke="var(--secondary)" stroke-dasharray="3 4"/><text x="${x + 6}" y="20" class="graph-tick">Sklopené → posuv</text>`;
     }
     for (let i = 0; i <= 3; i++) {
       const y = 66 - i / 3 * 53;
-      markup += `<line x1="43" x2="760" y1="${y}" y2="${y}" stroke="#e8ecef" stroke-dasharray="${i === 0 ? '' : '3 4'}" stroke-width="1"/><text x="30" y="${y + 3}" text-anchor="end" class="graph-tick">${fmt(K.lerp(min, max, i / 3), 0)}°</text>`;
+      markup += `<line x1="43" x2="760" y1="${y}" y2="${y}" stroke="var(--border)" stroke-dasharray="${i === 0 ? '' : '3 4'}" stroke-width="1"/><text x="30" y="${y + 3}" text-anchor="end" class="graph-tick">${fmt(K.lerp(min, max, i / 3), 0)}°</text>`;
     }
     for (let i = 0; i <= 6; i++) {
       const x = 43 + i / 6 * 717;
       markup += `<text x="${x}" y="85" text-anchor="middle" class="graph-tick">${fmt(K.lerp(range.min, range.max, i / 6), 0)}</text>`;
     }
-    markup += `<path d="${pathD(points)}L760,66L43,66Z" fill="url(#motion-fill)" stroke="none"/><path d="${pathD(points)}" fill="none" stroke="#c7984d" stroke-width="2" stroke-linejoin="round"/>`;
+    markup += `<path d="${pathD(points)}L760,66L43,66Z" fill="url(#motion-fill)" stroke="none"/><path d="${pathD(points)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;
     if (isDoubleDrawer()) markup += `<path data-series="arm" d="${pathD(state.samples.map((s, i) => graphPoint(s, i, min, max, 'secondaryAngle')))}" fill="none" stroke="#7193c0" stroke-width="1.7" stroke-linejoin="round"/>`;
     for (let i = 0; i < state.samples.length; i++) if (state.samples[i].blocked) markup += `<rect x="${points[i].x - 2.5}" y="13" width="6" height="53" fill="#e9766d" opacity=".08"/>`;
     markup += '<g id="graph-cursor"></g>';
@@ -783,7 +794,7 @@
     const r = K.driveRange(state.project), t = (state.motion - r.min) / (r.max - r.min);
     const point = graphPoint(state.result, t * (state.samples.length - 1), state.graphScale.min, state.graphScale.max);
     point.y = K.clamp(point.y, 5, 70);
-    cursor.innerHTML = `<line x1="${point.x}" x2="${point.x}" y1="7" y2="68" stroke="#c5a46e" stroke-width="1" stroke-dasharray="3 3"/><circle cx="${point.x}" cy="${point.y}" r="4.2" fill="#fff" stroke="#c7984d" stroke-width="2"/><rect x="${K.clamp(point.x - 23, 40, 714)}" y="${K.clamp(point.y - 22, 0, 44)}" width="46" height="16" rx="4" fill="#f9f2e7"/><text x="${K.clamp(point.x, 63, 737)}" y="${K.clamp(point.y - 11, 11, 55)}" text-anchor="middle" class="graph-value">${fmt(state.result.angle)}°</text>`;
+    cursor.innerHTML = `<line x1="${point.x}" x2="${point.x}" y1="7" y2="68" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 3"/><circle cx="${point.x}" cy="${point.y}" r="4.2" fill="var(--paper)" stroke="var(--accent)" stroke-width="2"/><rect x="${K.clamp(point.x - 23, 40, 714)}" y="${K.clamp(point.y - 22, 0, 44)}" width="46" height="16" rx="4" fill="var(--accent-pale)"/><text x="${K.clamp(point.x, 63, 737)}" y="${K.clamp(point.y - 11, 11, 55)}" text-anchor="middle" class="graph-value">${fmt(state.result.angle)}°</text>`;
   }
 
   function renderForceGraph() {
@@ -884,6 +895,7 @@
   }
 
   function updateToolbar() {
+    updateInspectorVisibility();
     try { localStorage.setItem(settingsKey, JSON.stringify(X.preferences(state))); } catch { /* Export includes settings if storage is unavailable. */ }
     for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'loop']) {
       const el = $(`[data-action="${key}"]`);
@@ -912,7 +924,6 @@
   function selectElement(id) {
     state.selected = id; state.inspectorTab = 'geometry'; state.analysis = false;
     renderTree(); renderInspector(); renderScene(); updateToolbar();
-    if (window.innerWidth < 900) $('.inspector').classList.add('mobile-open');
   }
 
   function setTool(tool) {
@@ -1189,7 +1200,7 @@
     if (!el.open) el.showModal();
   }
 
-  function templatesModal() {
+  function templateCards() {
     const previews = {
       drawer: '<path d="M20 77h125M30 35v55h80M113 54h42c27 0 16 33 55 33" stroke="#a5b9b1"/><path d="M46 76h122" stroke="#d5a056" stroke-width="7"/><path d="m165 76 10-60" stroke="#d5a056" stroke-width="9"/><circle cx="165" cy="76" r="4" fill="#fff"/><circle cx="173" cy="34" r="4" fill="#fff"/>',
       fourbar: '<path d="M45 86h139" stroke="#b6c0ca" stroke-width="6"/><path d="m45 86 27-47 81-18 31 65" stroke="#d5a056" stroke-width="7"/><path d="m72 39 81-18" stroke="#79a69a" stroke-width="7"/><g fill="#fff" stroke="#71818f"><circle cx="45" cy="86" r="5"/><circle cx="72" cy="39" r="5"/><circle cx="153" cy="21" r="5"/><circle cx="184" cy="86" r="5"/></g>',
@@ -1202,7 +1213,7 @@
       crank: ['Kľukový mechanizmus', 'Premena rotačného pohybu na posuv piesta.', '5 prvkov', '360° pohon'],
       custom: ['Vlastný mechanizmus', 'Prázdna plocha. Vaše prvky, vaše väzby.', 'Čisté plátno', 'Bez obmedzení'],
     };
-    modal('Každý pohyb začína nápadom.', `<p class="modal-description">Vyberte pripravený model alebo poskladajte vlastný mechanizmus.</p><div class="template-grid">${Object.keys(texts).map((kind) => `<button class="preset-card" data-action="load-template" data-kind="${kind}"><div class="preset-preview"><svg viewBox="0 0 230 115" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${previews[kind]}</svg>${kind === 'drawer' ? '<span class="recommended">ODPORÚČANÉ</span>' : ''}</div><div class="preset-body"><h3>${texts[kind][0]}</h3><p>${texts[kind][1]}</p><div><span>${texts[kind][2]}</span><span>${texts[kind][3]}</span>${icon('arrow', 16)}</div></div></button>`).join('')}</div>`, true);
+    return `<div class="template-grid">${Object.keys(texts).map((kind) => `<button class="preset-card" data-action="load-template" data-kind="${kind}"><div class="preset-preview"><svg viewBox="0 0 230 115" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${previews[kind]}</svg>${kind === 'drawer' ? '<span class="recommended">ODPORÚČANÉ</span>' : ''}</div><div class="preset-body"><h3>${texts[kind][0]}</h3><p>${texts[kind][1]}</p><div><span>${texts[kind][2]}</span><span>${texts[kind][3]}</span>${icon('arrow', 16)}</div></div></button>`).join('')}</div>`;
   }
 
   function loadProject(project, imported = null) {
@@ -1213,6 +1224,7 @@
     state.traceRef = isDoubleDrawer() ? { elementId: 'bearing-1', point: 'a' } : { elementId: state.selected || '', point: 'b' };
     state.traceMode = isDoubleDrawer() ? 'bearings' : 'single'; state.traceSpace = 'world';
     state.pendingJoint = null; state.measure = null; state.tool = 'select'; state.analysis = false; state.inspectorTab = 'geometry'; state.view = null;
+    state.inspectorOpen = false; updateInspectorVisibility();
     state.mode = imported?.workspace?.mode || (project.kind === 'custom' ? 'edit' : 'simulate');
     if (imported?.workspace) applyPreferences(imported.workspace, true);
     $('#modal').close();
@@ -1231,7 +1243,7 @@
   function projectsModal() {
     let projects = [];
     try { const data = JSON.parse(localStorage.getItem(storageKey) || '[]'); projects = Array.isArray(data) ? data : []; } catch { /* Export remains available. */ }
-    modal('Vaše projekty', `<p class="modal-description">Editor začína prázdny. Pripravené mechanizmy otvorte samostatne; uložené projekty zostávajú zachované v tomto prehliadači.</p><h3 class="projects-section-title">Pripravený projekt podľa náčrtu</h3><div class="project-catalog-row"><button class="saved-project" data-action="load-double-drawer"><span class="saved-project-icon">${icon('folder', 22)}</span><span><strong>${escape(DD.NAME)}</strong><small>Dve pohyblivé kulisy · tuhé rameno · dve fázy</small><span class="project-estimate">ODHADOVÉ ROZMERY · 390 / 300 mm</span></span>${icon('arrow', 16)}</button>${ib('info', 'project-info', 'Zobraziť náčrt a predpoklady projektu')}</div><h3 class="projects-section-title">Uložené v tomto prehliadači</h3><div class="projects-list">${projects.length ? projects.filter((p) => p && typeof p === 'object').map((p) => `<button class="saved-project" data-action="load-saved" data-id="${escape(p.id)}"><span class="saved-project-icon">${icon('mechanism', 22)}</span><span><strong>${escape(p.name)}</strong><small>${p.elements?.length || 0} prvkov · ${p.kind === DD.KIND ? 'Dvojkulisový projekt · odhad' : p.kind === 'drawer' ? 'Výsuv a kulisa' : '2D mechanizmus'}</small></span>${icon('arrow', 16)}</button>`).join('') : '<div class="empty-projects">Zatiaľ nemáte uložené projekty.<br>Aktuálny model uložte tlačidlom Uložiť.</div>'}</div><div class="modal-actions"><button class="button button-secondary" data-action="rename">${icon('settings', 16)}Premenovať aktuálny</button><button class="button button-secondary" data-action="import">${icon('import', 16)}Importovať</button><button class="button button-dark" data-action="load-template" data-kind="custom">${icon('plus', 16)}Prázdny projekt</button></div>`);
+    modal('Mechanizmy a projekty', `<p class="modal-description">Všetky šablóny, pripravené aj uložené projekty sú na jednom mieste. Otvorením šablóny vznikne samostatný projekt.</p><h3 class="projects-section-title">Šablóny mechanizmov</h3>${templateCards()}<h3 class="projects-section-title">Pripravený projekt podľa náčrtu</h3><div class="project-catalog-row"><button class="saved-project" data-action="load-double-drawer"><span class="saved-project-icon">${icon('folder', 22)}</span><span><strong>${escape(DD.NAME)}</strong><small>Dve pohyblivé kulisy · tuhé rameno · dve fázy</small><span class="project-estimate">ODHADOVÉ ROZMERY · 390 / 300 mm</span></span>${icon('arrow', 16)}</button>${ib('info', 'project-info', 'Zobraziť náčrt a predpoklady projektu')}</div><h3 class="projects-section-title">Uložené v tomto prehliadači</h3><div class="projects-list">${projects.length ? projects.filter((p) => p && typeof p === 'object').map((p) => `<button class="saved-project" data-action="load-saved" data-id="${escape(p.id)}"><span class="saved-project-icon">${icon('mechanism', 22)}</span><span><strong>${escape(p.name)}</strong><small>${p.elements?.length || 0} prvkov · ${p.kind === DD.KIND ? 'Dvojkulisový projekt · odhad' : p.kind === 'drawer' ? 'Výsuv a kulisa' : '2D mechanizmus'}</small></span>${icon('arrow', 16)}</button>`).join('') : '<div class="empty-projects">Zatiaľ nemáte uložené projekty.<br>Aktuálny model uložte tlačidlom Uložiť.</div>'}</div><div class="modal-actions"><button class="button button-secondary" data-action="rename">${icon('settings', 16)}Premenovať aktuálny</button><button class="button button-secondary" data-action="import">${icon('import', 16)}Importovať</button></div>`, true);
   }
 
   function projectInfoModal() {
@@ -1354,7 +1366,7 @@
   function settingsModal() {
     const s = { ...K.simulationDefaults, ...state.project.simulation }, unit = K.driveRange(state.project).unit === '°' ? 'N·m' : 'N';
     modal('Pracovný priestor, vzhľad a simulácia', `<form id="settings-form"><div class="settings-fields">
-      <label class="property-field"><span>Vzhľad aplikácie</span><select name="theme" class="property-select">${[['mono', 'Biela / čierna'], ['orange', 'Sivá / oranžová'], ['dark', 'Tmavosivá / biela']].map(([value, name]) => `<option value="${value}"${state.theme === value ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
+      <label class="property-field"><span>Vzhľad aplikácie</span><select name="theme" class="property-select">${[['mono', 'Biela / čierna'], ['orange', 'Krémová / terakota'], ['dark', 'Teplá tmavá / biela']].map(([value, name]) => `<option value="${value}"${state.theme === value ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
       <label class="property-field"><span>Spôsob simulácie</span><select name="simulation-mode" class="property-select"><option value="kinematic"${s.mode !== 'dynamic' ? ' selected' : ''}>Kinematika · predpísaný pohyb</option><option value="dynamic"${s.mode === 'dynamic' ? ' selected' : ''}>Odhadová dynamika · pohyb zo síl</option></select></label>
       <label class="property-field"><span>Čas kinematického zdvihu (s)</span><input name="cycle" class="text-field" type="number" min="1" max="60" step=".5" value="${state.cycle}" required/></label>
       ${[['gravity', 'Gravitácia (m/s²)', 0, 100, .01], ['damping', `Tlmenie pohonu (${unit}·s/${unit === 'N' ? 'm' : 'rad'})`, 0, 1000000, .1], ['friction', `Suché trenie pohonu (${unit})`, 0, 1000000, .1], ['inputForce', `Vonkajšia sila / moment pohonu (${unit})`, -1000000, 1000000, .1], ['initialVelocity', `Počiatočná rýchlosť (${K.driveRange(state.project).unit}/s)`, -1000000, 1000000, .1], ['duration', 'Čas odhadovej dynamiky (s)', .1, 120, .1]].map(([name, label, min, max, step]) => `<label class="property-field"><span>${label}</span><input class="text-field" name="${name}" type="number" min="${min}" max="${max}" step="${step}" value="${s[name]}" required/></label>`).join('')}
@@ -1490,7 +1502,6 @@
     'projects': projectsModal,
     'load-double-drawer': () => replaceProject(DD.create()),
     'project-info': projectInfoModal,
-    'templates': templatesModal,
     'help': helpModal,
     'settings': settingsModal,
     'fusion': fusionModal,
@@ -1602,12 +1613,13 @@
     'select': (el) => selectElement(el.dataset.id),
     'visibility': (el) => { const e = state.project.elements.find((e) => e.id === el.dataset.id); if (e) { pushHistory(); e.visible = !e.visible; changed(false); } },
     'view-editor': () => { state.analysis = false; updateToolbar(); renderInspector(); requestAnimationFrame(() => { fitView(); renderScene(); }); },
-    'view-analysis': () => { state.analysis = true; updateToolbar(); renderInspector(); requestAnimationFrame(() => { fitView(); renderScene(); }); if (window.innerWidth < 900) $('.inspector').classList.add('mobile-open'); },
+    'view-analysis': () => { state.analysis = true; updateToolbar(); renderInspector(); requestAnimationFrame(() => { fitView(); renderScene(); }); },
     'sidebar-elements': () => { state.sidebarTab = 'elements'; renderTree(); },
     'sidebar-joints': () => { state.sidebarTab = 'joints'; renderTree(); },
     'inspector-geometry': () => { state.inspectorTab = 'geometry'; renderInspector(); },
     'inspector-joints': () => { state.inspectorTab = 'joints'; renderInspector(); },
-    'toggle-inspector': () => { if (window.innerWidth < 900) $('.inspector').classList.toggle('mobile-open'); else $('.workspace').classList.toggle('inspector-hidden'); requestAnimationFrame(() => { fitView(); renderScene(); }); },
+    'toggle-inspector': () => setInspectorOpen(!state.inspectorOpen),
+    'close-inspector': () => setInspectorOpen(false),
     'toggle-sidebar': () => $('.sidebar').classList.toggle('mobile-open'),
     'add-menu': () => {
       if (state.sidebarTab === 'joints') { setTool('connect'); return; }
@@ -1839,9 +1851,17 @@
     $('#modal').close();
   }
 
+  function canSelectText(target) {
+    const element = target?.nodeType === 3 ? target.parentElement : target;
+    return Boolean(element?.isContentEditable || element?.closest?.('input,textarea'));
+  }
+
   function onKeyboard(event) {
-    if ($('#modal').open || event.target.closest('input,select,textarea,[contenteditable]')) return;
     const key = event.key.toLowerCase(), modifier = event.ctrlKey || event.metaKey;
+    if (modifier && key === 'a' && !canSelectText(event.target)) {
+      event.preventDefault(); window.getSelection()?.removeAllRanges(); return;
+    }
+    if ($('#modal').open || event.target.closest?.('input,select,textarea,[contenteditable]')) return;
     if (modifier && key === 's') { event.preventDefault(); saveProject(); }
     else if (modifier && key === 'z') { event.preventDefault(); undo(event.shiftKey); }
     else if (modifier && key === 'y') { event.preventDefault(); undo(true); }
@@ -1854,7 +1874,7 @@
     else if (key === 'm') setTool('measure');
     else if (key === 'f') { fitView(); renderScene(); }
     else if (key === 'delete' || key === 'backspace') { event.preventDefault(); deleteElement(); }
-    else if (key === 'escape') { if (state.drag) onPointerUp({ pointerId: state.drag.pointerId, cancelled: true }); setTool('select'); $('.inspector').classList.remove('mobile-open'); $('.sidebar').classList.remove('mobile-open'); }
+    else if (key === 'escape') { if (state.drag) onPointerUp({ pointerId: state.drag.pointerId, cancelled: true }); setInspectorOpen(false); setTool('select'); $('.sidebar').classList.remove('mobile-open'); }
     else if (key === 'arrowright' || key === 'arrowleft') { event.preventDefault(); setMotion(state.motion + (key === 'arrowright' ? 1 : -1) * (event.shiftKey ? 10 : 1)); }
   }
 
@@ -1868,7 +1888,7 @@
           setMotion(state.dynamic.motion, false);
           if (state.dynamic.stopped) { state.playing = false; updateMotion(); toast(state.dynamic.reason, true); }
         } catch (error) { state.playing = false; toast(error.message, true); updateMotion(); }
-        if (state.analysis && time - lastInspector > 750) { renderInspector(); lastInspector = time; }
+        if (state.inspectorOpen && state.analysis && time - lastInspector > 750) { renderInspector(); lastInspector = time; }
         lastFrame = time; requestAnimationFrame(animate); return;
       }
       const range = K.driveRange(state.project);
@@ -1882,7 +1902,7 @@
       if (state.playing && reachedEnd) {
         if (state.loop) state.direction *= -1; else { state.playing = false; updateMotion(); }
       }
-      if (state.analysis && time - lastInspector > 750) { renderInspector(); lastInspector = time; }
+      if (state.inspectorOpen && state.analysis && time - lastInspector > 750) { renderInspector(); lastInspector = time; }
     }
     lastFrame = time;
     requestAnimationFrame(animate);
@@ -1898,6 +1918,7 @@
     document.addEventListener('change', onChange);
     document.addEventListener('submit', onSubmit);
     document.addEventListener('keydown', onKeyboard);
+    document.addEventListener('selectstart', (event) => { if (!canSelectText(event.target)) event.preventDefault(); });
     $('#motion-range').addEventListener('input', (event) => setMotion(Number(event.target.value)));
     const svg = $('#mechanism-canvas');
     svg.addEventListener('pointerdown', onPointerDown);
@@ -1905,7 +1926,6 @@
     svg.addEventListener('pointerup', onPointerUp);
     svg.addEventListener('pointercancel', onPointerUp);
     svg.addEventListener('lostpointercapture', (event) => { if (state.drag) onPointerUp({ pointerId: event.pointerId, cancelled: true }); });
-    svg.addEventListener('selectstart', (event) => event.preventDefault());
     svg.addEventListener('dragstart', (event) => event.preventDefault());
     svg.addEventListener('wheel', (event) => { event.preventDefault(); zoom(event.deltaY > 0 ? 1.08 : 0.925, worldPoint(event)); }, { passive: false });
     $('#palette').addEventListener('dragstart', (event) => {

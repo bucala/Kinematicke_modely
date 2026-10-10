@@ -61,6 +61,7 @@ $ProjectFiles = @(
     'tests/physics-cases.js'
     'tests/export-cases.js'
     'tests/export-integration.test.mjs'
+    'tests/ui.test.mjs'
     'tests/test_fusion.py'
     'tests/kinematics.test.mjs'
     'tests/browser.html'
