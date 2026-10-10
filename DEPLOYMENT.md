@@ -3,7 +3,7 @@
 ## Dohodnutý cieľ
 
 - Existujúci verejný repozitár: [bucala/Kinematicke_modely](https://github.com/bucala/Kinematicke_modely).
-- Produkčná vetva: `main`. Verejný náhľad repozitára obsahuje jeden počiatočný commit, `README.md` a MIT `LICENSE`; aktuálny stav treba pred pushom načítať Gitom.
+- Produkčná vetva: `main`. Repozitár obsahuje publikovanú aplikáciu a MIT `LICENSE`; aktuálny stav treba pred každým ďalším pushom načítať Gitom.
 - Existujúci Cloudflare Worker: `kinematicke-modely`.
 - Cieľový účet: ten z [dodaného Cloudflare odkazu](https://dash.cloudflare.com/065e3003eb4c6bd1bffe7afa184eb5c4/workers/services/edit/kinematicke-modely/production), nastavený v `wrangler.toml`.
 - Používateľ výslovne potvrdil nahradenie produkčného Workeru touto aplikáciou.
@@ -11,20 +11,22 @@
 
 ## Skutočný stav
 
-**Repozitár existuje, ale žiadny lokálny commit nebol vytvorený ani pushnutý. Worker, jeho aktuálna konfigurácia a verejná URL neboli overené v dashboarde. Produkčné nasadenie ani Git-integrácia neboli zmenené.**
+**Používateľ potvrdil úspešný predchádzajúci push a funkčné nasadenie.** Rozšírený editor, projekt „Dvojite sklopeny suflik“, odhadová dynamika, exporty a Fusion doplnok sú lokálne; nebol vykonaný nový commit, push ani deploy.
 
-Príkaz na overenie stavu Gitu sa nespustil. Prostredie nevie nájsť `pwsh.exe` ani `powershell.exe`. GitHub nie je medzi ponúkanými konektormi. Dostupné Cloudflare nástroje nemajú operáciu na čítanie alebo nasadenie Workeru ani konfiguráciu Workers Builds.
+Git, Node.js aj PowerShell sú dostupné. Lokálne kontroly, testy a build sú zaznamenané v `VALIDATION.md`. Aktuálnu konfiguráciu Workeru a Git-integrácie táto úprava nemení.
 
-Pred pokračovaním treba obnoviť terminál a overiť GitHub autentifikáciu aj Cloudflare autorizáciu Wrangler alebo prístup cez prehliadač. Pri commite sa má použiť už nakonfigurovaná Git identita. Ak chýba, publikovanie sa musí zastaviť, nie vymyslieť autora. Tokeny sa nevkladajú do repozitára, príkazovej histórie ani odpovede.
+Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolovať diff. Pri commite sa použije už nakonfigurovaná Git identita. Ak chýba, publikovanie sa musí zastaviť, nie vymyslieť autora. Tokeny sa nevkladajú do repozitára, príkazovej histórie ani odpovede.
 
 ## Pripravené súbory
 
 - `.node-version`: Node.js 24 pre CI a build.
-- `.github/workflows/ci.yml`: kontroly syntaxe, 42 testov a zostavenie.
+- `.github/workflows/ci.yml`: syntax, JavaScript regresné testy, izolované Python CAD testy a zostavenie.
 - `wrangler.toml`: existujúci Worker, jeho účet a `[assets]` z `dist`.
-- `npm run deploy`: kontroly syntaxe, 42 testov, build a následné produkčné nasadenie cez Wrangler 4.
-- `_headers`: bezpečnostné hlavičky a revalidácia nezahashovaných zdrojových súborov.
+- `npm run deploy`: syntax, JavaScript testy, build a následné produkčné nasadenie cez Wrangler 4. Lokálny deploy nevyžaduje Python; CAD testy spúšťa GitHub CI.
+- `_headers`: bezpečnostné hlavičky, revalidácia nezahashovaných zdrojov a jediný povolený lokálny CAD endpoint `http://127.0.0.1:8765`.
 - `.gitignore`: vylúčenie lokálnych tajomstiev, Wrangler dát, závislostí a build výstupov.
+- `dist/vendor/pdfmake/`: offline PDF modul, fonty a ich licencie.
+- `dist/cad/KinmoFusion.zip`: vytvorený balík štyroch verejných súborov doplnku. Build nekopíruje testy, pracovné analýzy ani vzorové reporty.
 
 Konfiguračné súbory samy nepublikujú aplikáciu ani neprepájajú GitHub s Cloudflare.
 
@@ -64,7 +66,7 @@ Spúšťač vyhľadá Windows PowerShell podľa jeho úplnej systémovej cesty, 
 
 Ide o CMD spúšťač existujúceho `push-github.ps1`, nie o novú implementáciu pushu. Zachová všetky kontroly a vráti chybový kód PowerShell skriptu. Oba súbory musia zostať vedľa seba. Po kontrole zmien zadajte **PUSH**.
 
-## Postup po obnovení terminálu
+## Postup ďalšieho publikovania
 
 1. Overiť pracovný priečinok a stav existujúcich aj netrackovaných súborov. Nezahŕňať tokeny, `.env`, kľúče ani osobné dáta.
 2. Spustiť `npm run check`, `npm test` a `npm run build`. Pri zlyhaní opraviť príčinu pred publikovaním.
@@ -85,12 +87,13 @@ Ide o CMD spúšťač existujúceho `push-github.ps1`, nie o novú implementáci
    GitHub repository:     bucala/Kinematicke_modely
    Production branch:     main
    Build command:         npm run check && npm test && npm run build
-   Deploy command:        npx --yes wrangler@4 deploy --config wrangler.toml
+   Deploy command:        npm run deploy
    Static assets:         dist, declared in wrangler.toml
    Root directory:        repository root
    ```
 
 9. Overiť, že build používa Node.js 24. Ak platforma nezohľadní `.node-version`, nastaviť build premennú `NODE_VERSION=24`.
+   Ak je Build command prázdny, Deploy command musí zostať `npm run deploy`: ten vytvorí `dist` pred spustením Wrangleru. Samotné `npx wrangler deploy` bez buildu končí chybou chýbajúceho priečinka `dist`.
 10. Spustiť produkčný build cez Workers Builds alebo po autorizácii lokálne `npm run deploy`. Pred nasadením sa musia úspešne dokončiť kontroly a testy. Použiť skutočnú URL z Cloudflare, nie hádať účet alebo `workers.dev` subdoménu.
 11. Overiť načítanie HTML, JS, CSS, ikonky a fontov, simuláciu, export, bezpečnostné hlavičky a konzolu. Overiť úspešné GitHub kontroly a nové produkčné nasadenie v Cloudflare.
 

@@ -9,6 +9,11 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="stylesheet" href="./styles.css" />
     <script defer src="./engine.js"></script>
+    <script defer src="./double-drawer.js"></script>
+    <script defer src="./editor.js"></script>
+    <script defer src="./physics.js"></script>
+    <script defer src="./exports.js"></script>
+    <script defer src="./cad.js"></script>
     <script defer src="./app.js"></script>
   </head>
   <body>
@@ -18,7 +23,7 @@
     </div>
     <dialog id="modal" aria-labelledby="modal-title"></dialog>
     <div id="toast" role="status" aria-live="polite"></div>
-    <input id="import-file" type="file" accept=".json,application/json" hidden />
+    <input id="import-file" type="file" accept=".kinmo,.json,application/json" hidden />
     <noscript><div class="noscript">Na spustenie simulátora povoľte JavaScript v prehliadači.</div></noscript>
   </body>
 </html>

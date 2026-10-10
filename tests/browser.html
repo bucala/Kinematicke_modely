@@ -8,12 +8,19 @@
       body{font:14px/1.7 "Segoe UI",Arial,sans-serif;color:#35434c;background:#f8fafb;max-width:900px;padding:35px 24px;margin:auto}h1{font-size:27px;letter-spacing:-.8px;margin-bottom:6px}p{color:#82949f}#summary{padding:15px 20px;border-radius:7px;background:#eaf3eb;margin:22px 0;color:#52745b;font-weight:600}ol{padding:0;list-style:none}li{border-bottom:1px solid #e2e9ed;padding:10px 8px;font-size:12px}li.pass:before{content:"PASS";font-size:9px;font-weight:600;color:#5d8970;margin-right:14px}li.fail{color:#b45a50;background:#fff3ef}li.fail:before{content:"FAIL";font-size:9px;font-weight:600;margin-right:14px}pre{white-space:pre-wrap;font-size:11px}
     </style>
     <script defer src="../engine.js"></script>
+    <script defer src="../double-drawer.js"></script>
+    <script defer src="../editor.js"></script>
+    <script defer src="../physics.js"></script>
+    <script defer src="../exports.js"></script>
     <script defer src="./cases.js"></script>
+    <script defer src="./editor-cases.js"></script>
+    <script defer src="./physics-cases.js"></script>
+    <script defer src="./export-cases.js"></script>
     <script defer src="./browser.js"></script>
   </head>
   <body>
-    <h1>Testy kinematického solvera</h1>
-    <p>Rovnaké testy ako <code>npm test</code>, bez potreby inštalácie Node.js.</p>
+    <h1>Testy solvera, editora, síl a exportov</h1>
+    <p>Spoločné výpočtové testy z <code>npm test</code>, bez potreby inštalácie Node.js. Testy balenia a lokálneho CAD transportu bežia osobitne v Node/Pythone.</p>
     <div id="summary" role="status">Prebieha výpočet…</div>
     <ol id="results"></ol>
   </body>

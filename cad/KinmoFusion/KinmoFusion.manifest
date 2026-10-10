@@ -1,0 +1,11 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "author": "Kinematika Studio",
+  "description": {
+    "": "Opt-in local connection for NEW reference drawings from Kinematika Studio. No cloud credentials or existing design changes."
+  },
+  "version": "1.0.0",
+  "runOnStartup": false,
+  "supportedOS": "windows|mac"
+}

@@ -222,5 +222,203 @@
     assert(K.validateProject(p).elements.find((e) => e.id === 'input-1').role === 'input');
   });
 
+  add('Dvojkulisový projekt je samostatný a nemení pôvodné šablóny.', () => {
+    const p = K.preset('double-drawer'), q = K.validateProject(p);
+    assert(p.name === 'Dvojite sklopeny suflik'); assert(q.provenance.estimated);
+    assert(p.id !== K.preset('double-drawer').id, 'Samostatný nový exemplár nesmie prepísať uložený projekt.');
+    assert(p.elements.filter((e) => e.type === 'slot').length === 3);
+    assert(K.preset('custom').elements.length === 0);
+    near(K.preset('drawer').parameters.panelLength, 160);
+    p.parameters.armLength = 200;
+    near(K.preset('double-drawer').parameters.armLength, 240);
+  });
+  add('Tri polohy dvojkulisového projektu rešpektujú sklopenie pred posuvom.', () => {
+    const p = K.preset('double-drawer'), phases = K.projectPhases(p);
+    near(phases[0].motion, 0); near(phases[1].motion, 60); near(phases[2].motion, 300);
+    near(K.solve(p, phases[0].motion).angle, 90);
+    near(K.solve(p, phases[1].motion).angle, 65);
+    near(K.solve(p, phases[2].motion).angle, 65);
+    near(K.solve(p, 0).secondaryAngle, 8);
+    near(K.solve(p, 300).secondaryAngle, -5);
+    assert(K.solve(p, 59).phase === 'fold'); assert(K.solve(p, 60).phase === 'slide');
+  });
+  add('Obe ložiská, zadný čap a tuhé členy spĺňajú väzby v celom zdvihu.', () => {
+    const p = K.preset('double-drawer'), v = p.parameters;
+    for (const s of K.sample(p, 1001)) {
+      assert(!s.blocked, `Blokovanie pri ${s.motion}: ${s.issues.join(', ')}`);
+      const a = s.poses['bearing-1'].a, b = s.poses['bearing-2'].a, rear = s.poses['rear-bearing'].a;
+      const panel = s.poses['panel-1'];
+      near(K.distance(rear, b), v.armLength);
+      near(K.distance(a, b), Math.hypot(v.pinAX - v.pinBX, v.pinAY - v.pinBY));
+      near(K.distance(a, panel.a), Math.hypot(v.pinAX, v.pinAY));
+      near(K.distance(b, panel.a), Math.hypot(v.pinBX, v.pinBY));
+      near(K.distance(panel.a, panel.b), v.panelLength);
+      for (const error of Object.values(s.guideErrors)) near(error, 0, K.TOLERANCE);
+      for (const j of p.connections) {
+        const pa = s.poses[j.a.elementId], pb = s.poses[j.b.elementId];
+        let first = pa[j.a.point], second = pb[j.b.point];
+        if (j.a.point === 'curve') first = K.nearestOnPath(second, pa.path);
+        if (j.b.point === 'curve') second = K.nearestOnPath(first, pb.path);
+        near(K.distance(first, second), 0, K.TOLERANCE);
+      }
+    }
+  });
+  add('Obe zakrivené kulisy aj zadná drážka sa posúvajú so zásuvkou.', () => {
+    const p = K.preset('double-drawer'), first = K.solve(p, 0);
+    for (const motion of [23.7, 42, 60, 173, 300]) {
+      const s = K.solve(p, motion);
+      for (const id of ['slot-1', 'slot-2', 'rear-slot']) {
+        const before = first.poses[id].path, after = s.poses[id].path;
+        assert(before.length === after.length);
+        for (let i = 0; i < before.length; i++) {
+          near(after[i].x - before[i].x, motion); near(after[i].y, before[i].y);
+        }
+      }
+    }
+  });
+  add('Po sklopení sa celý mechanizmus iba posúva bez zmeny uhlov.', () => {
+    const p = K.preset('double-drawer'), start = K.solve(p, 60);
+    for (const motion of [61, 120, 180, 240, 300]) {
+      const s = K.solve(p, motion);
+      near(s.angle, start.angle); near(s.secondaryAngle, start.secondaryAngle);
+      for (const id of ['rail-1', 'rocker-1', 'bracket-1', 'panel-1', 'bearing-1', 'bearing-2', 'rear-bearing']) {
+        for (const key of ['a', 'b', 'c']) {
+          const before = start.poses[id][key], after = s.poses[id][key];
+          if (before) { near(after.x - before.x, motion - 60); near(after.y, before.y); }
+        }
+      }
+    }
+  });
+  add('Zadná opora drží čap pred odhadovým odovzdaním do posuvu.', () => {
+    const p = K.preset('double-drawer'), v = p.parameters;
+    for (const motion of [0, 10, 25, v.releaseTravel - v.handoffLength]) {
+      const rear = K.solve(p, motion).poses['rear-bearing'].a;
+      near(rear.x, v.rearX); near(rear.y, v.rearY);
+    }
+    const released = K.solve(p, v.releaseTravel);
+    near(released.poses['rear-bearing'].a.x, v.rearX + v.handoffLength / 2);
+    near(K.distance(released.poses['rear-bearing'].a, released.poses['rear-slot'].a), 0);
+  });
+  add('Polohy aj rýchlosti nadväzujú pri odovzdaní a zmene fázy.', () => {
+    const p = K.preset('double-drawer'), profile = K.prepareProject(p), h = 0.0001;
+    for (const motion of [p.parameters.releaseTravel - p.parameters.handoffLength, p.parameters.releaseTravel]) {
+      const before = K.solve(p, motion - h, { profile }), at = K.solve(p, motion, { profile }), after = K.solve(p, motion + h, { profile });
+      for (const id of ['bearing-1', 'bearing-2', 'rear-bearing', 'panel-1']) {
+        for (const key of ['a', 'b']) for (const axis of ['x', 'y']) {
+          const v1 = (at.poses[id][key][axis] - before.poses[id][key][axis]) / h;
+          const v2 = (after.poses[id][key][axis] - at.poses[id][key][axis]) / h;
+          near(v1, v2, 0.002);
+          assert(K.distance(before.poses[id][key], after.poses[id][key]) < 0.001);
+        }
+      }
+    }
+  });
+  add('Trajektórie odlišujú pevný korpus od súradníc pohyblivej zásuvky.', () => {
+    const p = K.preset('double-drawer'), folded = K.solve(p, 60), open = K.solve(p, 300);
+    for (const reference of globalThis.DoubleDrawer.traces) {
+      const a = K.tracePoint(folded, reference), b = K.tracePoint(open, reference);
+      near(b.x - a.x, 240); near(b.y, a.y);
+      near(K.distance(K.tracePoint(folded, reference, 'carrier'), K.tracePoint(open, reference, 'carrier')), 0);
+    }
+    assert(K.tracePoint(open, { elementId: 'missing', point: 'a' }) === null);
+  });
+  add('Pevný korpus, opora a platforma nemenia polohu ani výrez stola.', () => {
+    const p = K.preset('double-drawer'), first = K.solve(p, 0);
+    for (const motion of [30, 60, 300]) {
+      const s = K.solve(p, motion);
+      for (const id of ['frame-1', 'table-1', 'stop-1']) {
+        near(K.distance(first.poses[id].a, s.poses[id].a), 0);
+        near(K.distance(first.poses[id].b, s.poses[id].b), 0);
+      }
+      assert(JSON.stringify(first.poses['table-1'].rects) === JSON.stringify(s.poses['table-1'].rects));
+    }
+  });
+  add('Zúženie pevného výrezu stola odhalí kolíziu modrého ramena.', () => {
+    const p = K.preset('double-drawer'); p.parameters.cutoutEnd = 580;
+    const s = K.solve(p, 300);
+    assert(s.blocked); assert(s.collisions.includes('table-1')); assert(s.collisions.includes('rocker-1'));
+    assert(!K.solve(p, 300, { collisions: false }).blocked);
+  });
+  add('Nekompatibilné posunutie jednej kulisy neobíde pevný rozstup ložísk.', () => {
+    const p = K.preset('double-drawer'); p.parameters.guide1Y = 20;
+    const s = K.solve(p, 30, { collisions: false });
+    assert(s.blocked); assert(s.invalid.includes('slot-1')); assert(s.residual > K.TOLERANCE);
+    near(s.pinDistance, Math.hypot(p.parameters.pinAX - p.parameters.pinBX, p.parameters.pinAY - p.parameters.pinBY));
+  });
+  add('Nedosiahnuteľná druhá kulisa vráti chybu namiesto nečíselnej polohy.', () => {
+    const p = K.preset('double-drawer'); p.parameters.guide2Y = 400;
+    const s = K.solve(p, 30, { collisions: false });
+    assert(s.blocked); assert(Number.isFinite(s.angle)); assert(Number.isFinite(s.residual));
+    assert(s.invalid.includes('rocker-1'));
+  });
+  add('Dvojkulisový projekt kontroluje priemer ložísk v oboch drážkach.', () => {
+    const p = K.preset('double-drawer'); p.parameters.bearingRadius = 8;
+    const s = K.solve(p, 30);
+    assert(s.blocked); assert(s.collisions.includes('slot-1')); assert(s.collisions.includes('slot-2'));
+    assert(!K.solve(p, 30, { collisions: false }).blocked);
+  });
+  add('Dvojkulisový projekt ošetrí posuv aj pri nenulovom minime pohonu.', () => {
+    const p = K.preset('double-drawer'); p.parameters.travelMin = 20; p.parameters.travelMax = 320;
+    const phases = K.projectPhases(p);
+    near(phases[0].motion, 20); near(phases[1].motion, 80); near(phases[2].motion, 320);
+    near(K.solve(p, -100).displacement, 0); near(K.solve(p, 1000).displacement, 300);
+    near(K.solve(p, 20).angle, 90); near(K.solve(p, 320).angle, 65);
+    assert(JSON.stringify(K.solve(p, 320).poses['table-1'].rects) === JSON.stringify(K.solve(K.preset('double-drawer'), 300).poses['table-1'].rects));
+  });
+  add('Inverzné ťahanie nájde polohu čela aj každého vodiaceho ložiska.', () => {
+    const p = K.preset('double-drawer'), profile = K.prepareProject(p);
+    for (const motion of [4, 27.4, 50, 60, 170, 295]) {
+      const s = K.solve(p, motion, { profile });
+      near(K.inverseDrive(p, s.poses['panel-1'].b, 1, { profile, collisions: false }), motion, 0.1);
+      for (const reference of globalThis.DoubleDrawer.traces) {
+        near(K.inverseDrive(p, K.point(s, reference), 1, { ...reference, profile, collisions: false }), motion, 0.1);
+      }
+    }
+  });
+  add('Dvojkulisový projekt po importe zachová geometriu aj upozornenie.', () => {
+    const p = K.preset('double-drawer');
+    Object.assign(p.parameters, { armLength: 245, releaseTravel: 70, handoffLength: 20, pinAX: 4, guide1X: 1 });
+    p.name = 'Môj upravený šuplík'; p.provenance = { estimated: false, reference: 'https://invalid.example/' };
+    const restored = K.validateProject(JSON.parse(JSON.stringify(p)));
+    assert(restored.name === p.name); assert(restored.provenance.estimated);
+    assert(restored.provenance.reference === globalThis.DoubleDrawer.provenance.reference);
+    for (const key of ['armLength', 'releaseTravel', 'handoffLength', 'pinAX', 'guide1X']) near(restored.parameters[key], p.parameters[key]);
+    for (const motion of [0, 30, 70, 300]) {
+      const a = K.solve(p, motion), b = K.solve(restored, motion);
+      near(a.angle, b.angle); near(a.residual, b.residual);
+      near(K.distance(a.poses['bearing-2'].a, b.poses['bearing-2'].a), 0);
+    }
+  });
+  add('Import dvojkulisového projektu odmietne chýbajúcu kulisu alebo držiak.', () => {
+    for (const id of ['slot-1', 'slot-2', 'rear-slot', 'bracket-1']) {
+      const p = K.preset('double-drawer'); p.elements = p.elements.filter((e) => e.id !== id);
+      throws(() => K.validateProject(p)); assert(K.solve(p, 0).blocked);
+    }
+    const p = K.preset('double-drawer'); p.elements.find((e) => e.id === 'slot-2').role = 'frame';
+    assert(K.validateProject(p).elements.find((e) => e.id === 'slot-2').role === 'guide2');
+  });
+  add('Import dvojkulisového projektu odmietne neplatné rozmery a zhodné ložiská.', () => {
+    for (const patch of [{ frameLength: 10 }, { releaseTravel: 300 }, { releaseTravel: 0 }, { handoffLength: 0 }, { handoffLength: 70 }, { armLength: -1 }, { cutoutEnd: 200 }, { frontOpening: 270 }, { pinAX: -18, pinAY: -19 }, { guide2Y: '20' }]) {
+      const p = K.preset('double-drawer'); Object.assign(p.parameters, patch);
+      throws(() => K.validateProject(p));
+    }
+  });
+  add('Dvojkulisový projekt umožní pripojiť ďalší vlastný tuhý člen.', () => {
+    const p = K.preset('double-drawer'), arm = K.makeElement('link', 360, 66);
+    p.elements.push(arm); p.connections.push(joint(p.elements.find((e) => e.id === 'bearing-2'), 'a', arm, 'a'));
+    const s = K.solve(p, 150, { collisions: false });
+    assert(!s.blocked); near(K.distance(s.poses[arm.id].a, s.poses['bearing-2'].a), 0, K.TOLERANCE);
+    near(K.distance(s.poses[arm.id].a, s.poses[arm.id].b), arm.length);
+    near(s.poses['rocker-1'].length, p.parameters.armLength);
+  });
+  add('Hranice dvojkulisového projektu obsahujú obe pohyblivé kulisy v celom zdvihu.', () => {
+    const p = K.preset('double-drawer'), samples = K.sample(p, 21), b = K.bounds(p, samples);
+    for (const s of samples) for (const pose of Object.values(s.poses)) {
+      for (const point of [pose.a, pose.b, pose.c, ...(pose.path || [])].filter(Boolean)) {
+        assert(point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height);
+      }
+    }
+  });
+
   global.KinematicsTestCases = Object.freeze(cases);
 })(globalThis);

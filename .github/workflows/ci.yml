@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   validate:
-    name: Syntax, solver tests and build
+    name: Syntax, mechanism and CAD tests, build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -24,11 +24,19 @@ jobs:
         with:
           node-version-file: .node-version
 
+      - name: Set up Python for isolated CAD tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Check JavaScript syntax
         run: npm run check
 
-      - name: Test kinematic solver
+      - name: Test solver, editor, physics and exports
         run: npm test
+
+      - name: Test loopback bridge and mock Fusion import
+        run: python -B tests/test_fusion.py
 
       - name: Build static application
         run: npm run build
