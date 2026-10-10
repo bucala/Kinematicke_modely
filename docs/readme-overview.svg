@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title description">
+  <title id="title">Kinematika Studio, ilustračný prehľad</title>
+  <desc id="description">Štvorčlenný mechanizmus s dvoma pevnými bodmi, vybraným uzlom a ukážkou kontextovej ponuky. Ilustrácia, nie snímka aplikácie.</desc>
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M24 0H0V24" fill="none" stroke="#E8E6DF" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="420" rx="24" fill="#F4F3EE"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#262624">
+    <text x="48" y="66" font-size="17" font-weight="700" letter-spacing="3">KINEMATIKA STUDIO</text>
+    <text x="48" y="135" font-size="43" font-weight="700">Vyber. Spoj.</text>
+    <text x="48" y="189" font-size="43" font-weight="700" fill="#C15F3C">Rozhýb.</text>
+    <text x="48" y="231" font-size="18">Slovenský 2D editor mechanizmov</text>
+    <text x="48" y="259" font-size="16" fill="#696960">Uzly, väzby, pohon a referenčné výkresy.</text>
+    <rect x="48" y="290" width="132" height="38" rx="19" fill="#FFFFFF"/>
+    <rect x="190" y="290" width="136" height="38" rx="19" fill="#FFFFFF"/>
+    <rect x="336" y="290" width="145" height="38" rx="19" fill="#FFFFFF"/>
+    <text x="114" y="315" font-size="14" text-anchor="middle">Click+Select</text>
+    <text x="258" y="315" font-size="14" text-anchor="middle">Pravé tlačidlo</text>
+    <text x="408" y="315" font-size="14" text-anchor="middle">Voľné kópie</text>
+    <text x="48" y="373" font-size="14" fill="#696960">mm · stupne · Z = 0 · bez frameworku</text>
+    <rect x="550" y="32" width="618" height="356" rx="18" fill="#FFFFFF" stroke="#DDDAD0"/>
+    <rect x="574" y="58" width="570" height="276" rx="10" fill="url(#grid)"/>
+    <path d="M640 282H1086" stroke="#B1ADA1" stroke-width="5" stroke-linecap="round"/>
+    <path d="M662 282L753 152L949 197L1066 282" fill="none" stroke="#798997" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+    <path d="M662 282L753 152" stroke="#C15F3C" stroke-width="10" stroke-linecap="round"/>
+    <g stroke="#696960" stroke-width="2" fill="none">
+      <path d="M648 298H676M651 303L645 310M661 303L655 310M671 303L665 310"/>
+      <path d="M1052 298H1080M1055 303L1049 310M1065 303L1059 310M1075 303L1069 310"/>
+    </g>
+    <g fill="#FFFFFF" stroke="#798997" stroke-width="3">
+      <circle cx="662" cy="282" r="8"/>
+      <circle cx="949" cy="197" r="8"/>
+      <circle cx="1066" cy="282" r="8"/>
+    </g>
+    <circle cx="753" cy="152" r="15" fill="#F4F3EE" stroke="#C15F3C" stroke-width="2"/>
+    <circle cx="753" cy="152" r="7" fill="#C15F3C"/>
+    <text x="639" y="274" font-size="14">A</text>
+    <text x="729" y="132" font-size="14" fill="#C15F3C" font-weight="700">B</text>
+    <text x="935" y="226" font-size="14">C</text>
+    <text x="1080" y="273" font-size="14">D</text>
+    <path d="M774 144L829 116" fill="none" stroke="#C15F3C" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <rect x="834" y="72" width="281" height="118" rx="10" fill="#FFFFFF" stroke="#DDDAD0"/>
+    <text x="850" y="98" font-size="13" font-weight="700" fill="#696960">UZOL B · KONTEXTOVÁ PONUKA</text>
+    <path d="M849 109H1100" stroke="#E8E6DF"/>
+    <text x="850" y="132" font-size="14">Otočný / posuvný kĺb</text>
+    <text x="850" y="155" font-size="14">Pohon a limity</text>
+    <text x="850" y="178" font-size="14">Súradnice XYZ · fixácia</text>
+    <circle cx="596" cy="358" r="5" fill="#C15F3C"/>
+    <text x="610" y="363" font-size="13" fill="#696960">výber</text>
+    <circle cx="712" cy="358" r="5" fill="#FFFFFF" stroke="#798997" stroke-width="2"/>
+    <text x="726" y="363" font-size="13" fill="#696960">voľný uzol</text>
+    <rect x="859" y="353" width="10" height="10" rx="2" fill="#696960"/>
+    <text x="882" y="363" font-size="13" fill="#696960">pevné uloženie</text>
+  </g>
+</svg>

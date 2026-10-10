@@ -5,8 +5,8 @@ Doplnok importuje aktuálnu 2D geometriu zo štúdia do **nového, neuloženého
 ## Inštalácia a spustenie
 
 1. Stiahnite balík doplnku zo štúdia a rozbaľte ho do vlastného priečinka `KinmoFusion`.
-2. Vo Fusion otvorte **Utilities → Scripts and Add-Ins → Add-Ins**. Tlačidlom **+** vyberte priečinok obsahujúci `KinmoFusion.py` a `KinmoFusion.manifest`.
-3. Spustite doplnok ručne. Voľba automatického spúšťania zostáva vypnutá.
+2. Vo Fusion otvorte **Utilities → Scripts and Add-Ins → Add-Ins**. Otvorte **šípku vedľa + → Script or add-in from device** a vyberte priečinok obsahujúci `KinmoFusion.py`, `bridge.py` a `KinmoFusion.manifest`. V niektorých verziách otvorí výber priečinka priamo tlačidlo **+**. Nevytvárajte novú prázdnu šablónu doplnku.
+3. Vyberte **KinmoFusion → Run** a spustite ho ručne. Voľba automatického spúšťania zostáva vypnutá. Kód vytvorí tento doplnok, nie iný používateľom vytvorený doplnok.
 4. Zadajte presnú adresu pôvodu štúdia, napríklad `http://127.0.0.1:5173` alebo vašu nasadenú `https://…workers.dev` adresu. Bez podadresára, prihlasovacích údajov alebo parametrov.
 5. Vo štúdiu otvorte **Exportovať → Autodesk Fusion**. Do poľa vložte dočasný párovací kľúč z Fusion. Kľúč sa v štúdiu neukladá do localStorage ani do projektu / exportu.
 6. Stlačte **Overiť spojenie**, označte súhlas a potom **Odoslať nový referenčný výkres**. Týmto výslovne povoľujete vytvorenie nového dokumentu v bežiacom Fusion.

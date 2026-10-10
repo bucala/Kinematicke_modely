@@ -55,14 +55,14 @@
 
   function centerOfMass(element, pose) {
     if (element.com) return K.worldPoint(pose, element.com);
-    if (element.type === 'bearing') return pose.a;
+    if (['bearing', 'node'].includes(element.type)) return pose.a;
     if (element.type === 'rail' && pose.c) return pose.c;
     return { x: (pose.a.x + pose.b.x) / 2, y: (pose.a.y + pose.b.y) / 2 };
   }
 
   function inertia(element, pose) {
     if (element.inertia > 0) return element.inertia;
-    if (element.type === 'bearing') return 0;
+    if (['bearing', 'node'].includes(element.type)) return 0;
     const length = pose.length / 1000, width = (element.width || 0) / 1000;
     return (element.mass || 0) * (length * length + width * width) / 12;
   }

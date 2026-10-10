@@ -144,3 +144,12 @@ test('Manifest requires a manual add-in start', async () => {
   const value = JSON.parse(await readFile(path.join(root, 'cad/KinmoFusion/KinmoFusion.manifest'), 'utf8'));
   assert.equal(value.type, 'addin'); assert.equal(value.runOnStartup, false);
 });
+test('Canvas modules and regression cases are in the public build and explicit publisher', async () => {
+  const html = await readFile(path.join(root, 'index.html'), 'utf8'), build = await readFile(path.join(root, 'scripts/build.mjs'), 'utf8');
+  const server = await readFile(path.join(root, 'scripts/server.mjs'), 'utf8'), publisher = await readFile(path.join(root, 'push-github.ps1'), 'utf8');
+  for (const file of ['interaction.js', 'context-menu.js']) {
+    assert(html.includes(`src="./${file}"`)); assert(build.includes(`'${file}'`)); assert(server.includes(`'${file}'`)); assert(publisher.includes(`'${file}'`));
+  }
+  assert(html.indexOf('src="./editor.js"') < html.indexOf('src="./interaction.js"') && html.indexOf('src="./context-menu.js"') < html.indexOf('src="./app.js"'));
+  assert(server.includes("'tests/interaction-cases.js'")); assert(publisher.includes("'tests/interaction-cases.js'"));
+});

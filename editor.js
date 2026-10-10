@@ -3,7 +3,7 @@
   'use strict';
   const K = global.Kinematics;
   const constraintNames = {
-    revolute: 'Otočný kĺb', 'point-path': 'Čap vo vedení', distance: 'Pevná vzdialenosť',
+    revolute: 'Otočný kĺb', prismatic: 'Posuvný kĺb', 'point-path': 'Čap vo vedení', distance: 'Pevná vzdialenosť',
     fixed: 'Pevné spojenie', parallel: 'Rovnobežnosť', angle: 'Pevný relatívny uhol',
   };
   const resolvePoint = (result, reference) => reference?.elementId ? K.point(result, reference) : reference;
@@ -148,8 +148,8 @@
   function freedom(project, result) {
     if (project.kind !== 'custom') return { free: 0, driven: true, rank: 0, variables: 0 };
     const driven = project.elements.filter((e) => e.drive).length === 1;
-    const bodies = project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'bearing'].includes(e.type));
-    const variables = bodies.flatMap((e) => ['x', 'y', ...(e.type === 'bearing' ? [] : ['angle'])].map((key) => ({ id: e.id, key })));
+    const bodies = project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'bearing', 'node'].includes(e.type));
+    const variables = bodies.flatMap((e) => ['x', 'y', ...(['bearing', 'node'].includes(e.type) ? [] : ['angle'])].map((key) => ({ id: e.id, key })));
     const base = K.copy(result.poses);
     const residuals = (poses) => {
       const rows = [];
@@ -162,9 +162,10 @@
         const pa = poses[j.a.elementId], pb = poses[j.b.elementId];
         const a = pa?.[j.a.point], b = pb?.[j.b.point];
         const type = j.type || (j.a.point === 'curve' || j.b.point === 'curve' ? 'point-path' : 'revolute');
-        if (type === 'point-path') {
+        if (['point-path', 'prismatic'].includes(type)) {
           if (j.a.point === 'curve' && b && pa?.path) rows.push(pathError(b, pa.path));
           if (j.b.point === 'curve' && a && pb?.path) rows.push(pathError(a, pb.path));
+          if (type === 'prismatic' && K.hasOrientation(project, j.a.point === 'curve' ? j.b : j.a)) rows.push(((((pb.angle - pa.angle - (j.value || 0) + 180) % 360) + 360) % 360 - 180) * K.DEG * 100);
         } else if (a && b) {
           if (type === 'distance') rows.push(K.distance(a, b) - (j.value || 0));
           else {

@@ -15,6 +15,8 @@
 
 Overená oprava zachováva pôvodné bajty cez `.gitattributes` a zahŕňa tento súbor do publikačného zoznamu. Izolovaný export cez Git s `core.autocrlf=input` prešiel kontrolou syntaxe, 167 JS testami, 20 Python testami a buildom. Používateľ schválil commit a push opravy do existujúceho `main`; vzdialené CI a Workers Builds treba potvrdiť po pushi. Samostatný log z Cloudflare nebol v priloženom ZIP; nižšie uvedený build aj deploy postup používa rovnaké `npm test`.
 
+Oprava bola publikovaná v `fc04c71`; používateľ následne publikoval rozhranie v `3194075 update prostredia`. Dňa 11. 10. 2026 schválil aj commit a push Click+Select, kontextových úprav a interaktívneho README do existujúceho `main`. Aktuálne lokálne výsledky a manuálne akceptačné medzery sú v [VALIDATION.md](VALIDATION.md). Stav vzdialeného CI a Workers Builds treba overiť priamo v službách.
+
 Git, Node.js aj PowerShell sú dostupné. Lokálne kontroly, testy a build sú zaznamenané v `VALIDATION.md`. Aktuálnu konfiguráciu Workeru a Git-integrácie táto úprava nemení.
 
 Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolovať diff. Pri commite sa použije už nakonfigurovaná Git identita. Ak chýba, publikovanie sa musí zastaviť, nie vymyslieť autora. Tokeny sa nevkladajú do repozitára, príkazovej histórie ani odpovede.

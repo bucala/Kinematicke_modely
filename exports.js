@@ -6,7 +6,7 @@
   const n = (value, digits = 3) => Number.isFinite(value) ? Number(value.toFixed(digits)) : 0;
   const fmt = (v, digits = 2) => Number.isFinite(v) ? v.toLocaleString('sk-SK', { maximumFractionDigits: digits }) : '—';
   const labels = {
-    ground: 'Pevný rám', rail: 'Lineárne vedenie', link: 'Tuhé rameno', panel: 'Panel / čelo', slot: 'Vodiaca kulisa', bearing: 'Čap / ložisko',
+    ground: 'Pevný rám', rail: 'Lineárne vedenie', link: 'Tuhé rameno', panel: 'Panel / čelo', slot: 'Vodiaca kulisa', bearing: 'Čap / ložisko', node: 'Uzol',
     'spring-compression': 'Tlačná pružina', 'spring-extension': 'Ťažná pružina', 'piston-push': 'Tlačný piest', 'piston-pull': 'Ťažný piest',
   };
   const parameterLabels = {
@@ -109,8 +109,9 @@
 
   function geometry(project, result, options = {}) {
     const entities = [], p = project.parameters;
+    const stroke = (e) => /^#[0-9a-fA-F]{6}$/.test(e.color || '') ? e.color : '';
     const poly = (e, points, closed = false, layer = e.type.toUpperCase().replace(/-/g, '_')) => {
-      if (points.length >= 2) entities.push({ kind: 'polyline', elementId: e.id, name: e.name, layer, points: points.map(point), closed });
+      if (points.length >= 2) entities.push({ kind: 'polyline', elementId: e.id, name: e.name, layer, points: points.map(point), closed, color: stroke(e) });
     };
     const text = (name, at, layer = 'LABELS', elementId = '') => entities.push({ kind: 'text', text: name, at: point(at), height: 7, layer, elementId });
     for (const e of project.elements.filter((v) => v.visible)) {
@@ -123,9 +124,9 @@
         poly(e, rectangle({ x: -12, y: top - 12, w: 12, h: p.frameHeight + 30 }), true);
         poly(e, rectangle({ x: 0, y: top - 12, w: p.frameLength, h: 12 }), true);
         if (project.kind === 'double-drawer') poly(e, rectangle({ x: p.frameLength, y: top, w: 8, h: p.frameHeight - p.frontOpening }), true);
-      } else if (e.type === 'bearing') entities.push({
-        kind: 'circle', elementId: e.id, name: e.name, layer: 'BEARING', center: point(pose.a),
-        radius: n(e.primary ? p.bearingRadius : e.radius),
+      } else if (['bearing', 'node'].includes(e.type)) entities.push({
+        kind: 'circle', elementId: e.id, name: e.name, layer: e.type === 'node' ? 'NODE' : 'BEARING', center: point(pose.a),
+        radius: n(e.primary ? p.bearingRadius : e.radius), color: stroke(e),
       });
       else if (pose.path) poly(e, pose.path);
       else if (K.isElastic(e)) {
@@ -174,7 +175,7 @@
       if (seenTraces.has(key)) continue;
       seenTraces.add(key);
       let points = [];
-      const flush = () => { if (points.length > 1) poly({ id: trajectory.id, name: trajectory.name, type: 'trajectory' }, points, false, 'TRAJECTORIES'); points = []; };
+      const flush = () => { if (points.length > 1) poly({ id: trajectory.id, name: trajectory.name, type: 'trajectory', color: trajectory.color }, points, false, 'TRAJECTORIES'); points = []; };
       for (const sample of options.samples) {
         let p = K.tracePoint(sample, trajectory.reference, trajectory.space);
         if (!p || sample.blocked) { flush(); continue; }
@@ -202,8 +203,8 @@
     const color = (layer) => layer === 'DIMENSIONS' ? '#65788c' : layer === 'TRAJECTORIES' ? '#438778' : layer === 'SLOT' ? '#638e83' : '#35485b';
     const textHeight = Math.max(0, (options.minimumText || 0) / Math.min(510 / b.width, 285 / b.height));
     const content = entities.map((e) => {
-      if (e.kind === 'polyline') return `<${e.closed ? 'polygon' : 'polyline'} points="${e.points.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${e.closed ? '#edf0f3' : 'none'}" stroke="${color(e.layer)}" stroke-width="${e.layer === 'DIMENSIONS' ? .6 : 1.3}" stroke-linejoin="round"/>`;
-      if (e.kind === 'circle') return `<circle cx="${e.center.x}" cy="${e.center.y}" r="${e.radius}" fill="#ffffff" stroke="${color(e.layer)}" stroke-width="1.2"/>`;
+      if (e.kind === 'polyline') return `<${e.closed ? 'polygon' : 'polyline'} points="${e.points.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${e.closed ? '#edf0f3' : 'none'}" stroke="${e.color || color(e.layer)}" stroke-width="${e.layer === 'DIMENSIONS' ? .6 : 1.3}" stroke-linejoin="round"/>`;
+      if (e.kind === 'circle') return `<circle cx="${e.center.x}" cy="${e.center.y}" r="${e.radius}" fill="#ffffff" stroke="${e.color || color(e.layer)}" stroke-width="1.2"/>`;
       return `<text x="${e.at.x}" y="${e.at.y}" font-family="Roboto" font-size="${n(Math.max(e.height, textHeight))}" fill="${color(e.layer)}" text-anchor="middle">${escape(e.text)}</text>`;
     }).join('');
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(b.width)}mm" height="${n(b.height)}mm" viewBox="${n(b.x)} ${n(b.y)} ${n(b.width)} ${n(b.height)}"><title>${escape(project.name)}</title><desc>${escape(warning)}</desc><rect x="${n(b.x)}" y="${n(b.y)}" width="${n(b.width)}" height="${n(b.height)}" fill="#ffffff"/>${content}</svg>`;

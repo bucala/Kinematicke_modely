@@ -6,8 +6,8 @@
   const EPS = 1e-8;
   const TOLERANCE = 0.05;
   const ELASTIC_TYPES = ['spring-compression', 'spring-extension', 'piston-push', 'piston-pull'];
-  const TYPES = ['ground', 'rail', 'link', 'slot', 'bearing', 'panel', ...ELASTIC_TYPES];
-  const CONSTRAINT_TYPES = ['revolute', 'point-path', 'distance', 'fixed', 'parallel', 'angle'];
+  const TYPES = ['ground', 'rail', 'link', 'slot', 'bearing', 'node', 'panel', ...ELASTIC_TYPES];
+  const CONSTRAINT_TYPES = ['revolute', 'prismatic', 'point-path', 'distance', 'fixed', 'parallel', 'angle'];
   const KINDS = ['drawer', 'fourbar', 'crank', 'custom'];
   const projects = new Map();
   const CURVES = ['cam', 'arc', 'bezier', 'spline', 'polyline'];
@@ -42,22 +42,27 @@
     return { x: pose.a.x + v.x, y: pose.a.y + v.y };
   };
   const isElastic = (element) => ELASTIC_TYPES.includes(element?.type);
+  const hasOrientation = (project, reference) => {
+    let e = project.elements.find((v) => v.id === reference.elementId);
+    while (e?.parentId) e = project.elements.find((v) => v.id === e.parentId);
+    return !!e && !['bearing', 'node'].includes(e.type);
+  };
 
   function makeElement(type, x = 150, y = 30) {
     const names = {
-      ground: 'Pevný rám', rail: 'Lineárne vedenie', link: 'Tiahlo', slot: 'Zakrivená kulisa', bearing: 'Ložisko', panel: 'Sklápacie čelo',
+      ground: 'Pevný rám', rail: 'Lineárne vedenie', link: 'Tiahlo', slot: 'Zakrivená kulisa', bearing: 'Ložisko', node: 'Uzol', panel: 'Sklápacie čelo',
       'spring-compression': 'Tlačná pružina', 'spring-extension': 'Ťažná pružina', 'piston-push': 'Tlačný piest', 'piston-pull': 'Ťažný piest',
     };
     return {
       id: uid(), type, name: names[type] || 'Prvok', x, y, angle: type === 'panel' ? 90 : 0,
       length: type === 'panel' ? 160 : type === 'rail' ? 240 : 120,
-      width: type === 'panel' ? 16 : 12, radius: 6, stroke: 150, slotWidth: 16,
+      width: type === 'panel' ? 16 : 12, radius: 6, stroke: 150, carriageOffset: 0, slotWidth: 16,
       bearingOffset: 65, curveKind: 'bezier', curveRadius: 100, visible: true,
       locked: type === 'ground', drive: type === 'rail',
       slotId: '', controls: [{ x: 0, y: 0 }, { x: 45, y: 0 }, { x: 75, y: 70 }, { x: 130, y: 70 }],
-      driveMode: type === 'rail' ? 'linear' : 'rotary', driveAngle: 0,
+      driveMode: ['rail', 'node'].includes(type) ? 'linear' : 'rotary', driveAngle: 0, drivePivot: 'a', driveSpeed: null, color: '',
       parentId: '', parentPoint: 'a', localC: null, outline: [],
-      mass: ['ground', 'slot'].includes(type) || ELASTIC_TYPES.includes(type) ? 0 : type === 'rail' ? 2 : type === 'bearing' ? 0.1 : 1,
+      mass: ['ground', 'slot', 'node'].includes(type) || ELASTIC_TYPES.includes(type) ? 0 : type === 'rail' ? 2 : type === 'bearing' ? 0.1 : 1,
       inertia: 0, com: null,
       restLength: 160, minLength: 80, maxLength: 240, diameter: 20,
       rodDiameter: 8, wireDiameter: 2, force: 100, stiffness: 1, preload: 0, forceMode: 'rated',
@@ -285,14 +290,14 @@
   function bodyPose(element, motion, project, cachedPath) {
     const a = { x: element.x, y: element.y };
     const b = along(a, element.length, element.angle);
-    if (element.type === 'bearing') return { a, b: a, angle: element.angle, length: 0 };
+    if (['bearing', 'node'].includes(element.type)) return { a, b: a, angle: element.angle, length: 0 };
     const pose = { a, b, controlOrigin: { ...a }, angle: element.angle, length: element.length };
     if (element.type === 'panel') pose.c = element.localC ? worldPoint(pose, element.localC) : along(a, element.bearingOffset, element.angle);
     if (element.outline?.length) pose.outline = element.outline.map((v) => worldPoint(pose, v));
     if (element.type === 'rail') {
       const range = driveRange(project);
       const t = (motion - range.min) / Math.max(EPS, range.max - range.min);
-      pose.c = along(a, (element.drive ? t : 0) * element.stroke, element.angle);
+      pose.c = along(a, (element.carriageOffset || 0) + (element.drive ? t : 0) * element.stroke, element.angle);
       pose.path = [a, b];
     }
     if (element.type === 'slot') { pose.path = cachedPath || genericPath(element); pose.a = pose.path[0]; pose.b = pose.path[pose.path.length - 1]; }
@@ -305,9 +310,15 @@
     const bodies = new Map(extras.map((e) => {
       const linear = !options.design && e.drive && e.type !== 'rail' && e.driveMode === 'linear';
       const offset = linear ? along({ x: e.x, y: e.y }, (motion - range.min) / (range.max - range.min) * e.stroke, e.driveAngle || 0) : e;
+      const angle = e.angle + (!options.design && e.drive && ['link', 'panel'].includes(e.type) && !linear ? motion : 0);
+      let x = offset.x, y = offset.y;
+      if (!options.design && e.drive && !linear && e.drivePivot !== 'a') {
+        const local = e.drivePivot === 'c' ? e.localC || { x: e.bearingOffset, y: 0 } : { x: e.length, y: 0 };
+        const before = rotate(local, e.angle), after = rotate(local, angle);
+        x += before.x - after.x; y += before.y - after.y;
+      }
       return [e.id, {
-        element: e, x: offset.x, y: offset.y,
-        angle: e.angle + (!options.design && e.drive && ['link', 'panel'].includes(e.type) && !linear ? motion : 0), path: null,
+        element: e, x, y, angle, path: null,
       }];
     }));
     const refreshAll = () => {
@@ -345,17 +356,32 @@
       return body;
     };
     const immobile = (body) => !body || body.element.locked || body.element.drive || ['ground', 'rail', 'slot'].includes(body.element.type);
+    const onGuide = (p, pose, joint) => {
+      const nearest = nearestOnPath(p, pose.path);
+      if (joint.type !== 'prismatic' || joint.limitMin == null) return nearest;
+      const a = pose.path[0], b = pose.path.at(-1), length = distance(a, b), along = clamp(nearest.t * length, joint.limitMin, joint.limitMax) / (length || 1);
+      return { x: lerp(a.x, b.x, along), y: lerp(a.y, b.y, along) };
+    };
     const endpoints = (joint) => {
       const pa = poses[joint.a.elementId], pb = poses[joint.b.elementId];
       let a = pa?.[joint.a.point], b = pb?.[joint.b.point];
-      if (joint.a.point === 'curve' && b && pa?.path) a = nearestOnPath(b, pa.path);
-      if (joint.b.point === 'curve' && a && pb?.path) b = nearestOnPath(a, pb.path);
+      if (joint.a.point === 'curve' && b && pa?.path) a = onGuide(b, pa, joint);
+      if (joint.b.point === 'curve' && a && pb?.path) b = onGuide(a, pb, joint);
       return { a, b };
     };
-    const adjust = (body, point, error, sign, denom) => {
+    const jointHasAngle = (joint) => ['parallel', 'angle', 'fixed'].includes(joint.type) ||
+      (joint.type === 'prismatic' && hasOrientation(project, joint.a.point === 'curve' ? joint.b : joint.a));
+    const limitError = (joint) => {
+      if (joint.type !== 'revolute' || joint.limitMin == null) return 0;
+      const raw = poses[joint.b.elementId].angle - poses[joint.a.elementId].angle;
+      let angle = ((raw + 540) % 360 + 360) % 360 - 180;
+      if (angle === -180 && raw > 0) angle = 180;
+      return angle - clamp(angle, joint.limitMin, joint.limitMax);
+    };
+    const adjust = (body, point, error, sign, denom, rotateBody = true) => {
       if (immobile(body)) return;
       const r = { x: point.x - body.x, y: point.y - body.y };
-      const inertia = body.element.type === 'bearing' ? 0 : 4 / Math.max(100, body.element.length ** 2);
+      const inertia = !rotateBody || ['bearing', 'node'].includes(body.element.type) ? 0 : 4 / Math.max(100, body.element.length ** 2);
       body.x += sign * error.x / denom;
       body.y += sign * error.y / denom;
       // For the screen-coordinate convention dR/dθ = (r.y, -r.x).
@@ -368,21 +394,22 @@
         if (!a || !b) continue;
         const ba = rootBody(joint.a.elementId), bb = rootBody(joint.b.elementId);
         const type = joint.type || (joint.a.point === 'curve' || joint.b.point === 'curve' ? 'point-path' : 'revolute');
-        if (['parallel', 'angle', 'fixed'].includes(type)) {
+        if (jointHasAngle(joint) || Math.abs(limitError(joint)) > EPS) {
           const pa = poses[joint.a.elementId], pb = poses[joint.b.elementId];
           let error = pb.angle - pa.angle - (joint.value || 0);
           error = ((error + 540) % 360) - 180;
+          if (type === 'revolute') error = limitError(joint);
           const wa = immobile(ba) ? 0 : 1, wb = immobile(bb) ? 0 : 1;
           if (wa + wb && ba !== bb) {
             if (wa) ba.angle += error * wa / (wa + wb);
             if (wb) bb.angle -= error * wb / (wa + wb);
             refreshAll();
           }
-          if (type !== 'fixed') continue;
+          if (['parallel', 'angle'].includes(type)) continue;
         }
         const weight = (body, point) => {
           if (immobile(body)) return 0;
-          return 1 + (body.element.type === 'bearing' ? 0 : 4 * ((point.x - body.x) ** 2 + (point.y - body.y) ** 2) / Math.max(100, body.element.length ** 2));
+          return 1 + (type === 'prismatic' || ['bearing', 'node'].includes(body.element.type) ? 0 : 4 * ((point.x - body.x) ** 2 + (point.y - body.y) ** 2) / Math.max(100, body.element.length ** 2));
         };
         const current = endpoints(joint);
         const denom = weight(ba, current.a) + weight(bb, current.b);
@@ -394,8 +421,8 @@
           if (length < EPS) { error.x = -(joint.value || 0); error.y = 0; }
           else { error.x *= scale; error.y *= scale; }
         }
-        adjust(ba, current.a, error, 1, denom);
-        adjust(bb, current.b, error, -1, denom);
+        adjust(ba, current.a, error, 1, denom, type !== 'prismatic');
+        adjust(bb, current.b, error, -1, denom, type !== 'prismatic');
       }
       for (const body of bodies.values()) {
         if (body.element.type !== 'bearing' || !body.element.slotId) continue;
@@ -410,7 +437,7 @@
         if (!a || !b) return true;
         const type = joint.type || (joint.a.point === 'curve' || joint.b.point === 'curve' ? 'point-path' : 'revolute');
         const positionError = type === 'distance' ? Math.abs(distance(a, b) - (joint.value || 0)) : ['parallel', 'angle'].includes(type) ? 0 : distance(a, b);
-        const angleError = ['parallel', 'angle', 'fixed'].includes(type) ? Math.abs(((poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0) + 540) % 360) - 180) : 0;
+        const angleError = jointHasAngle(joint) ? Math.abs(((poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0) + 540) % 360) - 180) : Math.abs(limitError(joint));
         return positionError < 0.0001 && angleError < 0.0001;
       })) break;
     }
@@ -420,8 +447,8 @@
       if (!a || !b) { issues.push('Väzba odkazuje na neexistujúci uzol.'); continue; }
       const type = joint.type || (joint.a.point === 'curve' || joint.b.point === 'curve' ? 'point-path' : 'revolute');
       const positionError = type === 'distance' ? Math.abs(distance(a, b) - (joint.value || 0)) : ['angle', 'parallel'].includes(type) ? 0 : distance(a, b);
-      const angleError = ['angle', 'parallel', 'fixed'].includes(type)
-        ? Math.abs(((poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0) + 540) % 360) - 180) : 0;
+      const angleError = jointHasAngle(joint)
+        ? Math.abs(((poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0) + 540) % 360) - 180) : Math.abs(limitError(joint));
       const error = Math.max(positionError, angleError);
       residual = Math.max(residual, error);
       if (error > TOLERANCE) invalid.push(joint.a.elementId, joint.b.elementId);
@@ -677,6 +704,7 @@
       const base = makeElement(e.type);
       const normalized = { ...base, id: e.id, type: e.type, name: text(e.name, base.name), role: text(e.role, ''), primary: input.kind !== 'custom' && !!e.primary, locked: !!e.locked, drive: !!e.drive, visible: e.visible !== false, slotId: text(e.slotId, '', 100) };
       for (const key of ['x', 'y', 'angle', 'length', 'width', 'radius', 'stroke', 'slotWidth', 'bearingOffset', 'curveRadius']) normalized[key] = number(e[key], base[key]);
+      normalized.carriageOffset = number(e.carriageOffset, 0, 0, 5000);
       if (normalized.length <= 0 || normalized.width <= 0 || normalized.radius <= 0 || normalized.stroke <= 0 || normalized.slotWidth <= 0 || normalized.bearingOffset <= 0 || normalized.curveRadius <= 0) throw new Error('Rozmery prvkov musia byť kladné.');
       normalized.curveKind = CURVES.includes(e.curveKind) ? e.curveKind : 'bezier';
       normalized.controls = e.controls ? controls(e.controls, normalized.curveKind) : base.controls;
@@ -685,6 +713,12 @@
       normalized.parentPoint = ['a', 'b', 'c'].includes(e.parentPoint) ? e.parentPoint : 'a';
       normalized.driveMode = e.driveMode === 'linear' || e.type === 'rail' ? 'linear' : 'rotary';
       normalized.driveAngle = number(e.driveAngle, 0, -360, 360);
+      normalized.drivePivot = ['a', 'b', 'c'].includes(e.drivePivot) ? e.drivePivot : 'a';
+      normalized.driveSpeed = e.driveSpeed == null ? null : number(e.driveSpeed, 0, -10000, 10000);
+      normalized.color = /^#[0-9a-fA-F]{6}$/.test(e.color || '') ? e.color : '';
+      if (e.type === 'node' && normalized.drive && normalized.driveMode !== 'linear') throw new Error('Samostatný bod môže mať iba lineárny pohon.');
+      if (normalized.drivePivot === 'c' && e.type !== 'panel') throw new Error('Pohon odkazuje na neplatný otočný bod.');
+      if (normalized.drivePivot === 'b' && ['node', 'bearing'].includes(e.type)) throw new Error('Pohon odkazuje na neplatný otočný bod.');
       normalized.mass = number(e.mass, base.mass, 0, 100000);
       normalized.inertia = number(e.inertia, 0, 0, 1000000);
       normalized.com = e.com == null ? null : vector(e.com);
@@ -717,7 +751,7 @@
       custom: {},
     }[input.kind];
     for (const e of elements) if (e.primary) { e.role = primaryRoles[e.id]; e.locked = true; }
-    const validPoint = (e, key) => key === 'a' || (key === 'b' && e.type !== 'bearing') || (key === 'c' && ['panel', 'rail'].includes(e.type)) || (key === 'curve' && ['slot', 'rail'].includes(e.type));
+    const validPoint = (e, key) => key === 'a' || (key === 'b' && !['bearing', 'node'].includes(e.type)) || (key === 'c' && ['panel', 'rail'].includes(e.type)) || (key === 'curve' && ['slot', 'rail'].includes(e.type));
     const reference = (r, allowWorld = false) => {
       if (allowWorld && r && !r.elementId) return vector(r);
       const e = elements.find((v) => v.id === r?.elementId);
@@ -747,10 +781,19 @@
       const ea = elements.find((e) => e.id === j.a.elementId), eb = elements.find((e) => e.id === j.b.elementId);
       if (!validPoint(ea, j.a.point) || !validPoint(eb, j.b.point)) throw new Error('Kĺbová väzba odkazuje na bod, ktorý prvok nemá.');
       const type = j.type || (j.a.point === 'curve' || j.b.point === 'curve' ? 'point-path' : 'revolute');
-      if (!CONSTRAINT_TYPES.includes(type) || ((j.a.point === 'curve' || j.b.point === 'curve') && type !== 'point-path') || (type === 'point-path' && j.a.point !== 'curve' && j.b.point !== 'curve')) throw new Error('Typ väzby nezodpovedá jej uzlom.');
+      if (!CONSTRAINT_TYPES.includes(type) || ((j.a.point === 'curve' || j.b.point === 'curve') && !['point-path', 'prismatic'].includes(type)) || (['point-path', 'prismatic'].includes(type) && j.a.point !== 'curve' && j.b.point !== 'curve')) throw new Error('Typ väzby nezodpovedá jej uzlom.');
+      if (type === 'prismatic' && (j.a.point === 'curve' ? ea : eb).type !== 'rail') throw new Error('Posuvná väzba vyžaduje priame lineárne vedenie.');
       const value = number(j.value, 0, type === 'distance' ? 0 : -360, type === 'distance' ? 5000 : 360);
       if ([ea, eb].some(isElastic) && !['revolute'].includes(type)) throw new Error('Montáž pružného prvku musí používať koncový otočný bod.');
-      return { id: j.id, a: { elementId: j.a.elementId, point: j.a.point }, b: { elementId: j.b.elementId, point: j.b.point }, type, value, builtin: !!j.builtin && ea.primary && eb.primary, name: text(j.name, 'Otočný kĺb') };
+      let limitMin = null, limitMax = null;
+      if (j.limitMin != null || j.limitMax != null) {
+        if (!['revolute', 'prismatic'].includes(type) || j.limitMin == null || j.limitMax == null) throw new Error('Limity vyžadujú otočný alebo posuvný kĺb a obe hranice.');
+        limitMin = number(j.limitMin, 0, type === 'prismatic' ? 0 : -180, type === 'prismatic' ? 5000 : 180);
+        limitMax = number(j.limitMax, 0, type === 'prismatic' ? 0 : -180, type === 'prismatic' ? 5000 : 180);
+        const guide = j.a.point === 'curve' ? ea : eb;
+        if (limitMax <= limitMin || (type === 'prismatic' && !guide.primary && limitMax > guide.length)) throw new Error('Limity musia byť zoradené a ležať v rozsahu vedenia.');
+      }
+      return { id: j.id, a: { elementId: j.a.elementId, point: j.a.point }, b: { elementId: j.b.elementId, point: j.b.point }, type, value, limitMin, limitMax, builtin: !!j.builtin && ea.primary && eb.primary, name: text(j.name, 'Otočný kĺb') };
     });
     for (const e of elements) if (e.slotId && !elements.some((s) => s.id === e.slotId && s.type === 'slot')) throw new Error('Ložisko odkazuje na neexistujúcu kulisu.');
     const uniqueRecords = (list, limit, normalize, label) => {
@@ -802,6 +845,6 @@
     bezier, catmull, arcPoints, circleIntersections, circlePathIntersections, nearestOnSegment,
     nearestOnPath, segmentIntersection, segmentRect, solve, sample, point, inverseDrive, bounds, validateProject,
     registerProject, prepareProject, projectPhases, tracePoint,
-    rotate, localPoint, worldPoint, isElastic, bodyPose, genericPath, elasticMount,
+    rotate, localPoint, worldPoint, isElastic, hasOrientation, bodyPose, genericPath, elasticMount,
   });
 })(globalThis);
