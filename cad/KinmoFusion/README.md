@@ -1,6 +1,6 @@
 # KinmoFusion: lokálne prepojenie s Autodesk Fusion
 
-Doplnok importuje aktuálnu 2D geometriu zo štúdia do **nového, neuloženého referenčného dokumentu**. Starý CAD dokument nemení, neodstraňuje ani neukladá. Nekonvertuje solver na Fusion joints ani na 3D zostavu; profily kulís sú strednice. Kóty sú referenčné čiary a popisy, nie výrobné riadiace parametre.
+Doplnok importuje aktuálnu 2D geometriu zo štúdia do **nového, neuloženého referenčného dokumentu**. Starý CAD dokument nemení, neodstraňuje ani neukladá. Nekonvertuje solver na Fusion joints ani na 3D zostavu. Profily kulís majú strednice a voliteľné uzavreté referenčné obrysy podľa šírky. Kóty sú referenčné čiary a popisy, nie výrobné riadiace parametre.
 
 ## Inštalácia a spustenie
 
@@ -13,6 +13,12 @@ Doplnok importuje aktuálnu 2D geometriu zo štúdia do **nového, neuloženého
 7. Povoľte prístup k lokálnej sieti, ak ho prehliadač vyžiada. Po práci zastavte doplnok vo Fusion.
 
 `file://` priame prepojenie nepodporuje. Otvorte štúdio cez lokálny server alebo HTTPS. Ak prehliadač blokuje lokálne požiadavky, použite DXF zo štúdia a **Insert → Insert DXF**, jednotky **mm**.
+
+## Referenčné obrysy drážok
+
+Spoločný prepínač v exportnom a Fusion dialógu pridáva polygonálne uzavreté obrysy podľa zadanej šírky. Strednice ostávajú vo vrstve `SLOT`; vonkajší obrys je `SLOT_REFERENCE_OUTLINE`, prípadný vnútorný obrys uzavretej strednice `SLOT_REFERENCE_INNER`. Vo Fusion vznikajú oddelené fixované referenčné skice; doplnok doplní aj poslednú uzatváraciu hranu.
+
+Otvorená drážka má polygonové zaoblenia, nie presné Fusion oblúky. Obrysy **neoverujú nástroj, vôľu, výrobnú toleranciu, pevnosť ani uloženie**. Pri pretínajúcej sa strednici, prudkom návrate, zrútenom obryse alebo príliš veľkej šírke sa export zastaví ešte pred odoslaním. Opravte geometriu alebo prepínač vypnite a použite strednice. Samostatné referenčné vodidlá obrys nepridávajú.
 
 ## Bezpečnosť a obmedzenia
 
@@ -28,3 +34,19 @@ Doplnok importuje aktuálnu 2D geometriu zo štúdia do **nového, neuloženého
 - Doplnok dokument neukladá do cloudu. Ak ho sami uložíte alebo máte vlastné pravidlá Fusion synchronizácie, platia nastavenia vášho Fusion.
 
 Rozhrania boli porovnané s lokálne nainštalovanými Fusion API definíciami. Automatické testy používajú izolované mock API a lokálny transport. Skutočný import v živom Fusion je manuálny akceptačný test, nie tvrdenie o už vykonanom CAD importe.
+
+## História zmien
+
+### 2026-10-11: referenčné obrysy a nové projekty editora
+
+- Export štúdia môže k stredniciam pridať uzavreté vonkajšie a vnútorné obrysy drážok. Doplnok ich importuje ako oddelené fixované referenčné skice.
+- Neplatné obrysy sa odmietajú pred odoslaním. Každá polyline má najviac 1 001 bodov; platia aj pôvodné limity celého prenosu.
+- Projekt vytvorený cez Magic import sa prenáša ako bežná 2D geometria. Fotografia ani kalibračný podklad sa do Fusion neposiela.
+- Inštalačný návod opisuje existujúci doplnok cez **Script or add-in from device**, nie vytvorenie prázdnej šablóny.
+- Protokol, lokálny endpoint, presný Origin, dočasné párovanie, výslovný súhlas a vytvorenie nového neuloženého dokumentu zostávajú nezmenené. Nepribudol cloudový upload ani synchronizácia.
+
+### 2026-10-10: lokálny referenčný import
+
+- Ručne spúšťaný doplnok, ohraničený lokálny transport a import na hlavnom Fusion vlákne.
+- Referenčné polylines, kružnice a popisy, prevod mm → cm a ochrana už otvorených CAD dokumentov.
+- Izolované transportné a mock API testy; živý Fusion zostáva manuálnou akceptáciou.

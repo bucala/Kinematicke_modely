@@ -128,7 +128,16 @@
         kind: 'circle', elementId: e.id, name: e.name, layer: e.type === 'node' ? 'NODE' : 'BEARING', center: point(pose.a),
         radius: n(e.primary ? p.bearingRadius : e.radius), color: stroke(e),
       });
-      else if (pose.path) poly(e, pose.path);
+      else if (pose.path) {
+        poly(e, pose.path);
+        if (e.type === 'slot' && !e.guideOnly && options.slotOutlines === true) {
+          const width = e.primary ? e.role === 'rearSlot' ? 8 : p.slotWidth : e.slotWidth;
+          try {
+            const profiles = global.KinmoSlotOutline.contours(pose.path, width);
+            profiles.forEach((points, i) => poly({ ...e, name: `${e.name} · referenčný obrys` }, points, true, i ? 'SLOT_REFERENCE_INNER' : 'SLOT_REFERENCE_OUTLINE'));
+          } catch (error) { throw new Error(`Drážka „${e.name}“: ${error.message} V exporte môžete vypnúť referenčné obrysy.`); }
+        }
+      }
       else if (K.isElastic(e)) {
         const length = pose.length || 1, ux = (pose.b.x - pose.a.x) / length, uy = (pose.b.y - pose.a.y) / length;
         const at = (s, normal = 0) => ({ x: pose.a.x + ux * s - uy * normal, y: pose.a.y + uy * s + ux * normal });
@@ -203,7 +212,7 @@
     const color = (layer) => layer === 'DIMENSIONS' ? '#65788c' : layer === 'TRAJECTORIES' ? '#438778' : layer === 'SLOT' ? '#638e83' : '#35485b';
     const textHeight = Math.max(0, (options.minimumText || 0) / Math.min(510 / b.width, 285 / b.height));
     const content = entities.map((e) => {
-      if (e.kind === 'polyline') return `<${e.closed ? 'polygon' : 'polyline'} points="${e.points.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${e.closed ? '#edf0f3' : 'none'}" stroke="${e.color || color(e.layer)}" stroke-width="${e.layer === 'DIMENSIONS' ? .6 : 1.3}" stroke-linejoin="round"/>`;
+      if (e.kind === 'polyline') return `<${e.closed ? 'polygon' : 'polyline'} points="${e.points.map((p) => `${p.x},${p.y}`).join(' ')}" fill="${e.closed && !e.layer.startsWith('SLOT_REFERENCE') ? '#edf0f3' : 'none'}" stroke="${e.color || color(e.layer)}" stroke-width="${e.layer === 'DIMENSIONS' ? .6 : 1.3}" stroke-linejoin="round"/>`;
       if (e.kind === 'circle') return `<circle cx="${e.center.x}" cy="${e.center.y}" r="${e.radius}" fill="#ffffff" stroke="${e.color || color(e.layer)}" stroke-width="1.2"/>`;
       return `<text x="${e.at.x}" y="${e.at.y}" font-family="Roboto" font-size="${n(Math.max(e.height, textHeight))}" fill="${color(e.layer)}" text-anchor="middle">${escape(e.text)}</text>`;
     }).join('');
@@ -213,13 +222,15 @@
   function cadSnapshot(project, result, options = {}) {
     const p = K.validateProject(project);
     const entities = geometry(p, result, { ...options, labels: false });
+    if (entities.some((e) => e.points?.length > 1001)) throw new Error('CAD krivka prekračuje 1001 vrcholov. Zjednodušte krivku alebo vypnite referenčné obrysy.');
     if (entities.length > 2000) throw new Error('CAD výkres prekračuje limit 2 000 entít. Skryte nepotrebné trajektórie alebo kóty.');
     const count = entities.reduce((sum, e) => sum + (e.points?.length || 1), 0);
     if (count > 30000) throw new Error('CAD výkres prekračuje limit 30 000 bodov. Skryte nepotrebné krivky alebo znížte počet ich bodov.');
     const xy = (p) => ({ x: p.x, y: -p.y });
     return {
       format: 'KINMO-CAD', version: 1, units: 'mm', name: p.name.slice(0, 100), motion: result.motion,
-      referenceOnly: true, warning, estimated: !!p.provenance?.estimated,
+      referenceOnly: true, warning: `${warning}${options.slotOutlines === true ? ` ${global.KinmoSlotOutline.warning}` : ''}`, estimated: !!p.provenance?.estimated,
+      slotGeometry: options.slotOutlines === true ? 'centerlines-and-reference-outlines' : 'centerlines',
       entities: entities.map((e) => ({
         ...e, ...(e.points ? { points: e.points.map(xy) } : {}),
         ...(e.center ? { center: xy(e.center) } : {}), ...(e.at ? { at: xy(e.at) } : {}),
@@ -233,6 +244,7 @@
     const text = (s) => String(s).replace(/[\r\n\x00-\x1f]/g, ' ').replace(/[^\x20-\x7e]/g, (c) => `\\U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`);
     pair(0, 'SECTION'); pair(2, 'HEADER'); pair(9, '$ACADVER'); pair(1, 'AC1015');
     pair(9, '$INSUNITS'); pair(70, 4); pair(9, '$MEASUREMENT'); pair(70, 1); pair(0, 'ENDSEC');
+    if (options.slotOutlines === true) pair(999, text(global.KinmoSlotOutline.warning));
     pair(0, 'SECTION'); pair(2, 'TABLES'); pair(0, 'TABLE'); pair(2, 'LAYER');
     const layers = [...new Set(snapshot.entities.map((e) => e.layer))]; pair(70, layers.length);
     for (const layer of layers) { pair(0, 'LAYER'); pair(2, layer); pair(70, 0); pair(62, layer === 'DIMENSIONS' ? 8 : 7); pair(6, 'CONTINUOUS'); }
@@ -273,6 +285,8 @@
       project: p, result, samples, range, forces, history: options.history || [], forceError: options.forceError || '',
       date: options.date || new Date().toLocaleString('sk-SK'),
       blocked: blocked.length, maxResidual: Math.max(0, ...samples.map((s) => s.residual)),
+      maxPositionResidual: Math.max(0, ...samples.map((s) => s.positionResidual)),
+      maxAngularResidual: Math.max(0, ...samples.map((s) => s.angularResidual)),
       drawing: vectorSVG(p, result, { dimensions: true, trajectories: true, samples, references: options.references, traceSpace: options.traceSpace, labels: false, minimumText: 8 }),
       plots: [plotSVG(samples, 'angle', 'Uhol výstupu', '°'), ...(p.kind === 'double-drawer' ? [plotSVG(samples, 'secondaryAngle', 'Uhol tuhého ramena', '°', '#5c86b4')] : []), ...(forces.length ? [plotSVG(forces, 'handForce', 'Vyrovnávacia sila / moment · odhad', range.unit === '°' ? 'N·m' : 'N', '#b9697c')] : []), ...(options.history?.length ? [plotSVG(options.history, 'motion', 'Poloha pohonu v čase · odhad', range.unit, '#5c86b4', 'time', 'Čas (s)')] : [])],
     };
@@ -302,7 +316,7 @@
         ['Poloha pohonu', `${fmt(r.motion)} ${range.unit}`], ['Rozsah pohonu', `${fmt(range.min)}–${fmt(range.max)} ${range.unit}`],
         ['Počet prvkov / väzieb', `${p.elements.length} / ${p.connections.length}`],
         ['Skontrolované polohy', String(data.samples.length)], ['Blokované polohy', String(data.blocked)],
-        ['Maximálna chyba väzieb', `${fmt(data.maxResidual, 4)} mm`], ['Režim', p.simulation.mode === 'dynamic' ? 'Odhadová dynamika jedného pohonu' : 'Predpísaná kinematika'],
+        ['Maximálna polohová chyba', `${fmt(data.maxPositionResidual, 4)} mm`], ['Maximálna uhlová chyba', `${fmt(data.maxAngularResidual, 4)}°`], ['Režim', p.simulation.mode === 'dynamic' ? 'Odhadová dynamika jedného pohonu' : 'Predpísaná kinematika'],
       ])}</section>
       <section><h2>02 / Referenčný výkres s kótami</h2><div class="drawing">${data.drawing}</div><p class="caption">Poloha ${fmt(r.motion)} ${range.unit}. Profily kulís sú strednice, nie hotové výrobné kontúry.</p></section>
       <section><h2>03 / Pohybové a silové profily</h2>${data.plots.map((svg) => `<div class="plot">${svg}</div>`).join('')}${!data.forces.length ? `<p>Silový graf nebol vypočítaný. ${escape(data.forceError)}</p>` : ''}</section>
@@ -311,7 +325,7 @@
       <section><h2>06 / Väzby a uložené kóty</h2>${p.connections.length ? table(['Väzba', 'Typ', 'Uzly', 'Hodnota'], p.connections.map((j) => [j.name, E.constraintNames[j.type], `${j.a.elementId}.${j.a.point} / ${j.b.elementId}.${j.b.point}`, ['distance', 'fixed', 'angle'].includes(j.type) ? String(j.value) : '—'])) : '<p>Bez samostatných geometrických väzieb.</p>'}${p.dimensions.length ? table(['Kóta', 'Hodnota', 'Riadenie'], p.dimensions.map((d) => [dimensionName(d), `${fmt(E.dimensionValue(r, d))} ${d.type === 'angle' ? '°' : 'mm'}`, d.constraintId || d.control ? 'Riadiaca' : 'Referenčná'])) : ''}</section>
       <section><h2>07 / Parametre simulácie</h2>${table(['Parameter', 'Hodnota'], simulationRows(p))}<p>Ťažisko a zotrvačnosť sú odhadnuté zo segmentu A–B, ak neboli zadané. Sila F sa meria podľa typu pružného prvku. Silové grafy používajú numerické derivácie polôh a virtuálnu prácu. Aktuálne F členov je statická osová sila, bez rýchlostného tlmenia.</p></section>
       ${data.history.length ? `<section><h2>08 / Časový záznam odhadovej dynamiky</h2>${table(['Čas (s)', `Pohon (${range.unit})`, `Rýchlosť (${range.unit}/s)`], data.history.filter((_, i) => i % Math.max(1, Math.ceil(data.history.length / 60)) === 0 || i === data.history.length - 1).map((s) => [fmt(s.time, 3), fmt(s.motion, 3), fmt(s.velocity / (range.unit === '°' ? K.DEG : .001), 3)]))}</section>` : ''}
-      <section><h2>09 / Vzorkované polohy</h2>${table([`Pohon (${range.unit})`, 'Uhol (°)', 'Chyba (mm)', 'Stav'], data.samples.filter((_, i) => i % Math.max(1, Math.ceil(data.samples.length / 25)) === 0 || i === data.samples.length - 1).map((s) => [fmt(s.motion), fmt(s.angle), fmt(s.residual, 4), s.blocked ? s.issues.join('; ') : 'Priechodné']))}</section>
+      <section><h2>09 / Vzorkované polohy</h2>${table([`Pohon (${range.unit})`, 'Uhol (°)', 'Polohová chyba (mm)', 'Uhlová chyba (°)', 'Stav'], data.samples.filter((_, i) => i % Math.max(1, Math.ceil(data.samples.length / 25)) === 0 || i === data.samples.length - 1).map((s) => [fmt(s.motion), fmt(s.angle), fmt(s.positionResidual, 4), fmt(s.angularResidual, 4), s.blocked ? s.issues.join('; ') : 'Priechodné']))}</section>
       <footer>Lokálne vytvorený report. Údaje neboli odoslané na server. Výsledky overte na fyzickom mechanizme.</footer>`;
     let section = 0;
     const numbered = body.replace(/<h2>\d+ \/ /g, () => `<h2>${String(++section).padStart(2, '0')} / `);
@@ -335,7 +349,7 @@
       table(['Údaj', 'Hodnota'], [
         ['Poloha pohonu', `${fmt(r.motion)} ${range.unit}`], ['Rozsah', `${fmt(range.min)}–${fmt(range.max)} ${range.unit}`],
         ['Prvky / väzby', `${p.elements.length} / ${p.connections.length}`], ['Vzorkované / blokované polohy', `${data.samples.length} / ${data.blocked}`],
-        ['Maximálna chyba väzieb', `${fmt(data.maxResidual, 4)} mm`], ['Simulácia', p.simulation.mode === 'dynamic' ? 'Odhadová dynamika jedného pohonu' : 'Predpísaná kinematika'],
+        ['Maximálna polohová chyba', `${fmt(data.maxPositionResidual, 4)} mm`], ['Maximálna uhlová chyba', `${fmt(data.maxAngularResidual, 4)}°`], ['Simulácia', p.simulation.mode === 'dynamic' ? 'Odhadová dynamika jedného pohonu' : 'Predpísaná kinematika'],
       ], ['*', '*']),
       header('02 / Referenčný výkres s kótami'),
       { svg: data.drawing.replace(/width="([\d.]+)mm" height="([\d.]+)mm"/, 'width="$1" height="$2"'), fit: [510, 285], margin: [0, 5, 0, 8] },
@@ -364,7 +378,7 @@
       { text: 'Ťažisko a zotrvačnosť sú odhadnuté zo segmentu A–B, ak neboli zadané. Sily sa prepočítavajú virtuálnou prácou a numerickými deriváciami; nejde o overenie reakcií vo väzbách. Aktuálne F členov je statická osová sila bez rýchlostného tlmenia.', style: 'muted' },
       ...(data.history.length ? [header('08 / Časový záznam odhadovej dynamiky'), table(['Čas (s)', `Pohon (${range.unit})`, `Rýchlosť (${range.unit}/s)`], data.history.filter((_, i) => i % Math.max(1, Math.ceil(data.history.length / 60)) === 0 || i === data.history.length - 1).map((s) => [fmt(s.time, 3), fmt(s.motion, 3), fmt(s.velocity / (range.unit === '°' ? K.DEG : .001), 3)]), ['*', '*', '*'])] : []),
       header('09 / Vzorkované polohy'),
-      table([`Pohon (${range.unit})`, 'Uhol (°)', 'Chyba (mm)', 'Stav'], data.samples.filter((_, i) => i % Math.max(1, Math.ceil(data.samples.length / 25)) === 0 || i === data.samples.length - 1).map((s) => [fmt(s.motion), fmt(s.angle), fmt(s.residual, 4), s.blocked ? s.issues.join('; ') : 'Priechodné']), [70, 65, 70, '*']),
+      table([`Pohon (${range.unit})`, 'Uhol (°)', 'Polohová chyba (mm)', 'Uhlová chyba (°)', 'Stav'], data.samples.filter((_, i) => i % Math.max(1, Math.ceil(data.samples.length / 25)) === 0 || i === data.samples.length - 1).map((s) => [fmt(s.motion), fmt(s.angle), fmt(s.positionResidual, 4), fmt(s.angularResidual, 4), s.blocked ? s.issues.join('; ') : 'Priechodné']), [60, 50, 80, 80, '*']),
     );
     // Keep titles with drawings and the short simulation-settings table.
     for (let i = content.length - 2; i >= 0; i--) if (content[i].style === 'section' && (content[i + 1].svg || (content[i].text.endsWith('Nastavenia simulácie') && content[i + 1].table))) {

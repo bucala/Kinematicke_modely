@@ -130,10 +130,14 @@ test('Git preserves pinned PDF bytes when staging and checking out on any newlin
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
-test('Publisher includes the PDF newline policy in its explicit file allowlist', async () => {
+test('Publisher includes the PDF newline policy and changelog in its explicit file allowlist', async () => {
   const publisher = await readFile(path.join(root, 'push-github.ps1'), 'utf8');
   const files = publisher.match(/\$ProjectFiles = @\(([\s\S]*?)\n\)/)?.[1];
   assert(files); assert.match(files, /^\s*'\.gitattributes'\s*$/m);
+  assert.match(files, /^\s*'CHANGELOG\.md'\s*$/m);
+  const readme = await readFile(path.join(root, 'README.md'), 'utf8'), changelog = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
+  assert(readme.includes('(CHANGELOG.md)')); assert(changelog.includes('Magic import') && changelog.includes('5e985fd'));
+  assert((await readFile(path.join(root, 'cad/KinmoFusion/README.md'), 'utf8')).includes('## História zmien'));
 });
 test('Production policy allows only the specific loopback CAD endpoint', async () => {
   const headers = await readFile(path.join(root, '_headers'), 'utf8');
@@ -147,9 +151,15 @@ test('Manifest requires a manual add-in start', async () => {
 test('Canvas modules and regression cases are in the public build and explicit publisher', async () => {
   const html = await readFile(path.join(root, 'index.html'), 'utf8'), build = await readFile(path.join(root, 'scripts/build.mjs'), 'utf8');
   const server = await readFile(path.join(root, 'scripts/server.mjs'), 'utf8'), publisher = await readFile(path.join(root, 'push-github.ps1'), 'utf8');
-  for (const file of ['interaction.js', 'context-menu.js']) {
+  for (const file of ['interaction.js', 'workbench.js', 'magic-import.js', 'context-menu.js', 'slot-outline.js']) {
     assert(html.includes(`src="./${file}"`)); assert(build.includes(`'${file}'`)); assert(server.includes(`'${file}'`)); assert(publisher.includes(`'${file}'`));
   }
   assert(html.indexOf('src="./editor.js"') < html.indexOf('src="./interaction.js"') && html.indexOf('src="./context-menu.js"') < html.indexOf('src="./app.js"'));
-  assert(server.includes("'tests/interaction-cases.js'")); assert(publisher.includes("'tests/interaction-cases.js'"));
+  assert(html.indexOf('src="./slot-outline.js"') < html.indexOf('src="./exports.js"'));
+  assert(html.indexOf('src="./magic-import.js"') > html.indexOf('src="./engine.js"') && html.indexOf('src="./magic-import.js"') < html.indexOf('src="./app.js"'));
+  const accept = html.match(/id="magic-image-file"[^>]*accept="([^"]+)"/)?.[1];
+  assert.deepEqual(accept?.split(','), ['image/png', 'image/jpeg', 'image/webp', '.png', '.jpg', '.jpeg', '.webp']);
+  for (const file of ['tests/interaction-cases.js', 'tests/workbench-cases.js', 'tests/magic-import-cases.js']) {
+    assert(server.includes(`'${file}'`)); assert(publisher.includes(`'${file}'`));
+  }
 });

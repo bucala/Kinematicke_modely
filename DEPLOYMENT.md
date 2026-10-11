@@ -17,7 +17,11 @@ Overená oprava zachováva pôvodné bajty cez `.gitattributes` a zahŕňa tento
 
 Oprava bola publikovaná v `fc04c71`; používateľ následne publikoval rozhranie v `3194075 update prostredia`. Dňa 11. 10. 2026 schválil aj commit a push Click+Select, kontextových úprav a interaktívneho README do existujúceho `main`. Aktuálne lokálne výsledky a manuálne akceptačné medzery sú v [VALIDATION.md](VALIDATION.md). Stav vzdialeného CI a Workers Builds treba overiť priamo v službách.
 
+Click+Select a README sú publikované v `5e985fd`. Následné rozšírenie zahŕňa úchyty, diagnostiku, prichytávanie výlučne na požiadanie, vlastné podzostavy, pomenované verzie, referenčné obrysy drážok a Magic import. Dňa 11. 10. 2026 používateľ výslovne požiadal o doplnenie changelogov a README, commit a push celého rozšírenia do existujúceho `main`. Rozsah zdrojových zmien opisuje [CHANGELOG.md](CHANGELOG.md); skutočný commit a stav vetvy potvrdzuje Git.
+
 Git, Node.js aj PowerShell sú dostupné. Lokálne kontroly, testy a build sú zaznamenané v `VALIDATION.md`. Aktuálnu konfiguráciu Workeru a Git-integrácie táto úprava nemení.
+
+Magic import používa iba klientsky raster a existujúce povolenie `img-src blob:`; nepridáva serverový upload, sieťový endpoint ani nový binding. Preneste spolu modul, vstupné HTML, štýly, editor a aktualizované testy. Manuálny deploy cez Wrangler nie je súčasťou tohto publikovania; push môže spustiť existujúcu Git-integráciu Workers Builds. Jej úspech treba overiť samostatne.
 
 Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolovať diff. Pri commite sa použije už nakonfigurovaná Git identita. Ak chýba, publikovanie sa musí zastaviť, nie vymyslieť autora. Tokeny sa nevkladajú do repozitára, príkazovej histórie ani odpovede.
 
@@ -32,6 +36,9 @@ Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolova�
 - `.gitignore`: vylúčenie lokálnych tajomstiev, Wrangler dát, závislostí a build výstupov.
 - `dist/vendor/pdfmake/`: offline PDF modul, fonty a ich licencie.
 - `dist/cad/KinmoFusion.zip`: vytvorený balík štyroch verejných súborov doplnku. Build nekopíruje testy, pracovné analýzy ani vzorové reporty.
+- `workbench.js` a `slot-outline.js`: nové klasické offline-kompatibilné moduly. Build, serverové a publikačné allowlisty ich zahŕňajú; spoločné regresie knižnice a verzií sú v `tests/workbench-cases.js`.
+- `magic-import.js`: lokálna kalibrácia a obkresľovanie; zdieľané regresie sú v `tests/magic-import-cases.js` a izolované testy načítania rastra v `tests/magic-import.test.mjs`. Modul je v produkčnom builde, testy iba v zdrojoch.
+- `CHANGELOG.md`, root README a história zmien v pribalenom Fusion návode: dokumentácia celého rozšírenia. Root changelog je súčasť zdrojového publikačného zoznamu, nie runtime asset aplikácie.
 
 Konfiguračné súbory samy nepublikujú aplikáciu ani neprepájajú GitHub s Cloudflare.
 

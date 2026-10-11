@@ -11,9 +11,19 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 
 *Ilustračná schéma, nie snímka aplikácie. Kliknutím prejdete na spustenie.*
 
-**[Rýchly štart](#start)** · **[Stiahnuť zdrojový ZIP](https://github.com/bucala/Kinematicke_modely/archive/refs/heads/main.zip)** · **[Ovládanie](#controls)** · **[Výsledky overenia](VALIDATION.md)** · **[MIT licencia](LICENSE)**
+**[Rýchly štart](#start)** · **[Stiahnuť zdrojový ZIP](https://github.com/bucala/Kinematicke_modely/archive/refs/heads/main.zip)** · **[Ovládanie](#controls)** · **[História zmien](CHANGELOG.md)** · **[Výsledky overenia](VALIDATION.md)** · **[MIT licencia](LICENSE)**
 
 > Kinematika a odhadová dynamika jedného pohonu, nie pevnostný výpočet ani výrobný výkres. Pred použitím návrhu si prečítajte [hranice simulácie](#limits).
+
+## Novinky z 11. 10. 2026
+
+- **[Magic import](#magic-import):** nahrajte náčrt, určte mierku A/B, obkreslite pevné časti, vložte členy a väzby a vytvorte samostatný projekt cez Finish. Obrázok zostáva lokálny; ide o ručné obkreslenie.
+- **[Presné úchyty](#handles)** a **[diagnostika väzieb](#diagnostics)** priamo v editore, s oddelenými chybami v mm/°.
+- **[Inteligentné prichytávanie](#snapping)** je predvolene vypnuté, zapína sa iba tlačidlom a nový spoj potrebuje potvrdenie.
+- **[Vlastné podzostavy](#assemblies)** a **[pomenované verzie](#versions)** s prenosnými kolekciami, porovnaním a zálohou pred obnovením.
+- **[Referenčné obrysy drážok](#slot-outlines)** pre DXF/Fusion bez straty stredníc.
+
+Podrobný záznam noviniek, opráv a hraníc je v **[CHANGELOG.md](CHANGELOG.md)**.
 
 <a id="navigation"></a>
 
@@ -26,10 +36,13 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 | [Šablóny mechanizmov](#templates) | [Skratky a ovládanie](#controls) | [Lokálne testy a vývoj](#development) |
 | [Dvojite sklopeny suflik](#drawer) | [Pružiny a odhadová dynamika](#forces) | [GitHub a Cloudflare](#deployment) |
 | [Časté otázky](#faq) | [Ukladanie a súkromie](#storage) | [Súbory projektu](#files) |
+| [Úchyty a presné rozmery](#handles) | [Diagnostika väzieb](#diagnostics) | [Referenčné obrysy drážok](#slot-outlines) |
+| [Prichytávanie na požiadanie](#snapping) | [Vlastné podzostavy](#assemblies) | [Pomenované verzie a porovnanie](#versions) |
+| [Magic import z náčrtu](#magic-import) | [Mierka a pevný rám](#magic-import) | [Bezpečné Finish alebo zrušenie](#magic-import) |
 
 Kliknutím na názov rozbaľovacieho návodu ho otvoríte. Navigácia a návody fungujú priamo na GitHube, bez JavaScriptu.
 
-Pri prvom otvorení začína editor prázdny. Uložený projekt sa obnoví bez zmeny. Jedinú ponuku projektov a šablón otvoríte kliknutím na **názov projektu so šípkou v hlavičke**. Obsahuje všeobecné šablóny, samostatný projekt **Dvojite sklopeny suflik**, uložené projekty, import a premenovanie.
+Pri prvom otvorení začína editor prázdny. Uložený projekt sa obnoví bez zmeny. Jedinú ponuku projektov a šablón otvoríte kliknutím na **názov projektu so šípkou v hlavičke**. Obsahuje všeobecné šablóny, samostatný projekt **Dvojite sklopeny suflik**, uložené projekty, import, premenovanie, vlastné podzostavy a pomenované verzie.
 
 <a id="start"></a>
 
@@ -116,6 +129,10 @@ Toto je kinematický príklad. Nový bod má predvolene nulovú hmotnosť; samot
 - Knižnica prvkov: samostatný bod, pevný rám, lineárne vedenie, tiahlo, kulisa, ložisko, čelo, tlačná/ťažná pružina a tlačný/ťažný piest.
 - Click+Select bodov, koncov členov, väzieb a telies; Shift/Ctrl multiselect, skupinový posun a kontextové menu.
 - Pridávanie kliknutím alebo drag & drop, prichytávanie na mriežku, zarovnanie, zoom a meranie.
+- **Magic import**: lokálny obrázok, mierka z dvoch bodov, ručne obkreslený rám, členy a väzby, samostatný projekt cez Finish.
+- Priame úchyty X/Y, otočenie okolo zvoleného bodu, dĺžka jednoduchého člena a presné číselné zadanie bez otvárania Vlastností.
+- Samostatná diagnostika konkrétnych väzieb, oddelené chyby v mm/°, zostávajúca voľnosť a upozornenia na opakované alebo konfliktné požiadavky.
+- Inteligentné prichytávanie bodov, stredov, vedení a osí, **iba po zapnutí tlačidlom**. Nový spoj vyžaduje ďalšie potvrdenie.
 - Otočný kĺb, posuvný kĺb, čap vo vedení, pevné spojenie, vzdialenosť, rovnobežnosť a relatívny uhol; upraviteľný názov, uzly a hodnota.
 - Inšpektor rozmerov, polohy, uhlov, ložísk, pohybových limitov a kontrolných bodov.
 - Ručné ťahanie výsuvu a čela s inverzným kinematickým výpočtom.
@@ -129,13 +146,53 @@ Toto je kinematický príklad. Nový bod má predvolene nulovú hmotnosť; samot
 - Uložené referenčné a riadiace kóty, pomenované trajektórie a prevod platnej vypočítanej trajektórie na nezávislú vodiacu krivku.
 - Sily pružín/piestov, hmotnosť, ťažisko, zotrvačnosť, gravitácia, tlmenie, trenie a jeden vonkajší pohon; odhadová dynamika.
 - Automatické lokálne ukladanie, zoznam projektov, validovaný import `.kinmo` aj staršieho JSON.
+- Prenosná knižnica vybraných podzostáv s vnútornými väzbami a nezávislými kópiami pri vložení.
+- Pomenované verzie, obnovenie so zálohou aktuálneho stavu a porovnanie návrhových rozmerov.
 - Export `.kinmo`, JSON, CSV, SVG v mm, PNG, DXF a lokálne vytvoreného PDF/HTML reportu.
 - Tri trvalé vzhľady: biela/čierna, krémová/terakota a teplá tmavá/biela.
 - Voliteľný lokálny doplnok Autodesk Fusion na vytvorenie nového referenčného dokumentu.
+- DXF/Fusion strednice aj voliteľné uzavreté referenčné obrysy drážok podľa šírky, vrátane vnútorného obrysu uzavretej strednice.
 - Samostatný dvojkulisový projekt podľa náčrtu, obe trajektórie v sústave korpusu alebo zásuvky a viditeľné odhadové predpoklady.
 - Responzívne rozhranie a klávesové skratky.
 
 </details>
+
+<a id="magic-import"></a>
+
+## Magic import: od ručného náčrtu k mechanizmu
+
+**Magic import** v hlavičke otvorí päťkrokového sprievodcu. Ide o **ručné obkreslenie**, nie automatické rozpoznávanie členov z obrázka. Vytvára samostatný vlastný projekt a funguje aj offline cez `file://`.
+
+<details>
+<summary><strong>Nahrať náčrt, určiť mierku a zostaviť schému</strong></summary>
+
+1. **Obrázok:** nahrajte PNG, JPG alebo neanimovaný WebP, prípadne ho pustite na sprievodcu či plátno. Limit je 10 MB, 8 192 px na stranu a 16 miliónov pixelov. SVG, GIF a HEIC najskôr preveďte na podporovaný raster.
+2. **Mierka:** kliknite na body **A a B** známeho rozmeru a zadajte ich skutočnú vzdialenosť v **mm**. Súradnice možno zadať aj číselne. Bod A bude začiatkom; X rastie doprava a Y nadol. Kliknite na **Ďalej**.
+3. **Pevné časti:** dvoma kliknutiami vytvorte pevnú úsečku/podlahu. **Obrys rámu** kreslite po vrcholoch a uzavrite Enter, tlačidlom alebo kliknutím pri prvom bode. **Pevný bod** vytvorí nepohyblivý uzol. Obrys má najviac 64 vrcholov; ďalšie vrcholy ponúknu uzly na pripojenie členov.
+4. **Členy a väzby:** na desktope pretiahnite prvok z knižnice. Na dotykovom zariadení otvorte knižnicu, vyberte typ a kliknite na bod vloženia. Rameno, čelo alebo priame vedenie môžete aj obkresliť dvoma koncami. Upravte voľné členy úchytmi alebo číselným dialógom; **Spojiť uzly (J)** prepojí dva body a **Typ / nová väzba…** nastaví požadovaný typ. **Pohon…** upraví jeden vybraný vstup.
+5. **Dokončenie:** zadajte názov, prezrite počty a upozornenia a kliknite na **Finish**. Schéma ostane v editore ako samostatný projekt. Potom prepnite na simuláciu a overte funkciu väzieb.
+
+Pri prekrývajúcich sa uzloch vyberte prvý bod a kliknite znova na rovnaké miesto: druhý bod musí patriť inému členu. Na nastavenie pohonu vyberte telo člena mimo spoločného uzla, potom **Pohon…**.
+
+Vlastnosti sa samy neotvoria. Inteligentné prichytávanie začína vypnuté a zapína sa iba tlačidlom. Pri kreslení Ctrl/Cmd+Z alebo Backspace odoberie posledný rozkreslený vrchol; Escape zruší náhľad. Dokončené časti používajú bežné Späť/znova.
+
+Vyberte dlhý známy úsek, aspoň 2 pixely. Známy rozmer musí byť 0,1–5 000 mm a celý kalibrovaný podklad sa musí zmestiť do rozsahu ±5 000 mm. Jedna mierka **neopravuje perspektívu, natočenie roviny ani skreslenie objektívu**. Kalibrácia neotáča obrázok. Fotografia šikmo odfotenej zostavy nie je presný technický výkres.
+
+</details>
+
+<details>
+<summary><strong>Čo zachová Finish a ako bezpečne zrušiť import</strong></summary>
+
+- Počas sprievodcu sa rozpracovaná schéma automaticky neukladá medzi hotové projekty a neprepisuje predvoľby. Geometriu možno samostatne exportovať do `.kinmo` v poslednom kroku.
+- **Zrušiť** po kreslení vyžaduje potvrdenie a obnoví pôvodný projekt, výber a celú históriu. Rozpracovaná schéma sa zahodí; ak bol pôvodný projekt neuložený, pokračuje jeho bežné ukladanie.
+- **Finish** uloží nový aj potrebný pôvodný projekt oddelene. Pri plnom alebo poškodenom úložisku nevymazáva staršie záznamy. Ak pôvodný stav ešte nie je zachovaný, najskôr ponúkne jeho export a vyžiada potvrdenie zálohy. Dokončenie bez dostupného úložiska ostane iba v pamäti: nový projekt exportujte.
+- Obrázok zostáva lokálne ako dočasný podklad. **Neposiela sa na server ani sa neukladá do projektu, CAD či obrazových exportov.** Po Finish alebo zrušení sa uvoľní; projekt uchová len geometriu a poznámku o kalibrácii.
+- Po začatí kreslenia je mierka zamknutá aj po Späť, aby sa nerozišli rozmery a väzby. Pre inú mierku sa vráťte na **Obrázok**, vyberte nový podklad a potvrďte čistú schému. Existujúca geometria sa vymaže až po úspešnom načítaní nového obrázka.
+- Finish dokončuje geometriu, **nezaručuje správny pohyb ani určitý model**. Upozornenia na chýbajúci pohon, voľné členy alebo konfliktné väzby možno riešiť aj po dokončení.
+
+</details>
+
+[Späť na navigáciu](#navigation)
 
 <a id="drawer"></a>
 
@@ -164,7 +221,7 @@ Podrobný rozbor a pôvodný náčrt: [`projects/dvojite-sklopeny-suflik.md`](pr
 
 Východiskový korpus a vedenie majú dĺžku 390 mm, zdvih 300 mm a čelo dĺžku 160 mm. Ložisko je 65 mm od otočného čapu. Čelo zostáva vertikálne do posuvu 110 mm a následne sa plynulo vyklopí z 90° na 0°.
 
-Pri parametrickom profile sa výrobná drážka odvodí z dráhy ložiska podľa hladkého pohybového zákona. **Pri každej polohe solver rieši priesečník tejto drážky s kružnicou, ktorej stred je otočný čap a polomer je vzdialenosť ložiska.** Pri úprave voľnej krivky sa nedosiahnuteľná poloha označí, nie maskuje presunutím ložiska mimo drážky.
+Pri parametrickom profile sa referenčná strednica drážky odvodí z dráhy ložiska podľa hladkého pohybového zákona. **Pri každej polohe solver rieši priesečník tejto drážky s kružnicou, ktorej stred je otočný čap a polomer je vzdialenosť ložiska.** Pri úprave voľnej krivky sa nedosiahnuteľná poloha označí, nie maskuje presunutím ložiska mimo drážky.
 
 </details>
 
@@ -189,7 +246,7 @@ Pridajte pevné body, vedenia, ramená a ložiská. Nástrojom **J** vyberte dva
 
 Lineárne vedenie má riadený uzol **C**. Spojte ho so začiatkom ramena alebo čela. Na vlastnom ramene môžete zapnúť rotačný pohon; jeho začiatočný bod potom zostáva pevný. Aktivácia rotačného pohonu vypne ostatné vlastné pohony.
 
-Vlastné uzavreté reťazce používajú iteratívnu projekciu tuhých telies. Solver nemení dĺžky ramien. Ak nedosiahne toleranciu 0,05 mm, nahlási nesplnenú väzbu. Pri zložitom alebo presne singularitnom reťazci upravte počiatočnú konfiguráciu, dĺžky alebo pevné uloženia.
+Vlastné uzavreté reťazce používajú iteratívnu projekciu tuhých telies. Solver nemení dĺžky ramien. Ak nedosiahne polohovú toleranciu 0,05 mm alebo uhlovú toleranciu 0,05°, pomenuje nesplnenú väzbu. Pri zložitom alebo presne singularitnom reťazci upravte počiatočnú konfiguráciu, dĺžky alebo pevné uloženia.
 
 Súradnice editora používajú SVG konvenciu: X rastie doprava a Y nadol. Kladný uhol otáča rameno proti smeru hodinových ručičiek.
 
@@ -240,6 +297,106 @@ Editor zostáva **2D, Z = 0**. Referenčná tuhosť tuhého ramena sa ukladá ak
 
 [Späť na navigáciu](#navigation)
 
+<a id="handles"></a>
+
+## Úchyty a presné číselné úpravy
+
+<details>
+<summary><strong>Posun X/Y, dĺžka a otočenie okolo zvoleného bodu</strong></summary>
+
+1. Prepnite na **Úpravu geometrie**, nástroj **Výber** a vyberte odomknutý člen alebo skupinu vo vlastnom modeli.
+2. Potiahnite úchyt **X** alebo **Y**. Druhá súradnica zostáva nezmenená. Kliknutie na úchyt, Enter alebo medzerník otvorí presné číselné zadanie.
+3. Cez **Bod otáčania** vyberte skutočný uzol A/B/C alebo vlastné X/Y. Otočný úchyt a tlačidlo **Uhol** použijú tento bod.
+4. Na jednom jednoduchom ramene, čele, ráme alebo vedení použite **Dĺžka**. Zvoľte, či zostane na mieste koniec A alebo B.
+5. Potvrdená zmena tvorí jeden krok **Späť**. Escape alebo zrušenie ťahania obnoví geometriu aj predchádzajúcu históriu.
+
+X/Y zadáva **relatívny posun**, nie absolútnu polohu; absolútne súradnice zostávajú v kontextovej ponuke uzla. Y rastie nadol, kladný uhol otáča proti hodinovým ručičkám. Výber konca ramena úchytom stále upravuje celé tuhé teleso. Nesený potomok sa pri skupinovej zmene nepohne dvakrát.
+
+Úchyty nemenia chránené originály, zamknuté alebo pružné členy. Na rám s polygonálnym obrysom sa jednoduchý dĺžkový úchyt nevzťahuje. Úpravy neotvárajú Vlastnosti.
+
+</details>
+
+<a id="diagnostics"></a>
+
+## Diagnostika konkrétnych väzieb
+
+<details>
+<summary><strong>Zistiť, ktorý spoj zlyháva a čo v modeli chýba</strong></summary>
+
+Tlačidlom **Diagnostika väzieb** na plátne otvorte samostatný panel. Každý riadok pomenuje väzbu, polohovú odchýlku v **mm**, uhlovú odchýlku v **°** a jej stav. Kliknutím na názov vyberiete skutočný kĺb; chybný spoj sa zvýrazní.
+
+- V **Úprave geometrie** sa zobrazujú návrhové polohy bez vynútenia väzieb. Odchýlka tu nemusí znamenať neplatný mechanizmus.
+- V **Simulácii** panel ukazuje zostávajúcu chybu po riešení a prekročenie pasívnych dorazov.
+- Nápoveda upozorní na chýbajúci pohon, voľné členy, neurčené súradnice a opakované či konfliktné hodnoty rovnakého typu väzby.
+- Symbolické bodové väzby analytických šablón sú označené **Parametrická**. Nevydávajú sa za samostatne namerané chybné spoje.
+
+Odchýlky mm/° zostávajú oddelené aj v analýze, kinematickom CSV a PDF/HTML reportoch. Uhlové väzby porovnávajú orientáciu modulo 360°; úplné otáčky nevytvárajú fiktívnu odchýlku. Diagnostika nie je všeobecným dôkazom riešiteľnosti všetkých väzieb ani kontrolou výroby.
+
+</details>
+
+<a id="snapping"></a>
+
+## Inteligentné prichytávanie iba na požiadanie
+
+<details>
+<summary><strong>Zapnúť náhľad prichytenia a samostatne potvrdiť spoj</strong></summary>
+
+1. **Inteligentné prichytávanie je pri štarte a po každom načítaní projektu vypnuté.** Zapnite ho výslovne jeho tlačidlom na plátne.
+2. Pri ťahaní uzla, skupiny alebo X/Y úchytu sa ponúkne blízky koncový bod, stred člena, vodiaca krivka alebo osové zarovnanie. Tolerancia je približne **9 pixelov obrazovky**, aj po zoome.
+3. Náhľad upraví polohu, ale **nevytvorí väzbu**. Po uvoľnení sa pri skutočnom bode alebo vedení zobrazí samostatná otázka.
+4. Vyberte **Ponechať iba polohu**, alebo potvrďte skutočný otočný kĺb, posuvný kĺb či čap vo vedení. Stredový POI vznikne až po potvrdení.
+5. Potvrdenie spojenia je ďalší krok Späť. Jeho zrušenie ponechá prichytenú polohu. Osové zarovnanie spoj nikdy nevytvára.
+
+Vlastné teleso a jeho nesení potomkovia nie sú cieľom pre nadbytočné prichytenie. Neaktuálny náhľad ani duplicitná väzba sa nepotvrdia. Vypnutie tlačidlom zruší aj rozpracované ťahanie.
+
+Toto je samostatná funkcia od bežného **prichytávania na mriežku 5 mm**. Nastavenie inteligentného prichytávania sa neukladá do preferencií, `.kinmo` ani pomenovaných verzií.
+
+</details>
+
+<a id="assemblies"></a>
+
+## Vlastná knižnica podzostáv
+
+<details>
+<summary><strong>Uložiť výber a vložiť nezávislú podzostavu</strong></summary>
+
+1. Vo vlastnom modeli alebo voľnej kópii vyberte členy pomocou Shift/Ctrl/Cmd + klik. Výber kĺbu zahŕňa obe jeho telesá.
+2. Otvorte **názov projektu → Vlastné podzostavy → Uložiť aktuálny výber**, prípadne použite kontextovú ponuku výberu.
+3. Pomenujte podzostavu. Uložia sa celé členy, nesení potomkovia, skryté ukotvenia, vnútorné väzby, kóty a trajektórie.
+4. Zvoľte **Vložiť…**, zadajte X/Y a potvrďte **Vložiť kópiu**. Vzniknú nové identifikátory; originál aj knižnica zostanú nezmenené.
+5. Vonkajšie väzby doplňte na plátne. Vloženie je jeden krok Späť.
+
+Ukladá sa návrhová geometria, nie okamžitá animovaná poloha. Väzby a montáže na nevybrané telesá sa neprenesú. Chránenú šablónu najskôr preveďte na voľnú kópiu.
+
+Ak model ešte nemá pohon, môžete zachovať jediný pohon podzostavy a jeho rozsah. Inak sa vloží pasívna kópia bez druhého vstupu.
+
+Knižnica má limit **20 položiek a 2 MB spolu**. Export/import používa `.kinmolib`; import pridáva kópie namiesto prepísania rovnakých ID. Pri nedostupnom úložisku použite **Exportovať samostatne**. Odstránenie záznamu vyžaduje potvrdenie a nemá krok Späť.
+
+</details>
+
+<a id="versions"></a>
+
+## Pomenované verzie a porovnanie rozmerov
+
+<details>
+<summary><strong>Uložiť variant, porovnať ho a bezpečne obnoviť</strong></summary>
+
+1. Otvorte **názov projektu → Pomenované verzie → Uložiť novú verziu** a zadajte názov.
+2. Upravte návrh. Cez **Porovnať rozmery** vyberte dva uložené varianty alebo verziu a aktuálny stav.
+3. Tabuľka ukáže rozmery predtým/potom, jednotky, podpísaný rozdiel a pridané či odstránené položky. Predvolene zobrazuje len zmeny.
+4. Cez **Obnoviť… → Zálohovať a obnoviť** sa aktuálny stav najskôr uloží ako **Pred obnovením…**.
+5. Až po úspešnej zálohe sa načíta vybraná verzia. Plné, poškodené alebo nedostupné úložisko obnovenie zastaví bez zmeny projektu.
+
+Verzia zachová natívny projekt, fyziku, vzhľad, režim a polohu pohonu. Obnovenie nezačne samo prehrávanie; začne novú históriu Späť, skryje Vlastnosti a vypne inteligentné prichytávanie.
+
+Porovnávajú sa **návrhové** súradnice, orientácie, dĺžky, šírky, polomery, parametre, uložené kóty a dorazy, nie aktuálne animované polohy ani sily. Identita členov sa určuje podľa ID; nezávislé kópie sa nepovažujú za totožný člen len podľa mena.
+
+Limit je **40 verzií naprieč projektmi a 2 MB spolu**, vrátane záloh pred obnovením. Staršie položky sa nevymazávajú automaticky. Celú kolekciu alebo jednotlivý záznam prenesiete cez `.kinmoversions`. Samostatný export funguje aj bez lokálneho uloženia.
+
+</details>
+
+[Späť na navigáciu](#navigation)
+
 <a id="forces"></a>
 
 ## Pružiny, piesty a odhadová dynamika
@@ -273,11 +430,34 @@ V **Nastaveniach → Vzhľad aplikácie** vyberte bielu/čiernu, krémovú/terak
 | JSON | Starší projekt verzie 1, bez pracovného vzhľadu a polohy |
 | SVG | Referenčný výkres s fyzickými rozmermi v mm, kótami a trajektóriami |
 | PNG | Aktuálny pohľad pracovnej plochy, najviac 2 000 × 4 000 px so zachovaním pomeru strán |
-| DXF | Referenčné polylines/kružnice/popisy v mm, os Y otočená na CAD konvenciu |
+| DXF | Referenčné polylines/kružnice/popisy v mm, os Y otočená na CAD konvenciu, voliteľné uzavreté obrysy drážok |
 | PDF / HTML | Vektorový výkres, grafy, aktívne rozmery, väzby, fyzikálne parametre a tabuľky polôh |
-| CSV | Kinematické polohy alebo sily a posledný časový záznam odhadovej dynamiky |
+| CSV | Kinematické polohy s oddelenými chybami mm/° alebo sily a posledný časový záznam odhadovej dynamiky |
 
-PDF funguje offline; modul sa načíta lokálne až pri exporte. HTML report je samostatný a vhodný na tlač. Krivky vo výkresoch sú strednice a kóty referenčné, nie hotové výrobné kontúry.
+PDF funguje offline; modul sa načíta lokálne až pri exporte. HTML report je samostatný a vhodný na tlač. Bežné SVG/PDF/HTML výkresy používajú strednice a referenčné kóty. Uzavreté CAD obrysy sú tiež len referenčné, nie hotové výrobné kontúry.
+
+<a id="slot-outlines"></a>
+
+## Uzavreté referenčné obrysy drážok
+
+<details>
+<summary><strong>Exportovať šírku drážky do DXF alebo Fusion</strong></summary>
+
+V exportnom a Fusion dialógu je spoločná voľba **pridať uzavreté referenčné obrysy podľa šírky drážky**. Pri novom otvorení aplikácie je označená; môžete ju vypnúť a exportovať pôvodné strednice.
+
+| Vrstva | Význam |
+|---|---|
+| `SLOT` | Pôvodná vzorkovaná strednica, zostáva vždy |
+| `SLOT_REFERENCE_OUTLINE` | Uzavretý vonkajší šírkový obrys |
+| `SLOT_REFERENCE_INNER` | Vnútorný obrys pri uzavretej strednici |
+
+Otvorená strednica má polygonové zaoblené konce a vonkajšie rohy; uzavretá strednica vytvorí dva obrysy. Šírka pochádza z konkrétnej drážky alebo aktívneho parametra šablóny. Zadná opora dvojkulisovej zásuvky má samostatnú šírku 8 mm. Samostatné referenčné vodidlá zostávajú strednicami.
+
+Vzorkovaná strednica sa na výpočet obrysu zjednodušuje najviac o 0,005 mm; výstup je polygonálny a zaokrúhlený na 0,001 mm. **Nie je to overenie nástroja, vôle, výrobnej tolerancie, pevnosti ani funkcie uloženia.**
+
+Nulové, pretínajúce sa, prekrývajúce sa alebo príliš široké profily sa odmietnu s názvom drážky. Opravte krivku/šírku alebo vypnite voľbu obrysov; export nebude potichu obsahovať chybnú čiastočnú kontúru. Jedna CAD polyline má najviac 1 001 vrcholov, celý výkres najviac 30 000 bodov.
+
+</details>
 
 <a id="fusion"></a>
 
@@ -299,7 +479,7 @@ Ak sa kód nezobrazí, skontrolujte, že beží **KinmoFusion**, nie vlastný pr
 
 </details>
 
-Doplnok počúva len na `127.0.0.1:8765`. Vytvorí **nový, neuložený referenčný dokument** s fixovanými 2D krivkami; existujúce návrhy nemení ani neukladá. Nevytvára 3D zostavu ani Fusion joints. Priame spojenie potrebuje HTTP(S), nie `file://`; alternatíva je DXF. Limit je 2 MB / 2 000 entít / 30 000 bodov. Po práci doplnok zastavte.
+Doplnok počúva len na `127.0.0.1:8765`. Vytvorí **nový, neuložený referenčný dokument** s fixovanými 2D krivkami, strednicami a voliteľnými [referenčnými obrysmi drážok](#slot-outlines); existujúce návrhy nemení ani neukladá. Nevytvára 3D zostavu ani Fusion joints. Priame spojenie potrebuje HTTP(S), nie `file://`; alternatíva je DXF. Limit je 2 MB / 2 000 entít / 30 000 bodov, jedna polyline najviac 1 001 vrcholov. Po práci doplnok zastavte.
 
 Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusion/README.md). Skutočný import v živom Fusion zostáva manuálnym akceptačným testom.
 
@@ -312,6 +492,9 @@ Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusio
 | Ľavý klik na objekt | Vybrať bod, kĺb alebo člen |
 | Shift/Ctrl/Cmd + klik | Pridať alebo odobrať položku výberu |
 | Ťahanie vybraného objektu | Posun geometrie alebo skupiny v editačnom režime |
+| Ťahanie X/Y, otočného alebo dĺžkového úchytu | Priama úprava návrhovej geometrie |
+| Klik / Enter / medzerník na úchyte | Presné číselné zadanie |
+| Tlačidlo inteligentného prichytávania | Výslovne zapnúť alebo vypnúť náhľad, predvolene vypnuté |
 | Klik na prázdne plátno | Zrušiť výber |
 | Pravý klik | Ponuka bodu, členu, kĺbu alebo plátna |
 | Pravý klik na vybraný objekt | Zachovať skupinu a otvoriť jej ponuku |
@@ -339,11 +522,13 @@ V otvorenej kontextovej ponuke použite šípky, Home/End, Enter a Escape. Vo vs
 
 ## Ukladanie a súkromie
 
-Projekty zostávajú v `localStorage` aktuálneho prehliadača. Uchováva sa najviac 20 projektov a 60 krokov histórie. Na zálohovanie a prenos použite `.kinmo`, najmä pri vypnutom úložisku alebo súkromnom prehliadaní. CSV ani report nenahrádzajú natívny projekt.
+Projekty zostávajú v `localStorage` aktuálneho prehliadača. Uchováva sa najviac 20 projektov a 60 krokov histórie. V samostatných kolekciách je najviac 20 vlastných podzostáv a 40 pomenovaných verzií, každá kolekcia má limit 2 MB a automaticky nevymazáva staršie záznamy. Na zálohovanie a prenos použite `.kinmo`, `.kinmolib` a `.kinmoversions`, najmä pri vypnutom úložisku alebo súkromnom prehliadaní. CSV ani report nenahrádzajú natívny projekt.
 
 Import akceptuje `.kinmo` obálku verzie 2 alebo starší projekt verzie 1: najviac 120 prvkov, 240 väzieb, 120 kót a 60 trajektórií, limit súboru 2 MB. Obrysy majú 3–64 vrcholov a polyline 2–1 001. Validujú sa jednotky, rozsahy, odkazy, cykly nosných telies a fyzikálne parametre. Importované názvy sa escapujú.
 
 Export `.kinmo` aj JSON používa kompaktný zápis a rovnaký limit 2 MB. Príliš veľký projekt odmietne namiesto vytvorenia zálohy, ktorú nemožno znova importovať.
+
+Podklad z **Magic import** je dočasný lokálny raster, nie projektová príloha. Automaticky sa neobnoví po zatvorení stránky. Pred zatvorením rozpracovanú geometriu dokončite alebo exportujte; neuložený sprievodca požiada prehliadač o upozornenie pri zatvorení.
 
 Exporty neopúšťajú zariadenie. Pri explicitnom CAD odoslaní ide geometria do lokálneho doplnku. Aplikácia nepoužíva cloudové CAD prihlasovacie údaje a sama CAD dokument nesynchronizuje; vlastné ukladanie/synchronizáciu Fusion riadi používateľ.
 
@@ -354,7 +539,7 @@ Exporty neopúšťajú zariadenie. Pri explicitnom CAD odoslaní ide geometria d
 <details>
 <summary><strong>Prečo je plátno prázdne a kde sú projekty?</strong></summary>
 
-Prvé otvorenie je zámerne prázdne. Kliknite na **názov projektu so šípkou v hlavičke**. Je to jediný vstup k šablónam, samostatnej zásuvke, uloženým projektom a importu. Existujúci uložený projekt sa obnoví automaticky.
+Prvé otvorenie je zámerne prázdne. Kliknite na **názov projektu so šípkou v hlavičke**. Je to jediný vstup k šablónam, samostatnej zásuvke, uloženým projektom a importu `.kinmo`. Náčrt otvoríte samostatným tlačidlom **Magic import**. Existujúci uložený projekt sa obnoví automaticky.
 
 </details>
 
@@ -382,7 +567,7 @@ Riadené originály sú chránené. Použite **Voľná kópia** a upravujte nez�
 <details>
 <summary><strong>Prečo solver blokuje pohyb alebo odmieta dynamiku?</strong></summary>
 
-Pozrite upozornenia a zostávajúcu voľnosť modelu. Odhadová dynamika potrebuje jeden nezávislý pohon, určité väzby a použiteľnú hmotnosť. Samostatný nový bod má hmotnosť 0. Pružina ani jednostranný doraz nenahradia chýbajúce uloženie. Pri neplatnej geometrii, singularite alebo doraze sa simulácia zastaví; nevytvára fyzikálny náraz.
+Otvorte **Diagnostiku väzieb** a pozrite pomenovaný spoj, jeho odchýlku mm/° a zostávajúcu voľnosť modelu. Odhadová dynamika potrebuje jeden nezávislý pohon, určité väzby a použiteľnú hmotnosť. Samostatný nový bod má hmotnosť 0. Pružina ani jednostranný doraz nenahradia chýbajúce uloženie. Pri neplatnej geometrii, singularite alebo doraze sa simulácia zastaví; nevytvára fyzikálny náraz.
 
 </details>
 
@@ -390,6 +575,22 @@ Pozrite upozornenia a zostávajúcu voľnosť modelu. Odhadová dynamika potrebu
 <summary><strong>Ako preniesť projekt na iný počítač alebo prehliadač?</strong></summary>
 
 Exportujte **.kinmo** a v druhom štúdiu použite import v hlavičkovej ponuke. `localStorage` je viazaný na prehliadač a pôvod stránky; `localhost`, `127.0.0.1`, `file://` a produkčný web môžu mať oddelené úložiská. Vymazanie dát prehliadača môže odstrániť lokálne projekty. PDF, CSV ani DXF nie sú editovateľná záloha projektu.
+
+</details>
+
+<details>
+<summary><strong>Prečo sa body automaticky neprichytávajú?</strong></summary>
+
+Inteligentné prichytávanie je zámerne vypnuté pri štarte aj po načítaní projektu. Zapnite jeho tlačidlo na plátne. Bežná mriežka 5 mm je samostatná voľba. Ani zapnutý náhľad nevytvorí spoj bez vášho ďalšieho potvrdenia.
+
+</details>
+
+<details>
+<summary><strong>Prečo sa pomenovaná verzia nedá obnoviť alebo CAD obrys odmietne export?</strong></summary>
+
+Obnovenie potrebuje miesto pre zálohu aktuálneho stavu. Exportujte a výslovne odstráňte nepotrebné verzie, alebo povoľte lokálne úložisko. Existujúci projekt sa pri zlyhaní zálohy nemení.
+
+CAD obrys môže odmietnuť nulovú či pretínajúcu sa strednicu, prudký návrat alebo príliš veľkú šírku. Opravte geometriu, alebo vypnite referenčné obrysy a použite strednicový DXF/Fusion export.
 
 </details>
 
@@ -437,12 +638,13 @@ Bez Node.js môžete otvoriť `tests/browser.html`. Spúšťa spoločné výpoč
 
 | Posledné zaznamenané lokálne overenie | Výsledok |
 |---|---|
-| Syntax, JavaScript testy a build | 266 JS testov, bez zlyhania |
-| Izolovaný Python / Fusion | 20 testov, bez zlyhania |
-| Spoločné prehliadačové testy | 208 / 208 cez HTTP aj `file://` |
-| Click+Select v prehliadači | 46 / 46 desktop, 46 / 46 mobil |
+| Syntax, JavaScript testy a build | 428 JS testov, bez zlyhania |
+| Izolovaný Python / Fusion | 23 testov, bez zlyhania |
+| Spoločné prehliadačové testy | 299 / 299 cez HTTP aj offline `file://` |
+| Magic import | 57 / 57 desktop, 57 / 57 offline mobil |
+| Click+Select a nové ovládanie | 90 / 90 desktop, 90 / 90 offline mobil |
 
-Rozsah a dátumy sú v **[VALIDATION.md](VALIDATION.md)**. Prehliadačové gestá boli syntetické; nenahrádzajú úplné natívne ťahanie. Plynulosť prirodzenej animácie, kompletné snímky rozhrania a živý Fusion import zostávajú manuálnymi akceptačnými kontrolami. Lokálne výsledky nie sú potvrdením vzdialeného CI alebo nasadenia.
+Rozsah a dátumy sú v **[VALIDATION.md](VALIDATION.md)**. Pri Magic import sa znovu vykonalo aj všetkých 44 kontrol nového ovládania a 46 regresií Click+Select, spolu 147 kontrol v každom rozložení. Prehliadačové gestá boli syntetické; nenahrádzajú úplné natívne ťahanie. Skorší offline PDF report bol otvorený parserom a vizuálne prezretý, oddelene ukazuje mm/°; pri Magic import sa nový PDF report nevytváral. Plynulosť prirodzenej animácie, kompletné snímky rozhrania a živý Fusion import zostávajú manuálnymi akceptačnými kontrolami. Lokálne výsledky nie sú potvrdením vzdialeného CI alebo nasadenia.
 
 Pri oprave chyby pridajte regresiu do príslušnej sady v [`tests/`](tests/). Zachovajte fungovanie cez HTTP aj `file://`, ochranu originálov a pripnuté bajty PDF distribúcií.
 
@@ -450,7 +652,7 @@ Pri oprave chyby pridajte regresiu do príslušnej sady v [`tests/`](tests/). Za
 
 ## GitHub a Cloudflare Workers
 
-Zdrojový repozitár je **[bucala/Kinematicke_modely](https://github.com/bucala/Kinematicke_modely)**, produkčná vetva **main** a existujúci Cloudflare Worker **kinematicke-modely**. Táto verzia zahŕňa Click+Select, kontextové operácie a ich testy. Podrobný postup publikovania je v **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+Zdrojový repozitár je **[bucala/Kinematicke_modely](https://github.com/bucala/Kinematicke_modely)**, produkčná vetva **main** a existujúci Cloudflare Worker **kinematicke-modely**. Táto verzia zahŕňa úchyty, diagnostiku, opt-in prichytávanie, podzostavy, pomenované verzie, referenčné obrysy drážok a Magic import. [História zmien](CHANGELOG.md) opisuje celý rozsah. Podrobný postup publikovania je v **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 [GitHub Actions](https://github.com/bucala/Kinematicke_modely/actions/workflows/ci.yml) kontrolujú syntax, JavaScript, izolované Python CAD testy a build pri pushi a pull requeste na `main`. Nasadzovanie cez **Workers Builds** sa pripája v nastaveniach existujúceho Workeru.
 
@@ -491,13 +693,17 @@ Stav vzdialeného CI overte v GitHub Actions; aktuálny Workers build a skutočn
 
 ```text
 index.html             Vstupný bod, funguje aj bez servera
+CHANGELOG.md           Novinky, opravy, hranice a publikovaná história
 app.js                 Editor, SVG plátno, pohon, grafy a ukladanie
 engine.js              Geometria, kinematické solvery a validácia
 double-drawer.js       Samostatný odhadový dvojkulisový projekt
 editor.js              Návrhové polohy, voľné kópie, kóty a analýza voľnosti
 interaction.js         Výberové identity, hit-testing a atómové modelové operácie
+workbench.js           Úchyty, diagnostika, opt-in snap, podzostavy a verzie
+magic-import.js        Lokálny raster, kalibrácia, obkreslenie a Finish
 context-menu.js        Samostatná klávesnicová a responzívna kontextová ponuka
 physics.js             Osové sily a odhadová dynamika jedného pohonu
+slot-outline.js        Uzavreté polygonálne referenčné odsadenia drážok
 exports.js             .kinmo, SVG, DXF, CSV a PDF/HTML reporty
 cad.js                 Výslovný prenos do lokálneho Fusion doplnku
 cad/KinmoFusion/       Doplnok, transport a návod
@@ -510,6 +716,10 @@ scripts/build.mjs      Zostavenie statického dist/
 scripts/archive.mjs    Deterministický ZIP doplnku
 tests/cases.js         Spoločná sada testov
 tests/interaction-cases.js  Modelové regresie výberu a kontextových operácií
+tests/workbench-cases.js  Úchyty, snap, diagnostika, knižnica a verzie
+tests/magic-import-cases.js  Mierka, obrázkové hlavičky, členy a Finish
+tests/magic-import.test.mjs  Izolované načítanie, chyby a uvoľnenie obrázka
+tests/export-cases.js  Prenosné súbory, obrysy drážok a reporty
 tests/kinematics.test.mjs  Node.js test runner
 tests/export-integration.test.mjs  Transport, ZIP a offline PDF distribúcia
 tests/test_fusion.py   Izolovaný most a náhradné Fusion API
@@ -519,4 +729,4 @@ tests/browser.html     Test runner priamo v prehliadači
 
 </details>
 
-**[Naspäť na navigáciu](#navigation)** · **[Spustenie](#start)** · **[Návod Fusion](cad/KinmoFusion/README.md)** · **[Overenie](VALIDATION.md)** · **[Nasadenie](DEPLOYMENT.md)**
+**[Naspäť na navigáciu](#navigation)** · **[Spustenie](#start)** · **[Návod Fusion](cad/KinmoFusion/README.md)** · **[História zmien](CHANGELOG.md)** · **[Overenie](VALIDATION.md)** · **[Nasadenie](DEPLOYMENT.md)**

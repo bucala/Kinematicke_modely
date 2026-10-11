@@ -33,8 +33,38 @@ def snapshot():
         ],
     }
 
+def js_reference_snapshot(kind="drawer", closed=False):
+    node = shutil.which("node")
+    if not node:
+        raise unittest.SkipTest("Node executable not available for contour test.")
+    script = """
+await import('./engine.js'); await import('./double-drawer.js'); await import('./editor.js');
+await import('./physics.js'); await import('./slot-outline.js'); await import('./exports.js');
+"""
+    if closed:
+        script += """
+const p = Kinematics.preset('custom'), slot = Kinematics.makeElement('slot',10,20);
+Object.assign(slot,{curveKind:'polyline',slotWidth:8,controls:[{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:0,y:100},{x:0,y:0}]});
+p.elements=[slot];
+"""
+    else:
+        script += "const p = Kinematics.preset(" + json.dumps(kind) + ");"
+    script += "process.stdout.write(JSON.stringify(KinmoExport.cadSnapshot(p,Kinematics.solve(p,0),{slotOutlines:true,dimensions:false,labels:false})));"
+    result = subprocess.run([node, "--input-type=module", "-e", script], cwd=ROOT, check=True, stdout=subprocess.PIPE)
+    return json.loads(result.stdout)
+
 
 class SnapshotTests(unittest.TestCase):
+    def test_browser_contours_fit_bridge_limits_and_keep_centerlines(self):
+        for kind, expected in [("drawer", 1), ("double-drawer", 3)]:
+            source = js_reference_snapshot(kind)
+            value = bridge.validate_snapshot(source)
+            outlines = [e for e in value["entities"] if e["layer"] == "SLOT_REFERENCE_OUTLINE"]
+            self.assertEqual(len(outlines), expected)
+            self.assertTrue(all(e["closed"] and 3 <= len(e["points"]) <= 1001 for e in outlines))
+            self.assertTrue(any(e["layer"] == "SLOT" and not e["closed"] for e in value["entities"]))
+            self.assertTrue(source["referenceOnly"])
+
     def test_valid_shape_and_safe_projection(self):
         source = snapshot()
         source["script"] = "ignored"
@@ -274,6 +304,32 @@ def load_mock_addin():
 
 
 class ImportTests(unittest.TestCase):
+    def test_actual_js_reference_contours_close_in_cm_without_touching_old_design(self):
+        source = js_reference_snapshot()
+        outline = next(e for e in source["entities"] if e["layer"] == "SLOT_REFERENCE_OUTLINE")
+        module, app = load_mock_addin(), App()
+        module.import_drawing(app, bridge.validate_snapshot(source))
+        sketch = next(s for s in app.sketches if s.name == "Kinmo · SLOT_REFERENCE_OUTLINE")
+        self.assertEqual(len(sketch.lines), len(outline["points"]))
+        self.assertAlmostEqual(sketch.lines[0].a.x, outline["points"][0]["x"] / 10)
+        self.assertAlmostEqual(sketch.lines[0].a.y, outline["points"][0]["y"] / 10)
+        self.assertAlmostEqual(sketch.lines[-1].b.x, sketch.lines[0].a.x)
+        self.assertAlmostEqual(sketch.lines[-1].b.y, sketch.lines[0].a.y)
+        self.assertTrue(all(line.isFixed for line in sketch.lines))
+        self.assertTrue(app.old_design.untouched)
+        self.assertEqual(len(app.created), 1)
+
+    def test_closed_slot_inner_and_outer_are_separate_fixed_reference_sketches(self):
+        module, app = load_mock_addin(), App()
+        source = js_reference_snapshot(closed=True)
+        module.import_drawing(app, bridge.validate_snapshot(source))
+        for layer in ["SLOT_REFERENCE_OUTLINE", "SLOT_REFERENCE_INNER"]:
+            outline = next(e for e in source["entities"] if e["layer"] == layer)
+            sketch = next(s for s in app.sketches if s.name == "Kinmo · " + layer)
+            self.assertEqual(len(sketch.lines), len(outline["points"]))
+            self.assertTrue(all(line.isFixed for line in sketch.lines))
+        self.assertTrue(app.old_design.untouched)
+
     def test_new_document_mm_to_cm_and_fixed_reference_geometry(self):
         module, app = load_mock_addin(), App()
         document = module.import_drawing(app, bridge.validate_snapshot(snapshot()))

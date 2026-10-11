@@ -7,14 +7,93 @@ Aktualizované 11. 10. 2026 pre verziu 2.0.0.
 Prostredie má funkčný PowerShell, Node.js 24.15.0 a Python dodaný s lokálne nainštalovaným Fusion. Pôvodné analytické šablóny a samostatný projekt „Dvojite sklopeny suflik“ zostávajú zachované. Voľná editácia vytvára nezávislé kópie.
 
 - `npm run check`: úspešná kontrola syntaxe aplikácie, modelov, editora, fyziky, exportov, CAD transportu, servera, buildu a JavaScriptových testov.
-- `npm test`: **266 úspešných JavaScriptových testov, 0 zlyhaní**. Z toho 208 zdieľaných modelových prípadov, 17 Node integračných prípadov a 41 UI kontrolérskych/regresných prípadov.
-- `python -B -m unittest discover -s tests -p test_fusion.py -v`: **20 úspešných testov, 0 zlyhaní**. Izolovaný lokálny transport, validácia, úlohy, ZIP a mock Fusion API, bez zásahu do bežiaceho Fusion. Predchádzajúca cesta k Fusion Pythonu už neexistovala; testy úspešne prešli cez aktuálne nainštalovaný interpreter.
-- `tests/browser.html`: **208 / 208 úspešných testov** v zabudovanom Chromium, samostatne cez HTTP aj `file://`, vrátane nových modelových operácií.
+- `npm test`: **428 úspešných JavaScriptových testov, 0 zlyhaní**. Z toho 299 zdieľaných modelových prípadov, 17 Node integračných prípadov, 105 UI kontrolérskych/regresných prípadov a 7 asynchrónnych testov načítania obrázka.
+- `python -B tests/test_fusion.py`: **23 úspešných testov, 0 zlyhaní**. Izolovaný lokálny transport, validácia, úlohy, ZIP a mock Fusion API, bez zásahu do bežiaceho Fusion. Nové prípady importujú skutočné obrysové snapshoty vytvorené JavaScriptom, kontrolujú uzatvorenie, vrstvy, pevné hrany a mm → cm.
+- `tests/browser.html`: **299 / 299 úspešných testov** v zabudovanom Chromium, samostatne cez HTTP aj offline `file://`. Pri offline kontrole bolo sieťovanie vlastnej QA karty vypnuté.
 - `npm run build`: úspešné vytvorenie `dist/`, vrátane nových modulov, lokálnych PDF assetov, referenčného náčrtu a balíka `cad/KinmoFusion.zip`.
-- Devätnásť statických súborov zostavenia sa byte-for-byte zhoduje so zdrojmi, vrátane `interaction.js` a `context-menu.js`. ZIP sa zhoduje s deterministickým generátorom; Python preveril obsah a CRC.
+- Dvadsaťdva statických súborov zostavenia sa byte-for-byte zhoduje so zdrojmi, vrátane `workbench.js`, `magic-import.js` a `slot-outline.js`. ZIP sa zhoduje s deterministickým generátorom; Python preveril obsah a CRC.
 - Zdrojový aj zostavený lokálny server servujú verejné moduly, PDF assety a ZIP s `nosniff`. Nesprístupňujú `.git/`, `.analysis/`, `tmp/` ani Python zdroje doplnku. Zostavený náhľad nesprístupňuje browser testy.
 - `git diff --check`: bez chýb whitespace; Git upozorňuje len na lokálne LF → CRLF prevody.
 - `push-github.ps1`: syntakticky overený PowerShell parserom; tento pomocný publikačný skript sa nespustil.
+
+### Predpublikačná kontrola a changelogy, 11. 10. 2026
+
+Po výslovnej požiadavke na commit/push sa doplnil `CHANGELOG.md` pre celý rozsah nad `5e985fd`, prehľad noviniek v README a história zmien v pribalenom Fusion návode. Changelog je aj v explicitnom publikačnom zozname a integračnom regresnom teste.
+
+Znovu prešli `npm run check`, **428 JS testov**, **23 izolovaných Python testov** a `npm run build`. Kontrola piatich dokumentačných súborov preverila **70 relatívnych odkazov, 25 jedinečných kotiev a 30 rozbaľovacích návodov**, bezpečnú statickú SVG ilustráciu a publikačný zoznam. PowerShell parser aj `git diff --check` prešli.
+
+Prehliadačové výsledky 299 / 299 a 147 / 147 v oboch rozloženiach pochádzajú z finálneho funkčného overenia uvedeného nižšie. Pri doplnení dokumentácie sa tieto gestá ani PDF/Fusion akceptácia neopakovali. Používa sa existujúca Git identita a štandardný push do `main`, bez prepisu histórie. Samostatný manuálny deploy sa nespúšťa.
+
+### Magic import: lokálny obrázok a ručné obkreslenie
+
+Päťkrokový sprievodca **Obrázok → Mierka → Pevné časti → Členy a väzby → Dokončenie** vytvára nezávislý vlastný projekt. Nejde o automatické rozpoznávanie z fotografie. Podklad sa neposiela na server, neukladá do projektu ani nevstupuje do exportov.
+
+Nové zdieľané, asynchrónne a skutočné UI kontrolérske regresie pokrývajú:
+
+- PNG/JPEG/neanimovaný WebP, kontrolu podpisu a rozmerov pred dekódovaním, odmietnutie SVG/GIF/APNG/animovaného WebP, 10 MB, 8 192 px na stranu a 16 miliónov pixelov. Časový limit dekódovania a chybové či staré načítania uvoľnia vlastný Blob URL.
+- Dvojbodovú mierku v mm, minimálne dva pixely, začiatok v A, oba smery prevodu a hranice ±5 000 mm. Jedna mierka neopravuje perspektívu. Kalibrácia aj prevod SVG udalosti zachovajú X/Y zdedené cez prototypové accessors.
+- Podlahu, uzavretý pevný rám, pevné body, pripojovacie uzly vrcholov, členy podľa dvoch koncov, kliknutie/umiestnenie aj drop z palety. Neplatný obrys zostáva rozkreslený bez pridania chybnej geometrie alebo histórie.
+- Navigáciu, zamknutie mierky po začatí geometrie aj po Späť, zrušenie rozkreslenia, sedem natívnych typov väzieb, pohon, úchyty, ručne skryté Vlastnosti a klávesnicu vrátane Enter/Space na tlačidlách.
+- Izoláciu rozpracovaného projektu od automatického ukladania projektov a preferencií. Zrušenie obnoví pôvodnú geometriu, výber a históriu; neúspešná výmena obrázka ponechá pôvodný podklad aj geometriu.
+- Finish s kontrolou mierky, názvu, platného projektu a uložených záznamov. Nový a pôvodný projekt sú oddelené; plné, poškodené alebo nedostupné úložisko nevymaže staršie projekty. Neuložený originál vyžaduje výslovnú zálohu pred dokončením iba v pamäti.
+- Vylúčenie rastera a Blob URL z natívnych/exportovaných dát, samostatný export geometrie a presnej zálohy neuloženého originálu.
+
+Skutočná Chromium kontrola odhalila dva problémy, ktoré sú opravené a pokryté regresiami: spread SVGPoint strácal prototypové X/Y a druhý klik pri presne prekrývajúcich sa uzloch opakovane vyberal prvý prvok. Druhý bod spojenia teraz vyberá iný prvok, bez zmeny bežnej priority samostatných bodov. Dve regresie prekrytia najskôr zlyhali, po oprave prešli vrátane Späť/znova, výberu tela a riešenia skutočného pohonu.
+
+#### Finálne rozhranie v Chromium
+
+| Aplikácia | Viewport | Magic import | Úchyty/knižnice/CAD | Click+Select |
+|---|---|---|---|---|
+| Zdroj cez izolované HTTP | 1 440 × 900 | 57 / 57 | 44 / 44 | 33 + 13 / 46 |
+| Finálne `dist/index.html`, offline `file://` | 393 × 852 | 57 / 57 | 44 / 44 | 33 + 13 / 46 |
+
+Spolu **147 / 147 kontrol v každom rozložení**, bez JavaScriptových chýb aplikácie. Všetky ovládacie kontroly sa vykonali po finálnej oprave prekrývajúcich sa uzlov.
+
+Sprievodca použil skutočne dekódovaný lokálne vytvorený PNG, kliknutie na kalibračné body a skutočné formuláre. Kontroly overili všetkých päť rozložení bez horizontálneho pretekania, použiteľnú plochu plátna, kontrast značiek vo všetkých troch témach, podlahu/rám/bod, Späť/znova, drop aj kliknutie/umiestnenie, pomenovanú väzbu, pohon, priehľadnosť/skrytie obrázka, zamknutú mierku, presné zrušenie, nezávislý Finish a zachovanie bajtov úložiska pri quota zlyhaní. Dokončený člen s otočnou väzbou funguje v skutočnom solveri pri 45°.
+
+Pointer a drop udalosti boli **syntetické**, s obnovenou dočasnou náhradou pointer capture; `requestAnimationFrame` zostal natívny. Tieto výsledky nepotvrdzujú úplné natívne ťahanie, prirodzené časovanie animácie ani snímku rozhrania. Nové PDF alebo živý Fusion import sa pri Magic import nevykonali.
+
+Pri offline overení zlyhala kontrolná lokálna sieťová požiadavka; po obnovení sieťovania prešla s HTTP 200. Odstránila sa iba vlastná registrácia pamäťového QA úložiska a zmena viewportu. Nové načítanie finálneho offline buildu potvrdilo dostupný Magic import, natívny Storage, `requestAnimationFrame` aj pointer capture bez QA globálnych premenných. Oba vlastné servery a ich obslužné procesy skončili po kontrole identity; porty 5185/5186 sú voľné. Karta zostala otvorená.
+
+Kontrola dokumentácie preverila **54 relatívnych odkazov, 25 jedinečných kotiev a 30 rozbaľovacích návodov**. Presná zhoda 22 verejných assetov, inventár bez súkromných súborov, deterministický Fusion ZIP a allowlisty zdrojového aj zostaveného servera prešli.
+
+### Úchyty, diagnostika, opt-in snap, podzostavy, verzie a CAD obrysy
+
+Nasledujúci záznam zachováva overenie rozšírenia 2 až 7 pred pridaním Magic import, z 11. 10. 2026. Jeho ovládacie kontroly sa znovu vykonali na aktuálnej verzii podľa tabuľky vyššie. Obdĺžnikový výber nebol súčasťou požiadavky. Nové moduly sú klasické skripty bez závislostí a fungujú cez HTTP aj `file://`.
+
+Výpočtové a skutočné VM ovládacie regresie pokrývajú:
+
+- X/Y úchyty, rotáciu okolo vlastného bodu alebo uzla, dĺžku so zachovaním A/B, vnorené nosiče, skryté ukotvenia, nemenné zdroje a ochranu originálov.
+- Samostatné mm/° rezíduá solvera, diagnostické riadky a výber kĺbu, voľné súradnice, chýbajúci vstup a opakované alebo konfliktné požiadavky rovnakého typu. Analytické symbolické bodové väzby sa nepovažujú za namerané chyby.
+- Kladné aj záporné úplné otáčky v uhlovej, rovnobežnej, pevnej a posuvnej väzbe. Solver, diagnostika a reporty sa zhodujú; projekcia nepridáva zbytočnú celú otáčku a pasívne dorazy zachovávajú znamienko hranice ±180°.
+- Inteligentné prichytávanie predvolene vypnuté, iba explicitný toggle; žiadne zapnutie z preferencií, natívneho súboru ani pri obnovení verzie. Body, stredy, vedenia, osové zarovnanie, 9 px tolerancia, vlastné teleso, zrušenie, starý náhľad a samostatne potvrdené spojenie.
+- Podzostavy so všetkými vnútornými odkazmi, prenos `.kinmolib`, nové ID, odpojené vonkajšie väzby, jeden vstup a atómové vloženie. Pomenované verzie, `.kinmoversions`, návrhové porovnanie, podpísané rozdiely a záloha pred obnovením.
+- Limity 20 podzostáv / 40 verzií a 2 MB na kolekciu, validované jednotky a dátumy, kolízie ID bez prepísania, poškodené či nedostupné úložisko bez straty pôvodných bajtov. Neúspešná záloha zastaví obnovenie.
+- Rovné, otočené, zakrivené, husté aj uzavreté drážky, vonkajší/vnútorný obrys, mm a CAD os Y, uzavreté DXF flags a referenčné Fusion skice. Nulové, pretínajúce sa, prudko vratné či príliš široké obrysy sa odmietajú; strednicový export zostáva dostupný.
+- Oba zásuvkové modely s obrysmi v začiatku, strede a na konci zdvihu. Zadná drážka používa vlastnú šírku 8 mm. Jedna CAD polyline sa odmietne nad 1 001 vrcholov, aj keď neprekročila globálnych 30 000 bodov.
+
+#### Skutočná Chromium karta
+
+`agent-browser` CLI nie je v tomto prostredí dostupné. Kontroly použili lokálny CDP pomocník cez už pridelený, pomenovaný endpoint Factory, bez vyhľadávania debugger URL alebo pripojenia k používateľovým CAD dokumentom.
+
+| Aplikácia | Viewport | Nové ovládanie | Click+Select regresie |
+|---|---|---|---|
+| Zdroj cez izolované HTTP | 1 440 × 900 | 44 / 44 | 33 + 13 / 46 |
+| Finálne `dist/index.html`, offline `file://` | 393 × 852 | 44 / 44 | 33 + 13 / 46 |
+
+Spolu **90 / 90 kontrol v každom rozložení**. Použili skutočné dialógy a formuláre, import cez `File`/`DataTransfer`, zachytené lokálne Blob exporty a ich opätovnú validáciu. Overili presné X/Y, dĺžku, pivot B, rotáciu/Späť, zrušenie ťahania, diagnostiku, knižnicu, import bez prepísania, zálohované obnovenie, zlyhanie zálohy, mm rozdiely, off/on snap bez automatickej väzby, potvrdenie a samostatné Späť, CAD checkbox, oba DXF varianty, Fusion súhlas a rozloženie bez horizontálneho pretekania.
+
+Pointer gestá boli syntetické; dočasná náhrada pointer capture sa vždy obnovila. `requestAnimationFrame` sa nenahradil. Neboli zistené JavaScriptové chyby aplikácie. **Natívny drag probe skončil timeoutom `Input.dispatchMouseEvent`**, geometria zostala nezmenená. Prirodzená sonda doručila **0 rAF callbacks za 300 ms**. `Page.captureScreenshot` tiež skončil timeoutom. Natívne ťahanie, prirodzená animácia a snímky rozhrania preto nie sú označené za overené.
+
+Po oprave úplných otáčok sa zopakovali všetky modelové, integračné, VM, Python aj uvedené Chromium kontroly a build. Offline sieťovanie bolo navyše overené lokálnou kontrolnou požiadavkou: pri vypnutí zlyhala, po obnovení prešla. Na konci sa odstránila iba vlastná registrácia pamäťového QA úložiska a zmena viewportu, obnovilo sa sieťovanie a nové načítanie potvrdilo natívny Storage, `requestAnimationFrame` a pointer capture bez QA globálnych premenných. Oba vlastné servery aj ich obslužné procesy skončili; karta zostala otvorená na offline `dist/index.html`.
+
+#### Dokumentácia a PDF
+
+README má **24 jedinečných kotiev a 28 rozbaľovacích návodov**. Kontrola štyroch návodových súborov preverila **50 relatívnych odkazov**, párovanie details/summary, bloky kódu, bezpečnú statickú SVG ilustráciu a publikačný zoznam. Root aj pribalený Fusion návod opisujú import existujúceho doplnku zo zariadenia a nové referenčné obrysy.
+
+Nový PDF export z finálneho offline rozhrania mal **35 689 bajtov**, podpis `%PDF-1.3` a nevytvoril JavaScriptové chyby. Samostatný kontrolný report `outputs/features-report.pdf` má **35 622 bajtov a 3 strany**; bol otvorený PDF parserom a vizuálne prezretý. Má vektorový výkres, vyberateľný slovenský text, opakované hlavičky tabuliek a správne oddelené hodnoty **0 mm / 20°**, nie 20 mm. Ide o ignorovaný QA výstup, nie verejný asset alebo výrobnú dokumentáciu.
+
+Predchádzajúce kontroly nižšie zostávajú historickým záznamom a ich staršie počty nie sú počtami aktuálnej sady. Živý Fusion import, vzdialené CI a Workers nasadenie sa pri tomto rozšírení nevykonali.
 
 ### Predpublikačná kontrola a interaktívne README, 11. 10. 2026
 
@@ -136,5 +215,7 @@ Dynamika je odhad jedného nezávislého pohonu; silové členy sú bezhmotnostn
 Používateľ publikoval rozšírenie v commite `7a527f6` a dodal log zlyhania CI. Následne výslovne schválil commit a push overenej opravy do existujúceho `main`, bez prepisu histórie. Konfigurácia existujúceho Workeru a jeho Git-integrácia sa nemení. Push môže spustiť Workers Builds; úspech nového vzdialeného CI ani nasadenia sa neodvodzuje len z úspešných lokálnych kontrol.
 
 Oprava CI je publikovaná v `fc04c71`. Používateľ následne uložil panel, ponuku, paletu a výber textu do `3194075 update prostredia`, na ktorom začala táto úloha. Dňa 11. 10. 2026 výslovne schválil commit a push Click+Select, kontextového menu, súvisiacich modelových operácií a dokončeného interaktívneho README do existujúceho `main`. Skutočné commity zaznamenáva Git história; schválenie ani lokálne kontroly samy nepotvrdzujú vzdialené CI alebo nasadenie.
+
+Click+Select a interaktívne README sú publikované v `5e985fd`. Dňa 11. 10. 2026 používateľ výslovne požiadal o changelogy, aktualizované README a commit/push rozšírenia 2 až 7 aj Magic import do existujúceho `main`. Rozsah je v [CHANGELOG.md](CHANGELOG.md); skutočný commit a stav publikovania zaznamenáva Git. Manuálny Wrangler deploy nie je súčasťou tohto kroku a vzdialené CI ani Workers nasadenie sa neodvodzujú z lokálnych kontrol.
 
 Zoznam publikovaných súborov v `push-github.ps1` zahŕňa nové moduly, testy, verejné zdroje doplnku a licencované PDF assety. Pomocné analýzy, lokálna PDF kontrola a CDP testy sú v ignorovaných `.analysis/`, `tmp/` a `outputs/`; nie sú súčasťou aplikácie ani publikovania. Dočasný PDF konverzný skript bol po kontrole odstránený.

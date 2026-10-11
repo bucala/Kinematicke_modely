@@ -18,6 +18,7 @@
   const uid = () => global.crypto?.randomUUID?.() || `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   const along = (p, length, angle) => ({ x: p.x + length * Math.cos(angle * DEG), y: p.y - length * Math.sin(angle * DEG) });
   const angleOf = (a, b) => Math.atan2(a.y - b.y, b.x - a.x) / DEG;
+  const wrapAngle = (value) => ((value + 180) % 360 + 360) % 360 - 180;
 
   const defaults = {
     frameLength: 390, frameHeight: 180, travelMin: 0, travelMax: 300,
@@ -305,6 +306,7 @@
   }
 
   function solveExtras(project, motion, poses, issues, invalid, options) {
+    const noResiduals = () => ({ residual: 0, positionResidual: 0, angularResidual: 0 });
     const extras = project.elements.filter((e) => !e.primary && !isElastic(e));
     const range = driveRange(project);
     const bodies = new Map(extras.map((e) => {
@@ -347,9 +349,9 @@
       bodies.forEach(refresh);
     };
     refreshAll();
-    if (options.design) return 0;
+    if (options.design) return noResiduals();
     const joints = project.connections.filter((j) => !j.builtin && !isElastic(project.elements.find((e) => e.id === j.a.elementId)) && !isElastic(project.elements.find((e) => e.id === j.b.elementId)));
-    if (!extras.length && !joints.length) return 0;
+    if (!extras.length && !joints.length) return noResiduals();
     const rootBody = (id) => {
       let body = bodies.get(id);
       while (body?.element.parentId) body = bodies.get(body.element.parentId);
@@ -374,7 +376,7 @@
     const limitError = (joint) => {
       if (joint.type !== 'revolute' || joint.limitMin == null) return 0;
       const raw = poses[joint.b.elementId].angle - poses[joint.a.elementId].angle;
-      let angle = ((raw + 540) % 360 + 360) % 360 - 180;
+      let angle = wrapAngle(raw);
       if (angle === -180 && raw > 0) angle = 180;
       return angle - clamp(angle, joint.limitMin, joint.limitMax);
     };
@@ -396,8 +398,7 @@
         const type = joint.type || (joint.a.point === 'curve' || joint.b.point === 'curve' ? 'point-path' : 'revolute');
         if (jointHasAngle(joint) || Math.abs(limitError(joint)) > EPS) {
           const pa = poses[joint.a.elementId], pb = poses[joint.b.elementId];
-          let error = pb.angle - pa.angle - (joint.value || 0);
-          error = ((error + 540) % 360) - 180;
+          let error = wrapAngle(pb.angle - pa.angle - (joint.value || 0));
           if (type === 'revolute') error = limitError(joint);
           const wa = immobile(ba) ? 0 : 1, wb = immobile(bb) ? 0 : 1;
           if (wa + wb && ba !== bb) {
@@ -437,21 +438,25 @@
         if (!a || !b) return true;
         const type = joint.type || (joint.a.point === 'curve' || joint.b.point === 'curve' ? 'point-path' : 'revolute');
         const positionError = type === 'distance' ? Math.abs(distance(a, b) - (joint.value || 0)) : ['parallel', 'angle'].includes(type) ? 0 : distance(a, b);
-        const angleError = jointHasAngle(joint) ? Math.abs(((poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0) + 540) % 360) - 180) : Math.abs(limitError(joint));
+        const angleError = jointHasAngle(joint) ? Math.abs(wrapAngle(poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0))) : Math.abs(limitError(joint));
         return positionError < 0.0001 && angleError < 0.0001;
       })) break;
     }
-    let residual = 0;
+    let positionResidual = 0, angularResidual = 0;
     for (const joint of joints) {
       const { a, b } = endpoints(joint);
       if (!a || !b) { issues.push('Väzba odkazuje na neexistujúci uzol.'); continue; }
       const type = joint.type || (joint.a.point === 'curve' || joint.b.point === 'curve' ? 'point-path' : 'revolute');
       const positionError = type === 'distance' ? Math.abs(distance(a, b) - (joint.value || 0)) : ['angle', 'parallel'].includes(type) ? 0 : distance(a, b);
       const angleError = jointHasAngle(joint)
-        ? Math.abs(((poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0) + 540) % 360) - 180) : Math.abs(limitError(joint));
+        ? Math.abs(wrapAngle(poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0))) : Math.abs(limitError(joint));
       const error = Math.max(positionError, angleError);
-      residual = Math.max(residual, error);
-      if (error > TOLERANCE) invalid.push(joint.a.elementId, joint.b.elementId);
+      positionResidual = Math.max(positionResidual, positionError);
+      angularResidual = Math.max(angularResidual, angleError);
+      if (error > TOLERANCE) {
+        invalid.push(joint.a.elementId, joint.b.elementId);
+        issues.push(`Väzba „${joint.name}“: odchýlka polohy ${positionError.toFixed(2)} mm, uhla ${angleError.toFixed(2)}°. Skontrolujte uloženie a rozmery.`);
+      }
     }
     for (const body of bodies.values()) {
       if (body.element.type !== 'bearing' || !body.element.slotId) continue;
@@ -461,17 +466,19 @@
       const path = poses[slot?.id]?.path;
       if (path) {
         const error = nearestOnPath(poses[body.element.id].a, path).distance;
-        residual = Math.max(residual, error);
-        if (error > TOLERANCE) invalid.push(body.element.id, slot.id);
+        positionResidual = Math.max(positionResidual, error);
+        if (error > TOLERANCE) {
+          invalid.push(body.element.id, slot.id);
+          issues.push(`Vedenie ložiska „${body.element.name}“: odchýlka ${error.toFixed(2)} mm.`);
+        }
       }
       if (options.collisions !== false && slot && body.element.radius * 2 > width) { issues.push(`Ložisko „${body.element.name}“ je širšie ako drážka.`); invalid.push(body.element.id, slot.id); }
     }
-    if (residual > TOLERANCE) issues.push(`Nesplnená kĺbová väzba (${residual.toFixed(2)} mm). Skontrolujte dĺžky a pevné body.`);
     for (const body of bodies.values()) {
       if (body.element.type === 'panel' && !body.element.localC && body.element.bearingOffset > body.element.length) { issues.push(`Vodiaci bod leží mimo čela „${body.element.name}“.`); invalid.push(body.element.id); }
       if (body.element.type === 'slot' && body.element.curveKind === 'arc' && distance(body.path[0], body.path.at(-1)) > body.element.curveRadius * 2 + EPS) { issues.push(`Polomer kulisy „${body.element.name}“ je príliš malý.`); invalid.push(body.element.id); }
     }
-    return residual;
+    return { residual: Math.max(positionResidual, angularResidual), positionResidual, angularResidual };
   }
 
   function elasticMount(project, element, key) {
@@ -578,7 +585,9 @@
       : project.kind === 'fourbar' ? ['frame-1', 'input-1', 'coupler-1', 'output-1']
       : project.kind === 'crank' ? ['frame-1', 'input-1', 'coupler-1', 'rail-1', 'piston-1'] : [];
     if (required.some((id) => !project.elements.some((e) => e.id === id))) issues.push('Mechanizmus nie je kompletný. Obnovte chýbajúci prvok alebo vytvorte vlastný projekt.');
-    residual = Math.max(residual, solveExtras(project, s, poses, issues, invalid, options));
+    const extraErrors = solveExtras(project, s, poses, issues, invalid, options);
+    const positionResidual = Math.max(residual, extraErrors.positionResidual), angularResidual = extraErrors.angularResidual;
+    residual = Math.max(residual, extraErrors.residual);
     solveElastic(project, poses, issues, invalid, options);
     if (project.kind === 'custom') {
       const output = [...project.elements].reverse().find((e) => ['link', 'panel'].includes(e.type) && !e.drive) || project.elements.find((e) => e.drive && ['link', 'panel'].includes(e.type));
@@ -614,7 +623,7 @@
         }
       }
     }
-    const result = { ...details, motion: s, angle, displacement, poses, profile, residual, issues: [...new Set(issues)], collisions: [...new Set(collisions)], invalid: [...new Set(invalid)], blocked: issues.length > 0, range };
+    const result = { ...details, motion: s, angle, displacement, poses, profile, residual, positionResidual, angularResidual, issues: [...new Set(issues)], collisions: [...new Set(collisions)], invalid: [...new Set(invalid)], blocked: issues.length > 0, range };
     if (global.KinmoPhysics && options.forces !== false) result.forces = global.KinmoPhysics.forces(project, result);
     return result;
   }
