@@ -15,6 +15,10 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 
 > Kinematika a odhadová dynamika jedného pohonu, nie pevnostný výpočet ani výrobný výkres. Pred použitím návrhu si prečítajte [hranice simulácie](#limits).
 
+## Nové lokálne úpravy: panely, schéma a animovaný export
+
+Pracovná verzia nad `dc24ef2` pridáva **[nezávislé skrytie profilového grafu, prehrávania a popisov](#view-controls)**, ostrú PDF schému podľa aktuálneho plátna a **[lokálny animovaný GIF](#gif-export)**. Tieto zmeny ešte nie sú novým publikovaným commitom ani potvrdeným nasadením.
+
 ## Novinky z 11. 10. 2026
 
 - **[Magic import](#magic-import):** nahrajte náčrt, určte mierku A/B, obkreslite pevné časti, vložte členy a väzby a vytvorte samostatný projekt cez Finish. Obrázok zostáva lokálny; ide o ručné obkreslenie.
@@ -39,6 +43,7 @@ Podrobný záznam noviniek, opráv a hraníc je v **[CHANGELOG.md](CHANGELOG.md)
 | [Úchyty a presné rozmery](#handles) | [Diagnostika väzieb](#diagnostics) | [Referenčné obrysy drážok](#slot-outlines) |
 | [Prichytávanie na požiadanie](#snapping) | [Vlastné podzostavy](#assemblies) | [Pomenované verzie a porovnanie](#versions) |
 | [Magic import z náčrtu](#magic-import) | [Mierka a pevný rám](#magic-import) | [Bezpečné Finish alebo zrušenie](#magic-import) |
+| [Skrytie panelov a popisov](#view-controls) | [Aktuálny výrez do PDF](#exports) | [Animovaný GIF](#gif-export) |
 
 Kliknutím na názov rozbaľovacieho návodu ho otvoríte. Navigácia a návody fungujú priamo na GitHube, bez JavaScriptu.
 
@@ -140,6 +145,8 @@ Toto je kinematický príklad. Nový bod má predvolene nulovú hmotnosť; samot
 - Parametrická kulisa, oblúk, Bézierova krivka, spline a polyline; editovateľné vrcholy, nosné teleso a polygonálny obrys.
 - Vizualizácia troch polôh a trajektória ľubovoľného dostupného uzlového bodu.
 - Živý graf pohybového profilu; kliknutím na graf sa nastaví poloha.
+- Nezávislé skrytie profilového grafu a prehrávania časovej osi, s trvalo dostupnými tlačidlami na obnovenie.
+- Vypnutie vizuálnych názvov, textov a uhlových anotácií schémy bez zmeny kót, geometrie alebo väzieb.
 - Detekcia nedosiahnuteľných väzieb, nesprávneho priemeru ložiska, kríženia ramien a kolízie s korpusom.
 - Späť/znova, duplikovanie, pomenovanie a viditeľnosť prvkov.
 - Oddelená úprava geometrie a simulácia; samostatná voľná kópia ponechá parametrický originál nezmenený.
@@ -148,7 +155,8 @@ Toto je kinematický príklad. Nový bod má predvolene nulovú hmotnosť; samot
 - Automatické lokálne ukladanie, zoznam projektov, validovaný import `.kinmo` aj staršieho JSON.
 - Prenosná knižnica vybraných podzostáv s vnútornými väzbami a nezávislými kópiami pri vložení.
 - Pomenované verzie, obnovenie so zálohou aktuálneho stavu a porovnanie návrhových rozmerov.
-- Export `.kinmo`, JSON, CSV, SVG v mm, PNG, DXF a lokálne vytvoreného PDF/HTML reportu.
+- Export `.kinmo`, JSON, CSV, SVG v mm, PNG, animovaného GIF, DXF a lokálne vytvoreného PDF/HTML reportu.
+- PDF so skutočnou ostro vykreslenou schémou, vyberateľným slovenským textom a vektorovými grafmi.
 - Tri trvalé vzhľady: biela/čierna, krémová/terakota a teplá tmavá/biela.
 - Voliteľný lokálny doplnok Autodesk Fusion na vytvorenie nového referenčného dokumentu.
 - DXF/Fusion strednice aj voliteľné uzavreté referenčné obrysy drážok podľa šírky, vrátane vnútorného obrysu uzavretej strednice.
@@ -263,6 +271,16 @@ Panel **Vlastnosti** je pri otvorení aplikácie a načítaní projektu skrytý.
 Parametrickú šablónu zmeníte bez obmedzení cez **Voľná kópia**. Originál zostane samostatne uložený. Kópia dvojkulisovej zásuvky zachová aktuálnu geometriu a presné profily, **nepreberá však predpísanú funkciu zadnej opory/západky**. Má jednu ďalšiu voľnú súradnicu; pred odhadovou dynamikou treba skutočne doplniť vhodné uloženie.
 
 V inšpektore upravíte obrys, vrcholy krivky, nosné teleso, kóty a uložené trajektórie. Meranie vytvorí referenčnú kótu. Riadiaca dĺžka mení člen alebo vytvorí vzdialenostnú väzbu. Vypočítaná trajektória nie je sama vodiaca väzba; jej prevedená krivka je nezávislá kópia.
+
+<a id="view-controls"></a>
+
+## Skrytie panelov a popisov schémy
+
+Tlačidlá nad plátnom ovládajú **pohybový profil**, **prehrávanie časovej osi** a **texty/názvy/uhly schémy**. Ich popis sa mení na Skryť alebo Zobraziť. Profil a prehrávanie môžete skryť samostatne alebo spolu; tlačidlá na obnovenie zostanú dostupné.
+
+Skrytie panelu rozšíri plátno okolo rovnakého stredu a zachová priblíženie. Nemení polohu, výber, históriu ani bežiace prehrávanie. Skrytie popisov odstráni iba vizuálne anotácie vrátane uhlových oblúkov. **Kóty majú vlastný prepínač**; uzly zostávajú klikateľné a prístupné klávesnicou. Číselné uhly, limity a väzby modelu sa nemažú.
+
+Všetky tri voľby si pamätajú nastavenia pracovného priestoru aj `.kinmo`. PNG, PDF/HTML a GIF preberajú aktuálne viditeľné vrstvy. Medzerník alebo Enter na zameranom tlačidle aktivuje tlačidlo, nie prehrávanie na pozadí.
 
 <a id="selection"></a>
 
@@ -430,11 +448,35 @@ V **Nastaveniach → Vzhľad aplikácie** vyberte bielu/čiernu, krémovú/terak
 | JSON | Starší projekt verzie 1, bez pracovného vzhľadu a polohy |
 | SVG | Referenčný výkres s fyzickými rozmermi v mm, kótami a trajektóriami |
 | PNG | Aktuálny pohľad pracovnej plochy, najviac 2 000 × 4 000 px so zachovaním pomeru strán |
+| GIF | Animovaný celý kinematický rozsah, aktuálny výrez a vzhľad, voľba cyklu a opakovania |
 | DXF | Referenčné polylines/kružnice/popisy v mm, os Y otočená na CAD konvenciu, voliteľné uzavreté obrysy drážok |
-| PDF / HTML | Vektorový výkres, grafy, aktívne rozmery, väzby, fyzikálne parametre a tabuľky polôh |
+| PDF / HTML | Aktuálna schéma v skutočnom vzhľade, vektorové grafy, aktívne rozmery, väzby, fyzikálne parametre a tabuľky polôh |
 | CSV | Kinematické polohy s oddelenými chybami mm/° alebo sily a posledný časový záznam odhadovej dynamiky |
 
-PDF funguje offline; modul sa načíta lokálne až pri exporte. HTML report je samostatný a vhodný na tlač. Bežné SVG/PDF/HTML výkresy používajú strednice a referenčné kóty. Uzavreté CAD obrysy sú tiež len referenčné, nie hotové výrobné kontúry.
+PDF funguje offline; modul sa načíta lokálne až pri exporte. Hlavná schéma je ostrý PNG raster zo skutočne štýlovaného SVG plátna, nie zjednodušený CAD náhľad. Zachováva aktuálny výrez, farby, vzhľad, kóty a viditeľnosť anotácií, bez editačných úchytov či dočasného fotografického podkladu. Text reportu ostáva vyberateľný a grafy vektorové. HTML report je samostatný, s rovnako štýlovanou SVG schémou, a vhodný na tlač.
+
+**Bežné PDF je statické. Pohyb exportujte ako GIF.** Pre celý výrez použite pred exportom Prispôsobiť pohľad. Samostatné SVG v mm, DXF a Fusion zostávajú referenčnými geometrickými exportmi; nepoužívajú fotografiu plátna. Uzavreté CAD obrysy nie sú hotové výrobné kontúry.
+
+<a id="gif-export"></a>
+
+## Animovaný GIF
+
+<details>
+<summary><strong>Vyexportovať pohyb bez zmeny pracovného projektu</strong></summary>
+
+1. Dokončite Magic import, ak je otvorený. Vlastný model musí mať jeden nezávislý motor a priechodný rozsah; pripravené šablóny používajú svoj predpísaný pohon.
+2. Nastavte výrez cez **Prispôsobiť pohľad**, vzhľad a viditeľné vrstvy. Schéma počas exportu zostáva na pôvodnej pracovnej polohe.
+3. Otvorte **Exportovať → Animovaný pohyb · GIF**. Vyberte šírku 160–1 200 px, trvanie 1–12 s a 5–20 snímok/s, **tam a späť** alebo **jedným smerom** a opakovanie. Odhad ukazuje skutočný rozmer a počet snímok; výška a pri vysokom výreze aj šírka sa primerane zmenšia.
+4. Kliknite na **Vytvoriť GIF**. Priebeh zobrazuje prípravu farieb a jednotlivé snímky. Po dokončení sa pripraví jeden `.gif`.
+5. **Zrušiť export**, Escape alebo zatvorenie dialógu zastaví prípravu bez čiastočného súboru. Projekt, poloha, výber, Späť/znova a posledné dynamické dáta sa nemenia.
+
+GIF má adaptívnu paletu najviac **256 farieb**, preto nie je bezstratový farebný ekvivalent PNG. Snímky sa kreslia na samostatnom skrytom plátne a priebežne komprimujú lokálne; aplikácia neuchováva celý rad RGBA obrázkov a nič neposiela na server.
+
+Limity: **1 200 × 1 200 px**, **180 snímok**, **60 miliónov pixelov spolu**, **32 MB** a **90 sekúnd prípravy**. Pri prekročení zmenšite rozmer, trvanie alebo frekvenciu. Odmietne sa prázdny alebo neviditeľný model, chýbajúci vlastný pohon, zablokovaná poloha aj séria bez viditeľného pohybu. Frekvencia sa prispôsobí celému cyklu a centisekundovým časom GIF; trvanie zostáva presné.
+
+Ide o **predpísanú kinematickú animáciu**, nie záznam rýchlosti motora či časového priebehu odhadovej dynamiky. Otvorenie exportnej ponuky bežné prehrávanie pozastaví rovnako ako ostatné dialógy. `.gif` ani PDF nenahrádzajú editovateľnú zálohu `.kinmo`.
+
+</details>
 
 <a id="slot-outlines"></a>
 
@@ -517,6 +559,7 @@ Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusio
 | Esc | Zavrieť ponuku, zrušiť ťahanie / výber alebo zavrieť dialóg |
 
 V otvorenej kontextovej ponuke použite šípky, Home/End, Enter a Escape. Vo vstupnom poli majú textové skratky prednosť; Ctrl/Cmd+A tam označí text, nie celý editor.
+Zamerané tlačidlo si zachováva natívne Enter/Space. Tri samostatné prepínače vrstiev a panelov opisuje [skrytie schémy a prehrávania](#view-controls).
 
 <a id="storage"></a>
 
@@ -704,6 +747,8 @@ magic-import.js        Lokálny raster, kalibrácia, obkreslenie a Finish
 context-menu.js        Samostatná klávesnicová a responzívna kontextová ponuka
 physics.js             Osové sily a odhadová dynamika jedného pohonu
 slot-outline.js        Uzavreté polygonálne referenčné odsadenia drážok
+scene-export.js        Skutočný štýlovaný SVG snímok a ohraničené lokálne rasterovanie
+gif-export.js          Časovanie, adaptívna paleta a lokálny GIF89a/LZW encoder
 exports.js             .kinmo, SVG, DXF, CSV a PDF/HTML reporty
 cad.js                 Výslovný prenos do lokálneho Fusion doplnku
 cad/KinmoFusion/       Doplnok, transport a návod
@@ -720,6 +765,9 @@ tests/workbench-cases.js  Úchyty, snap, diagnostika, knižnica a verzie
 tests/magic-import-cases.js  Mierka, obrázkové hlavičky, členy a Finish
 tests/magic-import.test.mjs  Izolované načítanie, chyby a uvoľnenie obrázka
 tests/export-cases.js  Prenosné súbory, obrysy drážok a reporty
+tests/scene-export.test.mjs  Štýly snímku, limity, zrušenie a Blob URL
+tests/gif-cases.js     GIF časovanie, paleta, kompresia a obmedzenia
+tests/gif-decoder.js   Nezávislý testovací dekóder, nie runtime aplikácie
 tests/kinematics.test.mjs  Node.js test runner
 tests/export-integration.test.mjs  Transport, ZIP a offline PDF distribúcia
 tests/test_fusion.py   Izolovaný most a náhradné Fusion API

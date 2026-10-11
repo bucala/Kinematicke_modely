@@ -57,7 +57,7 @@
       cycle: Number.isFinite(input.cycle) ? K.clamp(input.cycle, 1, 60) : 6,
       speed: [0.25, 0.5, 1, 1.5, 2].includes(input.speed) ? input.speed : 1,
     };
-    for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'collisions', 'snap', 'forceArrows']) result[key] = input[key] !== false;
+    for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'labels', 'profileVisible', 'timelineVisible', 'collisions', 'snap', 'forceArrows']) result[key] = input[key] !== false;
     return result;
   }
 
@@ -281,13 +281,17 @@
     const p = K.validateProject(project), range = K.driveRange(p);
     const blocked = samples.filter((s) => s.blocked);
     const forces = options.forceContext ? P.forceCurve(options.forceContext) : [];
+    const scene = options.scene;
+    if (scene && (typeof scene.svg !== 'string' || !scene.svg.startsWith('<svg') || new TextEncoder().encode(scene.svg).length > 8 * 1024 * 1024 ||
+        !Number.isInteger(scene.width) || !Number.isInteger(scene.height) || scene.width < 1 || scene.width > 2000 || scene.height < 1 || scene.height > 4000)) throw new Error('Neplatná lokálna snímka schémy pre report.');
     return {
       project: p, result, samples, range, forces, history: options.history || [], forceError: options.forceError || '',
       date: options.date || new Date().toLocaleString('sk-SK'),
       blocked: blocked.length, maxResidual: Math.max(0, ...samples.map((s) => s.residual)),
       maxPositionResidual: Math.max(0, ...samples.map((s) => s.positionResidual)),
       maxAngularResidual: Math.max(0, ...samples.map((s) => s.angularResidual)),
-      drawing: vectorSVG(p, result, { dimensions: true, trajectories: true, samples, references: options.references, traceSpace: options.traceSpace, labels: false, minimumText: 8 }),
+      drawing: scene?.svg || vectorSVG(p, result, { dimensions: true, trajectories: true, samples, references: options.references, traceSpace: options.traceSpace, labels: false, minimumText: 8 }),
+      drawingKind: scene ? 'scene' : 'reference', drawingSize: scene ? { width: scene.width, height: scene.height } : null, drawingImage: null,
       plots: [plotSVG(samples, 'angle', 'Uhol výstupu', '°'), ...(p.kind === 'double-drawer' ? [plotSVG(samples, 'secondaryAngle', 'Uhol tuhého ramena', '°', '#5c86b4')] : []), ...(forces.length ? [plotSVG(forces, 'handForce', 'Vyrovnávacia sila / moment · odhad', range.unit === '°' ? 'N·m' : 'N', '#b9697c')] : []), ...(options.history?.length ? [plotSVG(options.history, 'motion', 'Poloha pohonu v čase · odhad', range.unit, '#5c86b4', 'time', 'Čas (s)')] : [])],
     };
   }
@@ -318,7 +322,7 @@
         ['Skontrolované polohy', String(data.samples.length)], ['Blokované polohy', String(data.blocked)],
         ['Maximálna polohová chyba', `${fmt(data.maxPositionResidual, 4)} mm`], ['Maximálna uhlová chyba', `${fmt(data.maxAngularResidual, 4)}°`], ['Režim', p.simulation.mode === 'dynamic' ? 'Odhadová dynamika jedného pohonu' : 'Predpísaná kinematika'],
       ])}</section>
-      <section><h2>02 / Referenčný výkres s kótami</h2><div class="drawing">${data.drawing}</div><p class="caption">Poloha ${fmt(r.motion)} ${range.unit}. Profily kulís sú strednice, nie hotové výrobné kontúry.</p></section>
+      <section><h2>02 / ${data.drawingKind === 'scene' ? 'Schéma ako na plátne' : 'Referenčný výkres s kótami'}</h2><div class="drawing">${data.drawing}</div><p class="caption">Poloha ${fmt(r.motion)} ${range.unit}. ${data.drawingKind === 'scene' ? 'Aktuálny pohľad, farby a viditeľnosť z aplikácie, bez editačných úchytov a podkladovej fotografie. Report je statický; pohyb uložte cez export GIF.' : 'Profily kulís sú strednice, nie hotové výrobné kontúry.'} Schéma nie je výrobná dokumentácia.</p></section>
       <section><h2>03 / Pohybové a silové profily</h2>${data.plots.map((svg) => `<div class="plot">${svg}</div>`).join('')}${!data.forces.length ? `<p>Silový graf nebol vypočítaný. ${escape(data.forceError)}</p>` : ''}</section>
       <section><h2>04 / Prvky a fyzikálne parametre</h2>${table(['Prvok', 'Typ', 'Dĺžka / dráha (mm)', 'Hmotnosť (kg)', 'Uhol (°)'], p.elements.map((e) => [e.name, labels[e.type], fmt(elementLength(r.poses[e.id])), fmt(e.mass, 3), fmt(r.poses[e.id]?.angle)]))}${parameterRows(p).length ? `<h3>Aktívne parametre modelu</h3>${table(['Parameter', 'Hodnota'], parameterRows(p))}` : ''}</section>
       ${elastic.length ? `<section><h2>05 / Pružiny a piesty</h2>${table(['Prvok', 'L₀ / min / max (mm)', 'Referenčné F (N)', 'k (N/mm)', 'F₀ (N)', 'Aktuálne F (N)'], elastic.map((e) => [e.name, `${fmt(e.restLength)} / ${fmt(e.minLength)} / ${fmt(e.maxLength)}`, fmt(e.force), e.type.startsWith('spring-') ? fmt(P.springRate(e), 4) : '—', fmt(e.preload), fmt(P.axial(e, r.poses[e.id]?.length).signedForce)]))}${table(['Prvok', 'Priemer pružiny / valca (mm)', 'Priemer drôtu / tyče (mm)', 'Osové tlmenie (N·s/m)', 'Progresia piesta'], details.map((d) => d.parameters))}${table(['Prvok', 'Montáž A', 'Montáž B'], details.map((d) => d.mounts))}</section>` : ''}
@@ -334,6 +338,7 @@
 
   function pdfReport(data) {
     const { project: p, result: r, range } = data;
+    if (data.drawingKind === 'scene' && (typeof data.drawingImage !== 'string' || data.drawingImage.length > 16 * 1024 * 1024 || !/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(data.drawingImage))) throw new Error('PDF potrebuje dokončenú lokálnu PNG snímku schémy.');
     let section = 0;
     const header = (value) => ({ text: `${String(++section).padStart(2, '0')} / ${value.replace(/^\d+ \/ /, '')}`, style: 'section' });
     const table = (headers, rows, widths) => ({
@@ -351,9 +356,11 @@
         ['Prvky / väzby', `${p.elements.length} / ${p.connections.length}`], ['Vzorkované / blokované polohy', `${data.samples.length} / ${data.blocked}`],
         ['Maximálna polohová chyba', `${fmt(data.maxPositionResidual, 4)} mm`], ['Maximálna uhlová chyba', `${fmt(data.maxAngularResidual, 4)}°`], ['Simulácia', p.simulation.mode === 'dynamic' ? 'Odhadová dynamika jedného pohonu' : 'Predpísaná kinematika'],
       ], ['*', '*']),
-      header('02 / Referenčný výkres s kótami'),
-      { svg: data.drawing.replace(/width="([\d.]+)mm" height="([\d.]+)mm"/, 'width="$1" height="$2"'), fit: [510, 285], margin: [0, 5, 0, 8] },
-      { text: 'Kulisy sú strednicové profily. Výkres nie je výrobná dokumentácia.', style: 'muted' },
+      header(data.drawingKind === 'scene' ? '02 / Schéma ako na plátne' : '02 / Referenčný výkres s kótami'),
+      data.drawingKind === 'scene'
+        ? { image: data.drawingImage, fit: [510, 300], margin: [0, 5, 0, 8] }
+        : { svg: data.drawing.replace(/width="([\d.]+)mm" height="([\d.]+)mm"/, 'width="$1" height="$2"'), fit: [510, 285], margin: [0, 5, 0, 8] },
+      { text: data.drawingKind === 'scene' ? 'Aktuálny pohľad, farby a viditeľnosť z aplikácie, bez editačných úchytov a fotografie. PDF je statické; pohyb uložte cez export GIF. Schéma nie je výrobná dokumentácia.' : 'Kulisy sú strednicové profily. Výkres nie je výrobná dokumentácia.', style: 'muted' },
       header('03 / Pohybové a silové profily'),
       ...data.plots.map((svg) => ({ svg, fit: [510, 145], margin: [0, 4, 0, 10] })),
       ...(!data.forces.length ? [{ text: `Silový graf nebol vypočítaný. ${data.forceError}`, style: 'muted' }] : []),
@@ -381,8 +388,9 @@
       table([`Pohon (${range.unit})`, 'Uhol (°)', 'Polohová chyba (mm)', 'Uhlová chyba (°)', 'Stav'], data.samples.filter((_, i) => i % Math.max(1, Math.ceil(data.samples.length / 25)) === 0 || i === data.samples.length - 1).map((s) => [fmt(s.motion), fmt(s.angle), fmt(s.positionResidual, 4), fmt(s.angularResidual, 4), s.blocked ? s.issues.join('; ') : 'Priechodné']), [60, 50, 80, 80, '*']),
     );
     // Keep titles with drawings and the short simulation-settings table.
-    for (let i = content.length - 2; i >= 0; i--) if (content[i].style === 'section' && (content[i + 1].svg || (content[i].text.endsWith('Nastavenia simulácie') && content[i + 1].table))) {
-      content.splice(i, 2, { stack: [content[i], content[i + 1]], unbreakable: true });
+    for (let i = content.length - 2; i >= 0; i--) if (content[i].style === 'section' && (content[i + 1].svg || content[i + 1].image || (content[i].text.endsWith('Nastavenia simulácie') && content[i + 1].table))) {
+      const count = content[i + 1].image && content[i + 2]?.style === 'muted' ? 3 : 2;
+      content.splice(i, count, { stack: content.slice(i, i + count), unbreakable: true });
     }
     return {
       pageSize: 'A4', pageMargins: [40, 42, 40, 42],

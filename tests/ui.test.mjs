@@ -3,19 +3,23 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import '../engine.js';
+import '../double-drawer.js';
 import '../editor.js';
 import '../interaction.js';
 import '../workbench.js';
 import '../magic-import.js';
 import '../physics.js';
 import '../slot-outline.js';
+import '../scene-export.js';
+import '../gif-export.js';
 import '../exports.js';
 import '../context-menu.js';
+import './gif-decoder.js';
 
 const source = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
 
-// Run the actual UI controller functions; rendering and browser layout are stubbed.
+// Run the actual UI controller and drawing functions; browser layout is stubbed.
 function controller(width = 1440) {
   const elements = new Map(), listeners = new Map(), storage = new Map();
   const document = { activeElement: null, body: { classList: { add() {}, remove() {} } }, addEventListener: (name, handler) => listeners.set(name, handler) };
@@ -25,6 +29,7 @@ function controller(width = 1440) {
       elements.set(selector, {
         innerHTML: '', hidden: false, dataset: {}, attributes, listeners: new Map(), addEventListener(name, handler) { this.listeners.set(name, handler); },
         querySelectorAll: () => [], getScreenCTM: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }),
+        getBoundingClientRect: () => ({ width: 800, height: 450 }),
         setPointerCapture() {}, hasPointerCapture: () => false, releasePointerCapture() {},
         close() { this.open = false; },
         classList: {
@@ -43,9 +48,9 @@ function controller(width = 1440) {
   const state = {
     inspectorOpen: false, analysis: false, project, selectedElementIds: [], selected: null,
     contextMenuState: { isOpen: false, targetId: null }, contextWorldPoint: { x: 150, y: 80 }, samples: [], speed: 1, direction: 1, cycle: 6, loop: true,
-    grid: true, dimensions: true, ghosts: true, trace: true, playing: false, motion: 0, mode: 'edit', tool: 'select', snap: false,
+    grid: true, dimensions: true, ghosts: true, trace: true, labels: true, profileVisible: true, timelineVisible: true, playing: false, motion: 0, mode: 'edit', tool: 'select', snap: false,
     smartSnap: false, snapPreview: null, pendingSnap: null,
-    revisionScope: 'current', cadSlotOutlines: true, magic: null,
+    revisionScope: 'current', cadSlotOutlines: true, magic: null, gifExport: null,
     traceRef: { elementId: 'body', point: 'b' }, result: E.design(project, 0), pointer: { x: 0, y: 0 },
     history: [], historySelections: [], future: [], futureSelections: [],
   };
@@ -54,7 +59,7 @@ function controller(width = 1440) {
     icon: () => '', escape: (value) => String(value), fmt: (value) => String(value), svgNS: 'http://www.w3.org/2000/svg',
     line: (a, b, attributes = '') => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${attributes}/>`,
     ib: (name, action, title, active = false, extra = '') => `<button data-action="${action}" ${extra}></button>`,
-    K, I, E, W: globalThis.KinmoWorkbench, M: { ...globalThis.KinmoMagicImport }, X: globalThis.KinmoExport, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo' }, typeIcons: { ground: 'ground' },
+    K, I, E, W: globalThis.KinmoWorkbench, M: { ...globalThis.KinmoMagicImport }, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo' }, typeIcons: { ground: 'ground' },
     CAD: { ENDPOINT: 'http://127.0.0.1:8765' },
     renderTree() {}, renderInspector() {}, renderScene() {}, renderGraph() {}, fitView() {},
     onChange() {}, onSubmit() {}, onContextMenu() {}, updateHover() {}, updateMotion() {},
@@ -65,7 +70,7 @@ function controller(width = 1440) {
     setTool: (tool) => { state.tool = tool; },
     setMotion: (motion) => { state.motion = motion; }, lastFrame: 1000, lastInspector: 0, requestAnimationFrame() {},
     parseReference: (value) => { const [elementId, point] = value.split('|'); return { elementId, point }; },
-    updateToolbar: () => context.updateInspectorVisibility(),
+    updateToolbar: () => { context.updateInspectorVisibility(); context.updatePanelVisibility(); },
     localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) }, storageKey: 'qa', lastKey: 'qa.last', settingsKey: 'qa.settings', DD: { NAME: 'Zásuvka', KIND: 'double-drawer' },
     collectionKeys: { assembly: 'qa.assemblies', revision: 'qa.revisions' },
     clearTimeout() {}, setTimeout: (callback) => { context.nextTimer = callback; return 1; }, autosaveTimer: null, latestSVG: '', updateHeader() {},
@@ -76,13 +81,267 @@ function controller(width = 1440) {
     download: (filename, content, type) => { context.downloaded = { filename, content, type }; },
     modal: (title, html, wide) => { context.dialog = { title, html, wide }; },
   });
-  for (const name of ['buildShell', 'updateInspectorVisibility', 'setInspectorOpen', 'selectElement', 'selectTarget', 'repairSelection', 'memberSelected', 'selectedNodeReferences', 'defaultTraceReference', 'closeContextMenu', 'jointPoints', 'canvasHit', 'contextItems', 'openContextMenu', 'onContextMenu', 'pushHistory', 'undo', 'editCanvas', 'deleteSelected', 'fixSelected', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onCanvasSubmit', 'animate', 'templateCards', 'projectsModal', 'canSelectText', 'onKeyboard', 'wireEvents', 'manipulationSVG', 'transformModal', 'submitTransform', 'renderDiagnostics', 'toggleSmartSnap', 'findDragSnap', 'smartSnapSVG', 'offerSnapConnection', 'submitSnapConnection', 'readCollection', 'writeCollection', 'collectionRecord', 'recordSaveModal', 'draftRecord', 'submitWorkbenchSave', 'exportCollection', 'importCollection', 'collectionErrorModal', 'assembliesModal', 'insertLibraryModal', 'submitLibraryInsert', 'revisionsModal', 'restoreRevisionModal', 'confirmRevisionRestore', 'comparisonModal', 'submitRevisionComparison', 'deleteRecordModal', 'confirmRecordDelete', 'loadProject', 'replaceProject', 'exportModal', 'fusionModal', 'onChange', 'magicBounds', 'magicImageSVG', 'renderMagicReference', 'magicDrawingSVG', 'magicWorking', 'magicActionAllowed', 'startMagicImport', 'renderMagicImport', 'setMagicStep', 'nextMagicStep', 'pickMagicImage', 'onMagicImage', 'submitMagicScale', 'selectMagicTool', 'clearMagicDrawing', 'commitMagicDrawing', 'magicPointer', 'onMagicSetting', 'persistMagicProjects', 'magicOriginalPreserved', 'submitMagicFinish', 'cancelMagicImport', 'addElement', 'setTool', 'connectPoint', 'onContextAction']) {
+  for (const name of ['buildShell', 'updateInspectorVisibility', 'setInspectorOpen', 'updatePanelVisibility', 'toggleViewPanel', 'selectElement', 'selectTarget', 'repairSelection', 'memberSelected', 'selectedNodeReferences', 'defaultTraceReference', 'closeContextMenu', 'jointPoints', 'canvasHit', 'contextItems', 'openContextMenu', 'onContextMenu', 'pushHistory', 'undo', 'editCanvas', 'deleteSelected', 'fixSelected', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onCanvasSubmit', 'animate', 'templateCards', 'projectsModal', 'canSelectText', 'onKeyboard', 'wireEvents', 'manipulationSVG', 'transformModal', 'submitTransform', 'renderDiagnostics', 'toggleSmartSnap', 'findDragSnap', 'smartSnapSVG', 'offerSnapConnection', 'submitSnapConnection', 'readCollection', 'writeCollection', 'collectionRecord', 'recordSaveModal', 'draftRecord', 'submitWorkbenchSave', 'exportCollection', 'importCollection', 'collectionErrorModal', 'assembliesModal', 'insertLibraryModal', 'submitLibraryInsert', 'revisionsModal', 'restoreRevisionModal', 'confirmRevisionRestore', 'comparisonModal', 'submitRevisionComparison', 'deleteRecordModal', 'confirmRecordDelete', 'loadProject', 'replaceProject', 'exportModal', 'fusionModal', 'onChange', 'magicBounds', 'magicImageSVG', 'renderMagicReference', 'magicDrawingSVG', 'magicWorking', 'magicActionAllowed', 'startMagicImport', 'renderMagicImport', 'setMagicStep', 'nextMagicStep', 'pickMagicImage', 'onMagicImage', 'submitMagicScale', 'selectMagicTool', 'clearMagicDrawing', 'commitMagicDrawing', 'magicPointer', 'onMagicSetting', 'persistMagicProjects', 'magicOriginalPreserved', 'submitMagicFinish', 'cancelMagicImport', 'addElement', 'setTool', 'connectPoint', 'onContextAction', 'sceneMarkup', 'drawElement', 'drawDoubleDrawer', 'drawElastic', 'panelPolygon', 'node', 'dimHorizontal', 'groundGlyph', 'traceLabel', 'gifOptions', 'gifModal', 'updateGIFEstimate', 'gifProgress', 'cancelGIF', 'checkGIF', 'gifSource', 'gifFrameCanvas', 'exportGIF', 'gifError']) {
     const definition = source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))?.[0];
     assert(definition, `Missing UI function ${name}`);
     vm.runInContext(definition, context);
   }
+  vm.runInContext(source.match(/  const pathD = [^\n]+/)[0], context);
+  vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
+
+const gifData = (values = {}) => new Map(Object.entries({ width: '160', duration: '1', fps: '6', direction: 'roundtrip', loop: 'on', ...values }).filter(([, value]) => value !== null));
+function gifController() {
+  const fixture = controller(), { context, state, element, document } = fixture, hosts = [], frames = [], snapshots = [];
+  state.project.elements[0].drive = true;
+  state.project = context.K.validateProject(state.project);
+  state.result = context.E.design(state.project, 0);
+  state.view = { x: -100, y: -100, width: 800, height: 450 }; state.baseView = { ...state.view };
+  state.ghosts = false; state.trace = false; state.dimensions = false; state.collisions = false;
+  context.DD = globalThis.DoubleDrawer;
+  context.AbortController = AbortController; context.setTimeout = setTimeout; context.clearTimeout = clearTimeout;
+  context.FormData = class { constructor() { return gifData(); } };
+  context.actions = { 'cancel-gif': context.cancelGIF, 'close-modal': () => element('#modal').close() };
+  element('#modal').open = true;
+  document.createElement = (tag) => {
+    const node = element(`created:${tag}:${hosts.length}`); node.style = {}; node.children = [];
+    node.append = (child) => node.children.push(child); node.remove = () => { node.removed = true; };
+    return node;
+  };
+  document.createElementNS = (ns, tag) => document.createElement(tag);
+  document.body.append = (host) => hosts.push(host);
+  const drawing = context.sceneMarkup;
+  context.sceneMarkup = (result, options) => { frames.push(result.motion); return drawing(result, options); };
+  let canvasCount = 0;
+  context.SC = {
+    snapshot(svg, options) { snapshots.push({ markup: svg.innerHTML, options, labelsHidden: svg.classList.contains('labels-hidden') }); return String(frames.at(-1)); },
+    async rasterize(svg, plan, options) {
+      assert.equal(options.readPixels, true); assert(!options.signal.aborted);
+      const canvas = options.canvas || { getContext: () => ({ getImageData: () => {
+        const pixels = new Uint8ClampedArray(canvas.width * canvas.height * 4).fill(255);
+        pixels.set([78, 150, 200, 255], (Math.round(canvas.motion / 360 * (canvas.width - 1)) % canvas.width) * 4);
+        return { data: pixels };
+      } }) };
+      if (!options.canvas) canvasCount++;
+      canvas.width = plan.width; canvas.height = plan.height; canvas.motion = Number(svg);
+      fixture.canvas = canvas; return canvas;
+    },
+  };
+  const submit = source.match(/  async function onSubmit\([^\n]*\) \{[\s\S]*?\n  \}/)[0]; vm.runInContext(submit, context);
+  return Object.assign(fixture, { hosts, frames, snapshots, canvases: () => canvasCount });
+}
+
+function gifUnchanged(fixture) {
+  const { state, storage, element } = fixture;
+  return JSON.stringify({ project: state.project, result: state.result, view: state.view, baseView: state.baseView, motion: state.motion, playing: state.playing, direction: state.direction, mode: state.mode, tool: state.tool, selected: state.selected, selection: state.selectedElementIds, history: state.history, future: state.future, dynamic: state.dynamic, dynamicHistory: state.dynamicHistory, storage: [...storage], liveCanvas: element('#mechanism-canvas').innerHTML });
+}
+
+test('GIF export is discoverable, has bounded settings and labels kinematics honestly', () => {
+  const { context, state, element } = gifController(), before = JSON.stringify(state.project);
+  context.exportModal(); assert.match(context.dialog.html, /data-action="export-gif"/);
+  context.gifModal(); assert.match(context.dialog.html, /id="gif-form"/); assert.match(context.dialog.html, /nie časový záznam/);
+  for (const token of ['name="width"', 'name="duration"', 'name="fps"', 'name="direction"', 'name="loop"', 'role="status"', 'role="alert"', 'data-action="cancel-gif"', '90 sekundách']) assert(context.dialog.html.includes(token), token);
+  assert.match(element('#gif-estimate').textContent, /160 × 90 px/);
+  assert.equal(element('#gif-start').disabled, false); assert.equal(JSON.stringify(state.project), before);
+});
+
+test('GIF settings reject excessive work before a canvas or timer is allocated', async () => {
+  const fixture = gifController(), { context, state, hosts } = fixture, before = gifUnchanged(fixture);
+  await assert.rejects(context.exportGIF(gifData({ width: '1200', duration: '12', fps: '20' })), /180 snímok/);
+  await assert.rejects(context.exportGIF(gifData({ width: '1200', duration: '8', fps: '10' })), /60 miliónov/);
+  assert.equal(state.gifExport, null); assert.equal(hosts.length, 0); assert.equal(gifUnchanged(fixture), before);
+});
+
+test('GIF refuses an empty, unpowered, busy or already blocked model without modifying it', async () => {
+  for (const kind of ['empty', 'no-drive', 'magic', 'drag', 'blocked']) {
+    const fixture = gifController(), { context, state, hosts } = fixture;
+    if (kind === 'empty') state.project.elements = [];
+    if (kind === 'no-drive') state.project.elements[0].drive = false;
+    if (kind === 'magic') state.magic = {};
+    if (kind === 'drag') state.drag = {};
+    if (kind === 'blocked') state.samples = [{ motion: 12, blocked: true, issues: ['Obmedzenie.'] }];
+    const before = gifUnchanged(fixture);
+    await assert.rejects(context.exportGIF(gifData()));
+    assert.equal(state.gifExport, null); assert.equal(hosts.length, 0); assert.equal(gifUnchanged(fixture), before);
+  }
+});
+
+test('GIF frames use the actual drawing outside the live canvas, preserve state and independently decode', async () => {
+  const fixture = gifController(), { context, state, hosts, frames, snapshots } = fixture;
+  state.motion = 33; state.playing = true; state.labels = false; state.selected = 'body'; state.selectedElementIds = ['e:body'];
+  state.dynamic = { motion: 33, velocity: 12, time: 4 }; state.dynamicHistory = [{ ...state.dynamic }];
+  fixture.element('#mechanism-canvas').innerHTML = 'original live drawing';
+  const before = gifUnchanged(fixture);
+  assert.equal(await context.exportGIF(gifData()), true);
+  const decoded = globalThis.KinmoGifTestDecoder.decode(context.downloaded.content);
+  assert.equal(context.downloaded.type, 'image/gif'); assert.match(context.downloaded.filename, /\.gif$/);
+  assert.equal(decoded.width, 160); assert.equal(decoded.height, 90); assert.equal(decoded.frames.length, 6); assert.equal(decoded.loop, 0);
+  assert.equal(decoded.frames.reduce((sum, frame) => sum + frame.delay, 0), 100);
+  assert.notDeepEqual(decoded.frames[0].indices, decoded.frames[1].indices);
+  assert.equal(frames.length, 9); assert.equal(snapshots.length, 9); assert(snapshots.every((frame) => frame.labelsHidden && frame.markup.includes('node-ring')));
+  assert(snapshots.every((frame) => !frame.markup.includes('data-editor-overlay')));
+  assert.equal(fixture.canvases(), 1); assert(hosts[0].removed && hosts[0].inert);
+  assert.equal(fixture.canvas.width, 0); assert.equal(state.gifExport, null);
+  assert.equal(gifUnchanged(fixture), before); assert.equal(fixture.element('#gif-progress').value, 1);
+});
+
+test('GIF single-pass direction omits the loop extension and includes both range ends', async () => {
+  const { context, frames } = gifController();
+  await context.exportGIF(gifData({ direction: 'forward', loop: null }));
+  const decoded = globalThis.KinmoGifTestDecoder.decode(context.downloaded.content);
+  assert.equal(decoded.loop, null); assert.equal(decoded.frames.length, 6);
+  assert.deepEqual(frames.slice(-6), [0, 72, 144, 216, 288, 360]);
+});
+
+test('Cancelling GIF during decoding stops download, releases private resources and preserves all state', async () => {
+  const fixture = gifController(), { context, state, hosts } = fixture, before = gifUnchanged(fixture);
+  context.SC.rasterize = (svg, plan, { signal }) => new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(new Error('mock decode cancelled')), { once: true }));
+  const pending = context.exportGIF(gifData()); assert(state.gifExport); context.cancelGIF();
+  assert.equal(await pending, false); assert.equal(context.downloaded, undefined);
+  assert.equal(state.gifExport, null); assert(hosts[0].removed); assert.equal(gifUnchanged(fixture), before);
+  assert.match(fixture.element('#gif-status').textContent, /Export zrušený/); assert(!fixture.element('#gif-options').disabled);
+});
+
+test('GIF deadline reports its own reason, not a generic raster abort, and allows retry', async () => {
+  const fixture = gifController(), { context, state, hosts } = fixture, before = gifUnchanged(fixture);
+  context.G = { ...globalThis.KinmoGIF, limits: { ...globalThis.KinmoGIF.limits, timeout: 10 } };
+  context.SC.rasterize = (svg, plan, { signal }) => new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(new Error('mock image abort')), { once: true }));
+  await assert.rejects(context.exportGIF(gifData()), /90 sekúnd/);
+  assert.equal(state.gifExport, null); assert(hosts[0].removed); assert.equal(context.downloaded, undefined);
+  assert.equal(gifUnchanged(fixture), before); assert(!fixture.element('#gif-start').disabled);
+});
+
+test('Cancelling GIF after encoded frames discards partial bytes and releases the reused canvas', async () => {
+  const fixture = gifController(), { context, state, frames } = fixture, raster = context.SC.rasterize, before = gifUnchanged(fixture);
+  context.SC.rasterize = async (...args) => { const canvas = await raster(...args); if (frames.length === 5) context.cancelGIF(); return canvas; };
+  assert.equal(await context.exportGIF(gifData()), false);
+  assert.equal(context.downloaded, undefined); assert.equal(state.gifExport, null);
+  assert.equal(fixture.canvas.width, 0); assert(fixture.hosts[0].removed); assert.equal(gifUnchanged(fixture), before);
+});
+
+test('GIF output-size failure cannot download partial bytes or change the live mechanism', async () => {
+  const fixture = gifController(), { context, state } = fixture, before = gifUnchanged(fixture);
+  context.G = { ...globalThis.KinmoGIF, createEncoder: (options) => globalThis.KinmoGIF.createEncoder({ ...options, maxBytes: 1024 }) };
+  await assert.rejects(context.exportGIF(gifData()), /GIF prekračuje/);
+  assert.equal(context.downloaded, undefined); assert.equal(state.gifExport, null);
+  assert.equal(fixture.canvas.width, 0); assert(fixture.hosts[0].removed); assert.equal(gifUnchanged(fixture), before);
+});
+
+test('Closing GIF cancels even if the browser delays its dialog close event', async () => {
+  const fixture = gifController(), { context, state, element } = fixture, raster = context.SC.rasterize, before = gifUnchanged(fixture);
+  context.SC.rasterize = async (...args) => { const canvas = await raster(...args); element('#modal').open = false; return canvas; };
+  assert.equal(await context.exportGIF(gifData()), false);
+  assert.equal(context.downloaded, undefined); assert.equal(state.gifExport, null);
+  assert(fixture.hosts[0].removed); assert.equal(fixture.canvas.width, 0); assert.equal(gifUnchanged(fixture), before);
+});
+
+test('GIF decode failure cleans up without replacing current pose, selection or model', async () => {
+  const fixture = gifController(), { context, state, hosts } = fixture, before = gifUnchanged(fixture);
+  context.SC.rasterize = async () => { throw new Error('mock raster failure'); };
+  await assert.rejects(context.exportGIF(gifData()), /mock raster failure/);
+  assert.equal(state.gifExport, null); assert(hosts[0].removed); assert.equal(gifUnchanged(fixture), before);
+});
+
+test('A GIF pose blocked between existing samples fails atomically instead of skipping through it', async () => {
+  const fixture = gifController(), { context, state } = fixture;
+  state.project.parameters.rotationMax = 90;
+  const engine = context.K;
+  context.K = { ...engine, solve(project, motion, options) { const result = engine.solve(project, motion, options); if (motion === 60) { result.blocked = true; result.issues = ['Limit kĺbu.']; } return result; } };
+  const before = gifUnchanged(fixture);
+  await assert.rejects(context.exportGIF(gifData()), /pri 60 °: Limit kĺbu/);
+  assert.equal(context.downloaded, undefined); assert.equal(state.gifExport, null); assert.equal(gifUnchanged(fixture), before);
+});
+
+test('GIF refuses visually identical indexed frames instead of offering a static animation', async () => {
+  const fixture = gifController(), { context, state } = fixture, before = gifUnchanged(fixture), raster = context.SC.rasterize;
+  context.SC.rasterize = async (...args) => { const canvas = await raster(...args); canvas.motion = 0; return canvas; };
+  await assert.rejects(context.exportGIF(gifData()), /nevytvárajú viditeľný pohyb/);
+  assert.equal(context.downloaded, undefined); assert.equal(state.gifExport, null); assert.equal(gifUnchanged(fixture), before);
+});
+
+test('Unexpected project replacement aborts GIF without restoring over newer user work', async () => {
+  const fixture = gifController(), { context, state } = fixture, original = state.project, raster = context.SC.rasterize;
+  context.SC.rasterize = async (...args) => { const canvas = await raster(...args); state.project = context.K.copy(original); state.project.name = 'Newer user work'; return canvas; };
+  await assert.rejects(context.exportGIF(gifData()), /Projekt sa počas/);
+  assert.equal(state.project.name, 'Newer user work'); assert.equal(original.name, 'QA');
+  assert.equal(context.downloaded, undefined); assert.equal(state.gifExport, null);
+});
+
+test('Active GIF blocks editor input, playback, imports and duplicate jobs but Escape cancels it', async () => {
+  const fixture = gifController(), { context, state, listeners, element } = fixture;
+  context.wireEvents(); state.playing = true;
+  state.gifExport = { controller: new AbortController(), cancelled: false };
+  const before = gifUnchanged(fixture);
+  context.animate(1100); context.onPointerDown({}); context.onPointerMove({});
+  context.onChange({ target: { dataset: { property: 'length' } } });
+  context.replaceProject(context.K.preset('drawer'));
+  element('#motion-range').listeners.get('input')({ target: { value: '60' } });
+  element('#motion-graph').listeners.get('click')({});
+  let prevented = false;
+  listeners.get('click')({ target: { closest: () => ({ dataset: { action: 'play' } }) }, preventDefault() { prevented = true; } });
+  assert(prevented); assert.equal(await context.exportGIF(gifData()), false); assert.equal(gifUnchanged(fixture), before);
+  context.onKeyboard({ key: 'Escape' }); assert(state.gifExport.cancelled && state.gifExport.controller.signal.aborted);
+  state.gifExport = null;
+});
+
+test('Closing the GIF dialog cancels its job, and form submission shows errors as text', async () => {
+  const fixture = gifController(), { context, state, element } = fixture; context.wireEvents();
+  state.gifExport = { controller: new AbortController() };
+  element('#modal').listeners.get('close')(); assert(state.gifExport.controller.signal.aborted);
+  state.gifExport = null; state.project.elements[0].drive = false;
+  let prevented = false;
+  await context.onSubmit({ target: { id: 'gif-form' }, preventDefault() { prevented = true; } });
+  assert(prevented); assert.match(element('#gif-error').textContent, /jeden nezávislý motor/);
+  context.gifError(new Error('<img src=x onerror=alert(1)>'));
+  assert.equal(element('#gif-error').innerHTML, ''); assert.equal(element('#gif-error').textContent, '<img src=x onerror=alert(1)>');
+});
+
+test('The GIF editor lock permits its own blob download default action', () => {
+  const { context, state, listeners } = gifController(); context.wireEvents();
+  state.gifExport = { controller: new AbortController() };
+  let prevented = false;
+  const anchor = { href: 'blob:owned-output', closest: (selector) => selector === 'a[data-kinmo-download]' ? anchor : null };
+  listeners.get('click')({ target: anchor, preventDefault() { prevented = true; } });
+  assert.equal(prevented, false);
+  assert.match(source, /anchor\.dataset\.kinmoDownload = 'true'/);
+  state.gifExport = null;
+});
+
+for (const kind of ['drawer', 'fourbar', 'crank', 'double-drawer']) {
+  test(`The actual ${kind} drawing takes an explicit GIF pose without modifying live state`, () => {
+    const fixture = gifController(), { context, state } = fixture;
+    state.project = context.K.validateProject(context.K.preset(kind)); state.motion = 13; state.selected = null; state.selectedElementIds = [];
+    state.profile = context.K.prepareProject(state.project); state.result = context.K.solve(state.project, 13, { profile: state.profile, collisions: false });
+    const before = gifUnchanged(fixture), range = context.K.driveRange(state.project), motion = range.min + (range.max - range.min) * .6;
+    const result = context.K.solve(state.project, motion, { profile: state.profile, collisions: false });
+    const markup = context.sceneMarkup(result, { exporting: true, view: state.view, scale: 2 });
+    assert.match(markup, /node-ring/); assert(!markup.includes('data-editor-overlay'));
+    if (kind === 'drawer') assert(markup.includes(`<rect x="${motion}"`));
+    assert.equal(gifUnchanged(fixture), before);
+  });
+}
+
+test('Joint points and elastic labels use the requested frame rather than stale live results', () => {
+  const { context, state } = gifController(), result = context.K.copy(state.result);
+  result.poses.body.a = { x: 700, y: 800 };
+  const joint = { a: { elementId: 'body', point: 'a' }, b: { elementId: 'another-body', point: 'b' } };
+  assert.deepEqual({ ...context.jointPoints(joint, result).a }, { x: 700, y: 800 });
+  const spring = { ...context.K.makeElement('spring-compression'), id: 'spring' }, pose = { a: { x: 0, y: 0 }, b: { x: 100, y: 0 }, length: 100 };
+  result.forces = [{ id: 'spring', magnitude: 37 }];
+  state.result.forces = [{ id: 'spring', magnitude: 99 }];
+  const drawing = context.drawElastic(spring, pose, '#123456', result);
+  assert(drawing.includes('37 N') && !drawing.includes('99 N'));
+});
+
+test('Toolbar buttons retain native Space activation rather than starting playback', () => {
+  const { context, state } = controller();
+  context.actions = { play: () => { state.playing = true; } };
+  let prevented = false;
+  const button = { closest: (selector) => selector === 'button,a' ? button : null };
+  context.onKeyboard({ key: ' ', code: 'Space', target: button, preventDefault() { prevented = true; } });
+  assert.equal(prevented, false); assert.equal(state.playing, false);
+});
 
 test('CAD export has a shared width-outline switch without changing the model', () => {
   const { context, state } = controller(), before = JSON.stringify(state.project);
@@ -132,6 +391,61 @@ test('Closing focused properties returns focus to the visible toggle', () => {
   context.setInspectorOpen(true); document.activeElement = { panel: '#properties-panel' };
   context.setInspectorOpen(false);
   assert.equal(document.activeElement, element('[data-action="toggle-inspector"]'));
+});
+
+for (const width of [393, 1440]) {
+  test(`Profile and timeline hide independently and remain restorable at ${width}px`, () => {
+    const { context, state, element } = controller(width), before = JSON.stringify(state.project);
+    state.playing = true; state.motion = 33; state.selectedElementIds = ['e:body']; state.selected = 'body';
+    context.toggleViewPanel('profileVisible');
+    assert(element('#motion-profile-panel').hidden && !element('#playback-panel').hidden);
+    assert.equal(element('[data-action="profileVisible"]').attributes.get('aria-expanded'), 'false');
+    assert.match(element('[data-action="profileVisible"]').title, /^Zobraziť/);
+    context.toggleViewPanel('timelineVisible');
+    assert(element('#motion-profile-panel').hidden && element('#playback-panel').hidden);
+    context.toggleViewPanel('profileVisible');
+    assert(!element('#motion-profile-panel').hidden && element('#playback-panel').hidden);
+    context.toggleViewPanel('timelineVisible');
+    assert(!element('#playback-panel').hidden);
+    assert.equal(state.playing, true); assert.equal(state.motion, 33);
+    assert.equal(state.selected, 'body'); assert.equal(state.history.length, 0);
+    assert.equal(JSON.stringify(state.project), before);
+  });
+}
+
+test('Hiding a focused playback panel returns focus to its permanent toolbar button', () => {
+  const { context, document, element } = controller();
+  document.activeElement = { panel: '#playback-panel' };
+  context.toggleViewPanel('timelineVisible');
+  assert.equal(document.activeElement, element('[data-action="timelineVisible"]'));
+});
+
+test('Panel visibility expands the view around its centre without changing zoom', () => {
+  const { context, state, element } = controller();
+  state.view = { x: 10, y: 20, width: 800, height: 400 }; state.baseView = { x: -390, y: -180, width: 1600, height: 800 };
+  element('#mechanism-canvas').getBoundingClientRect = () => ({ width: 800, height: state.profileVisible ? 400 : 600 });
+  context.toggleViewPanel('profileVisible');
+  assert.deepEqual({ ...state.view }, { x: 10, y: -80, width: 800, height: 600 });
+  assert.equal(state.baseView.height / state.view.height, 2);
+  context.toggleViewPanel('profileVisible');
+  assert.deepEqual({ ...state.view }, { x: 10, y: 20, width: 800, height: 400 });
+});
+
+test('Scheme labels have their own toggle, independent of dimensions and accessible geometry', () => {
+  const { context, state, element } = controller();
+  context.buildShell();
+  const html = element('#app').innerHTML;
+  assert.match(html, /data-action="labels"[^>]*aria-pressed="true"/);
+  assert.match(html, /id="motion-profile-panel"/); assert.match(html, /id="playback-panel"/);
+  assert(html.indexOf('data-action="timelineVisible"') < html.indexOf('id="playback-panel"'));
+  state.labels = false; context.updatePanelVisibility();
+  assert(element('#mechanism-canvas').classList.contains('labels-hidden'));
+  assert.match(element('[data-action="labels"]').title, /^Zobraziť texty/);
+  assert(state.dimensions);
+  const rule = styles.match(/\.labels-hidden :is\(([^)]+)\) \{ display: none; \}/)?.[1];
+  assert(rule.includes('.angle-annotation') && rule.includes('.node-label') && rule.includes('.scene-heading'));
+  assert(!rule.includes('.dimension-label') && !rule.includes('.diagnostic-label') && !rule.includes('.joint-node'));
+  assert(source.includes('class="angle-annotation"'));
 });
 
 test('Only the header opens projects from the main layout; duplicate navigation is absent', () => {

@@ -6,6 +6,8 @@
   const E = globalThis.KinmoEditor;
   const P = globalThis.KinmoPhysics;
   const X = globalThis.KinmoExport;
+  const SC = globalThis.KinmoScene;
+  const G = globalThis.KinmoGIF;
   const CAD = globalThis.KinmoCad;
   const I = globalThis.KinmoInteraction;
   const W = globalThis.KinmoWorkbench;
@@ -46,6 +48,7 @@
     loop: '<path d="M4 8h14l-3-3m3 3-3 3M20 16H6l3-3m-3 3 3 3"/>',
     target: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><circle cx="12" cy="12" r="3"/>',
     chart: '<path d="M3 3v18h18M6 15l4-5 4 3 6-8"/>',
+    text: '<path d="M4 5h16M12 5v14M8 19h8M4 5v3m16-3v3"/>',
     trace: '<path d="M3 18c7 0 2-12 8-12s3 12 10 12"/><circle cx="3" cy="18" r="2"/><circle cx="21" cy="18" r="2"/>',
     check: '<path d="m5 12 4 4L19 6"/>',
     close: '<path d="m6 6 12 12M6 18 18 6"/>',
@@ -95,7 +98,7 @@
     selectedElementIds: initialSelection ? [I.elementKey(initialSelection)] : [], hoveredTargetId: null,
     contextMenuState: { isOpen: false, x: 0, y: 0, targetId: null, targetType: 'canvas' },
     motion: K.driveRange(initialProject).min, playing: false, direction: 1, speed: 1, loop: true, cycle: 6,
-    grid: true, dimensions: true, ghosts: true, trace: true, collisions: true, snap: true,
+    grid: true, dimensions: true, ghosts: true, trace: true, labels: true, profileVisible: true, timelineVisible: true, collisions: true, snap: true,
     traceRef: initialProject.kind === DD.KIND ? { elementId: 'bearing-1', point: 'a' } : { elementId: initialSelection || '', point: ['node', 'bearing'].includes(initialProject.elements.find((e) => e.id === initialSelection)?.type) ? 'a' : 'b' },
     traceMode: initialProject.kind === DD.KIND ? 'bearings' : 'single', traceSpace: 'world',
     tool: 'select', sidebarTab: 'elements', inspectorTab: 'geometry', inspectorOpen: false, analysis: false,
@@ -106,7 +109,7 @@
     editPivot: null, diagnosticRows: [], diagnosticsOpen: false, diagnosticAnalysis: null,
     smartSnap: false, snapPreview: null, pendingSnap: null,
     pendingCollectionDelete: null, pendingRevisionId: null, revisionScope: 'current', assemblyInsertPoint: null,
-    cadSlotOutlines: true, magic: null,
+    cadSlotOutlines: true, magic: null, gifExport: null,
     ...preferences,
   };
   const isDoubleDrawer = () => state.project.kind === DD.KIND;
@@ -275,6 +278,39 @@
     fitView(); renderScene();
   }
 
+  function updatePanelVisibility() {
+    for (const [key, id, name] of [['profileVisible', 'motion-profile-panel', 'pohybový profil'], ['timelineVisible', 'playback-panel', 'prehrávanie časovej osi']]) {
+      const panel = $(`#${id}`), button = $(`[data-action="${key}"]`);
+      if (!state[key] && panel.contains(document.activeElement)) button.focus();
+      panel.hidden = !state[key];
+      button.classList.toggle('is-active', state[key]);
+      button.setAttribute('aria-expanded', state[key]);
+      button.setAttribute('aria-pressed', state[key]);
+      const label = `${state[key] ? 'Skryť' : 'Zobraziť'} ${name}`;
+      button.setAttribute('aria-label', label); button.title = label;
+    }
+    $('#mechanism-canvas').classList.toggle('labels-hidden', !state.labels);
+    $('#canvas-area').classList.toggle('labels-hidden', !state.labels);
+    const button = $('[data-action="labels"]'), label = `${state.labels ? 'Skryť' : 'Zobraziť'} texty, názvy a uhly schémy (kóty majú vlastný prepínač)`;
+    button.setAttribute('aria-label', label); button.title = label;
+  }
+
+  function toggleViewPanel(key) {
+    if (!['profileVisible', 'timelineVisible'].includes(key)) return;
+    const canvas = $('#mechanism-canvas'), before = canvas.getBoundingClientRect();
+    state[key] = !state[key];
+    updateToolbar();
+    const after = canvas.getBoundingClientRect();
+    if (before.width > 0 && before.height > 0 && after.width > 0 && after.height > 0) {
+      // Give the canvas more space without changing the user's zoom or centre.
+      for (const name of ['view', 'baseView']) if (state[name]) {
+        const v = state[name], width = v.width * after.width / before.width, height = v.height * after.height / before.height;
+        state[name] = { x: v.x + (v.width - width) / 2, y: v.y + (v.height - height) / 2, width, height };
+      }
+    }
+    renderScene();
+  }
+
   function buildShell() {
     $('#app').innerHTML = `
       <header class="app-header">
@@ -326,7 +362,7 @@
           </div>
         </aside>
         <section class="center-workspace">
-          <div class="stage-header"><div class="segmented mode-switch" aria-label="Režim mechanizmu"><button data-action="mode-edit">Úprava geometrie</button><button data-action="mode-simulate">Simulácia</button></div><button class="subtle-button editable-copy" data-action="make-editable" title="Zachovať originál a vytvoriť voľnú editačnú kópiu">${icon('copy', 14)}<span>Voľná kópia</span></button><div class="stage-toggles">${ib('grid', 'grid', 'Zobraziť mriežku', state.grid, 'aria-pressed="true"')}${ib('ruler', 'dimensions', 'Zobraziť rozmery', state.dimensions, 'aria-pressed="true"')}${ib('layers', 'ghosts', 'Zobraziť krajné polohy', state.ghosts, 'aria-pressed="true"')}${ib('trace', 'trace', 'Zobraziť trajektóriu', state.trace, 'aria-pressed="true"')}</div></div>
+          <div class="stage-header"><div class="segmented mode-switch" aria-label="Režim mechanizmu"><button data-action="mode-edit">Úprava geometrie</button><button data-action="mode-simulate">Simulácia</button></div><button class="subtle-button editable-copy" data-action="make-editable" title="Zachovať originál a vytvoriť voľnú editačnú kópiu">${icon('copy', 14)}<span>Voľná kópia</span></button><div class="stage-toggles" aria-label="Viditeľnosť plátna a panelov">${ib('grid', 'grid', 'Zobraziť mriežku', state.grid, 'aria-pressed="true"')}${ib('ruler', 'dimensions', 'Zobraziť rozmery', state.dimensions, 'aria-pressed="true"')}${ib('layers', 'ghosts', 'Zobraziť krajné polohy', state.ghosts, 'aria-pressed="true"')}${ib('trace', 'trace', 'Zobraziť trajektóriu', state.trace, 'aria-pressed="true"')}${ib('text', 'labels', 'Skryť texty, názvy a uhly schémy', state.labels, 'aria-pressed="true"')}${ib('chart', 'profileVisible', 'Skryť pohybový profil', state.profileVisible, 'aria-controls="motion-profile-panel" aria-expanded="true" aria-pressed="true"')}${ib('play', 'timelineVisible', 'Skryť prehrávanie časovej osi', state.timelineVisible, 'aria-controls="playback-panel" aria-expanded="true" aria-pressed="true"')}</div></div>
           <div class="canvas-area" id="canvas-area">
             <div class="scene-heading"><span class="eyebrow">KINEMATICKÝ MODEL</span><h1 id="scene-name">${escape(state.project.name)}</h1><p>Bočný pohľad <span>·</span> Rovinný mechanizmus</p><button id="project-assumptions" class="estimate-chip" data-action="project-info" hidden>${icon('info', 12)}Odhadové rozmery · predpoklady</button></div>
             <div class="scene-status" id="scene-status">${icon('check', 13)}<span>Pohyb bez kolízií</span></div>
@@ -341,9 +377,11 @@
             <div class="manipulation-tools" id="manipulation-tools" aria-label="Priame úpravy vybraných členov" hidden></div>
           </div>
           <section class="diagnostics-panel" id="diagnostics-panel" aria-label="Diagnostika väzieb" hidden></section>
-          <section class="analysis-panel" aria-label="Analýza pohybu">
+          <section class="analysis-panel" id="motion-profile-panel" aria-label="Pohybový profil">
             <div class="analysis-header"><div class="analysis-title">${icon('chart', 17)}<h2>Pohybový profil</h2><span class="live-tag">LIVE</span><select id="graph-mode" aria-label="Zobrazený graf"><option value="angle">Uhly</option><option value="force">Sila / moment pohonu</option></select></div><div class="graph-legend"><span class="legend-line"></span><span id="graph-legend">Uhol čela</span><button class="trace-chip" data-action="trace-pick">${icon('trace', 14)}<span id="trace-name">Bod C</span>${icon('chevron', 12)}</button></div></div>
             <div class="graph-area"><span class="graph-unit" id="graph-unit">Uhol (°)</span><svg id="motion-graph" viewBox="0 0 800 94" preserveAspectRatio="none" role="img" aria-label="Graf závislosti uhla čela od posuvu výsuvu"></svg><span class="graph-x-label" id="graph-x-label">Posuv (mm)</span><div class="graph-tooltip" id="graph-tooltip" hidden></div></div>
+          </section>
+          <section class="playback-panel" id="playback-panel" aria-label="Prehrávanie časovej osi">
             <div class="simulation-bar">
               <div class="play-controls">${ib('reset', 'reset', 'Vrátiť do zatvorenej polohy')}<button class="play-button" data-action="play" aria-label="Spustiť simuláciu" title="Spustiť simuláciu (medzerník)">${icon('play', 17)}</button>${ib('loop', 'loop', 'Opakovať otváranie a zatváranie', true, 'aria-pressed="true"')}</div>
               <div class="motion-control"><div class="motion-label"><label for="motion-range" id="motion-label">Posuv výsuvu</label><span id="motion-total">0 – 300 mm</span></div><input id="motion-range" aria-label="Posuv výsuvu" type="range" min="0" max="300" step="0.1" value="150" /><div class="range-labels"><span id="range-min">Zatvorené</span><span id="range-max">Otvorené</span></div></div>
@@ -425,7 +463,7 @@
       `<div class="inspector-note">${icon('warning', 15)}<p>Parametre sú návrhový odhad. Overte minimálnu dĺžku, zdvih, rezervu a silu v údajoch výrobcu.</p></div><button class="button button-secondary full-width" data-action="elastic-sources">Katalógové príklady a zdroje</button>`;
   }
 
-  function drawElastic(e, pose, color) {
+  function drawElastic(e, pose, color, result = state.result) {
     const length = pose.length || 1, ux = (pose.b.x - pose.a.x) / length, uy = (pose.b.y - pose.a.y) / length;
     const at = (s, normal = 0) => ({ x: pose.a.x + ux * s - uy * normal, y: pose.a.y + uy * s + ux * normal });
     const spring = e.type.startsWith('spring-');
@@ -439,7 +477,7 @@
       const cylinder = Math.min(length * .8, e.minLength * .72), rod = at(cylinder);
       body = `${line(pose.a, pose.b, `stroke="#8995a2" stroke-width="${e.rodDiameter}" stroke-linecap="round"`)}${line(pose.a, rod, `stroke="${color}" stroke-width="${e.diameter}" stroke-linecap="butt"`)}${line(at(4), at(Math.max(4, cylinder - 4)), `stroke="#dde4eb" stroke-width="${e.diameter * .45}"`)}`;
     }
-    const force = state.result.forces?.find((v) => v.id === e.id);
+    const force = result.forces?.find((v) => v.id === e.id);
     body += `<text x="${(pose.a.x + pose.b.x) / 2}" y="${(pose.a.y + pose.b.y) / 2 - e.diameter / 2 - 9}" text-anchor="middle" class="force-label">${escape(e.name)} · ${fmt(force?.magnitude || 0, 1)} N</text>`;
     if (state.forceArrows && force?.magnitude > .001) {
       for (const [origin, vector] of [[pose.a, force.atA], [pose.b, force.atB]]) {
@@ -532,10 +570,11 @@
     const ox = -dy * width / (2 * l), oy = dx * width / (2 * l);
     return `${pose.a.x + ox},${pose.a.y + oy} ${pose.b.x + ox},${pose.b.y + oy} ${pose.b.x - ox},${pose.b.y - oy} ${pose.a.x - ox},${pose.a.y - oy}`;
   }
-  function node(id, key, point, label = '', active = false) {
+  function node(id, key, point, label = '', active = false, scale = null) {
     const identity = I.nodeKey({ elementId: id, point: key }), kind = I.status(state.project, { elementId: id, point: key }, state.samples);
     active = state.selectedElementIds.includes(identity);
-    const scale = Math.hypot(...['a', 'b'].map((v) => $('#mechanism-canvas').getScreenCTM()?.[v] || 0)) || 1, r = 5 / scale;
+    scale ||= Math.hypot(...['a', 'b'].map((v) => $('#mechanism-canvas').getScreenCTM()?.[v] || 0)) || 1;
+    const r = 5 / scale;
     return `<g data-element="${escape(id)}" data-point="${key}" data-selection-key="${escape(identity)}" class="joint-node node-${kind}${active ? ' active' : ''}${state.hoveredTargetId === identity ? ' hovered' : ''}" role="button" tabindex="0" aria-pressed="${active}" aria-label="Uzol ${escape(label || `${state.project.elements.find((e) => e.id === id)?.name} · ${key.toUpperCase()}`)}, ${({ fixed: 'pevný', driven: 'poháňaný', free: 'voľný' })[kind]}">
       <circle cx="${point.x}" cy="${point.y}" r="${11 / scale}" fill="transparent" stroke="none"/>
       <circle class="node-ring" cx="${point.x}" cy="${point.y}" r="${r}" fill="var(--paper)" stroke="var(--node-${kind})" stroke-width="1.7" vector-effect="non-scaling-stroke"/>
@@ -577,13 +616,13 @@
     return '';
   }
 
-  function drawElement(e, pose) {
+  function drawElement(e, pose, result = state.result) {
     if (!pose || !e.visible) return '';
-    const p = state.project.parameters, selected = memberSelected(e.id), bad = state.result.collisions.includes(e.id) || state.result.invalid.includes(e.id);
+    const p = state.project.parameters, selected = memberSelected(e.id), bad = result.collisions.includes(e.id) || result.invalid.includes(e.id);
     const color = bad ? '#df5e59' : selected ? 'var(--accent)' : e.color || (e.type === 'slot' ? '#6a8a89' : '#798997');
     let body = '';
     if (K.isElastic(e)) {
-      body = drawElastic(e, pose, bad ? '#df5e59' : selected ? '#d99735' : e.type.startsWith('spring-') ? '#6590b3' : '#a4779f');
+      body = drawElastic(e, pose, bad ? '#df5e59' : selected ? '#d99735' : e.type.startsWith('spring-') ? '#6590b3' : '#a4779f', result);
     } else if (pose.outline?.length) {
       body = `<polygon points="${pose.outline.map((v) => `${v.x},${v.y}`).join(' ')}" fill="${e.type === 'ground' ? '#dfe7ec' : '#f2cc91'}" fill-opacity=".65" stroke="${color}" stroke-width="1.8"/>`;
       if (e.type === 'ground') body += groundGlyph(pose.a);
@@ -602,16 +641,16 @@
         <path d="${pathD(pose.path)}" fill="none" stroke="#8ba39c" stroke-width="0.8" stroke-dasharray="3 4"/>`;
       if (e.primary && state.project.kind === 'drawer') {
         const mid = pose.path[Math.floor(pose.path.length * 0.57)];
-        body += `<path d="M${mid.x} ${mid.y - 17}v-25h40" stroke="#98ada5" stroke-width="0.8" fill="none"/><text x="${mid.x + 45}" y="${mid.y - 39}" class="slot-label">Zakrivená kulisa</text>`;
+        body += `<path class="scheme-annotation" d="M${mid.x} ${mid.y - 17}v-25h40" stroke="#98ada5" stroke-width="0.8" fill="none"/><text x="${mid.x + 45}" y="${mid.y - 39}" class="slot-label">Zakrivená kulisa</text>`;
       }
     } else if (e.type === 'rail') {
       if (e.primary && state.project.kind === 'drawer') {
         body = `<rect x="0" y="${p.pivotY - 9}" width="${p.frameLength}" height="18" rx="3" fill="#d9e0e5" stroke="#a5b3bf" stroke-width="1"/>
           <path d="M6 ${p.pivotY}H${p.frameLength - 6}" stroke="#b0bcc6" stroke-width="1.5"/>
-          <rect x="${state.motion}" y="${p.pivotY - 6}" width="${p.frameLength + p.panelOffsetX}" height="12" rx="2" fill="${bad ? '#f4c6c4' : '#e7c18b'}" stroke="${color}" stroke-width="1.2"/>
-          <path d="M${state.motion + 9} ${p.pivotY - 1}H${pose.b.x - 9}" stroke="#fcf1dc" stroke-width="1.4"/>
-          ${[0.18, 0.48, 0.8].map((t) => `<circle cx="${state.motion + t * (p.frameLength + p.panelOffsetX)}" cy="${p.pivotY}" r="2.2" fill="#b58548"/>`).join('')}
-          <text x="${state.motion + p.frameLength / 2 - 45}" y="${p.pivotY + 31}" class="part-label rail-label">LINEÁRNY VÝSUV</text>`;
+          <rect x="${result.motion}" y="${p.pivotY - 6}" width="${p.frameLength + p.panelOffsetX}" height="12" rx="2" fill="${bad ? '#f4c6c4' : '#e7c18b'}" stroke="${color}" stroke-width="1.2"/>
+          <path d="M${result.motion + 9} ${p.pivotY - 1}H${pose.b.x - 9}" stroke="#fcf1dc" stroke-width="1.4"/>
+          ${[0.18, 0.48, 0.8].map((t) => `<circle cx="${result.motion + t * (p.frameLength + p.panelOffsetX)}" cy="${p.pivotY}" r="2.2" fill="#b58548"/>`).join('')}
+          <text x="${result.motion + p.frameLength / 2 - 45}" y="${p.pivotY + 31}" class="part-label rail-label">LINEÁRNY VÝSUV</text>`;
       } else body = `${line(pose.a, pose.b, `stroke="#c4d0d9" stroke-width="22" stroke-linecap="round"`)}${line(pose.a, pose.b, `stroke="${color}" stroke-width="1" stroke-dasharray="5 4"`)}<rect x="${(pose.c || pose.a).x - 12}" y="${(pose.c || pose.a).y - 15}" width="24" height="30" rx="3" fill="#e7c18b" stroke="#b28649"/>`;
     } else if (e.type === 'panel') {
       const width = e.primary ? p.panelThickness : e.width;
@@ -621,7 +660,7 @@
       if (e.primary) {
         const a = pose.a;
         const r = 35, end = K.along(a, r, pose.angle);
-        body += `<path d="M${a.x + r} ${a.y}A${r} ${r} 0 ${Math.abs(pose.angle) > 180 ? 1 : 0} ${pose.angle < 0 ? 1 : 0} ${end.x} ${end.y}" fill="none" stroke="#d5a24f" stroke-width="0.9"/>
+        body += `<path class="angle-annotation" d="M${a.x + r} ${a.y}A${r} ${r} 0 ${Math.abs(pose.angle) > 180 ? 1 : 0} ${pose.angle < 0 ? 1 : 0} ${end.x} ${end.y}" fill="none" stroke="#d5a24f" stroke-width="0.9"/>
           <text x="${a.x + 38}" y="${a.y - 14}" class="angle-label">${fmt(pose.angle)}°</text>
           <text x="${pose.b.x - 44}" y="${pose.b.y - 24}" class="panel-label">SKLÁPACIE ČELO</text>`;
       }
@@ -641,27 +680,21 @@
     return `<g data-element="${escape(e.id)}" data-selection-key="${escape(I.elementKey(e.id))}" class="mechanism-element ${e.type}${selected ? ' selected' : ''}${state.hoveredTargetId === I.elementKey(e.id) ? ' hovered' : ''}" role="button" tabindex="0" aria-pressed="${selected}" aria-label="${escape(e.name)}"><title>${escape(e.name)}</title>${body}</g>`;
   }
 
-  function renderScene() {
-    const svg = $('#mechanism-canvas');
-    if (!svg || !state.view || !state.result) return;
-    if (state.magic && state.magic.step <= 2) { renderMagicReference(); return; }
-    const p = state.project.parameters, elements = state.project.elements, result = state.result, view = state.view;
-    state.diagnosticRows = W.constraints(state.project, result);
-    svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.width} ${view.height}`);
-    svg.classList.toggle('pan-mode', state.tool === 'pan');
-    svg.classList.toggle('connect-mode', state.tool === 'connect');
-    svg.classList.toggle('magic-point-mode', state.tool === 'magic-draw');
+  function sceneMarkup(result = state.result, options = {}) {
+    const svg = options.source || $('#mechanism-canvas'), p = state.project.parameters, elements = state.project.elements, view = options.view || state.view;
+    const diagnostics = options.diagnostics || W.constraints(state.project, result);
+    const scale = options.scale || Math.hypot(svg.getScreenCTM()?.a ?? 1, svg.getScreenCTM()?.b ?? 0) || 1;
     let content = `<defs>
       <pattern id="small-grid" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="var(--canvas)"/><path d="M20 0H0V20" fill="none" stroke="var(--grid-small)" stroke-width="0.7"/></pattern>
       <pattern id="large-grid" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#small-grid)"/><path d="M100 0H0V100" fill="none" stroke="var(--grid-large)" stroke-width="0.9"/></pattern>
       <pattern id="frame-hatch" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#e4e9ed"/><path d="m-1 1 8 8m-1-9 8 8" stroke="#cbd4db" stroke-width="0.8"/></pattern>
       <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e3bc77" stop-opacity=".25"/><stop offset="1" stop-color="#e3bc77" stop-opacity="0"/></linearGradient>
     </defs><rect x="${view.x}" y="${view.y}" width="${view.width}" height="${view.height}" fill="${state.grid ? 'url(#large-grid)' : 'var(--canvas)'}"/>`;
-    content += magicImageSVG();
+    if (!options.exporting) content += magicImageSVG();
     if (!elements.length && !state.magic?.image) content += `<g class="empty-canvas"><circle cx="${view.x + view.width / 2}" cy="${view.y + view.height / 2 - 28}" r="24" fill="#eef1f4"/><path d="M${view.x + view.width / 2 - 8} ${view.y + view.height / 2 - 28}h16m-8-8v16" stroke="#9ca9b3" stroke-width="1.8"/><text x="${view.x + view.width / 2}" y="${view.y + view.height / 2 + 20}" text-anchor="middle" class="empty-canvas-title">Vytvorte svoj prvý mechanizmus</text><text x="${view.x + view.width / 2}" y="${view.y + view.height / 2 + 41}" text-anchor="middle" class="empty-canvas-text">Pretiahnite prvky z knižnice alebo vyberte šablónu</text></g>`;
     if (state.ghosts && elements.length) {
-      for (const phase of K.projectPhases(state.project)) {
-        const sample = K.solve(state.project, phase.motion, { profile: state.profile, collisions: false });
+      const samples = options.ghostSamples || K.projectPhases(state.project).map((phase) => K.solve(state.project, phase.motion, { profile: state.profile, collisions: false }));
+      for (const sample of samples) {
         for (const e of elements.filter((e) => ['panel', 'link'].includes(e.type))) {
           const pose = sample.poses[e.id];
           if (!pose || !e.visible) continue;
@@ -670,18 +703,17 @@
       }
     }
     const order = { ground: 0, slot: 1, rail: 2, link: 3, panel: 4, bearing: 5, node: 6, 'spring-compression': 4, 'spring-extension': 4, 'piston-push': 4, 'piston-pull': 4 };
-    for (const e of [...elements].sort((a, b) => order[a.type] - order[b.type])) content += drawElement(e, result.poses[e.id]);
-    const scale = Math.hypot(svg.getScreenCTM()?.a || 1, svg.getScreenCTM()?.b || 0);
+    for (const e of [...elements].sort((a, b) => order[a.type] - order[b.type])) content += drawElement(e, result.poses[e.id], result);
     for (const joint of state.project.connections) {
-      const { a, b } = jointPoints(joint);
+      const { a, b } = jointPoints(joint, result);
       if (!a || !b || [joint.a, joint.b].some((r) => !elements.find((e) => e.id === r.elementId)?.visible)) continue;
       const identity = I.jointKey(joint.id), active = state.selectedElementIds.includes(identity), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, radius = 15 / scale;
-      const diagnostic = state.diagnosticRows.find((r) => r.id === joint.id), failed = diagnostic?.status === 'error';
+      const diagnostic = diagnostics.find((r) => r.id === joint.id), failed = diagnostic?.status === 'error';
       content += `<g data-joint="${escape(joint.id)}" data-selection-key="${escape(identity)}" class="canvas-joint${active ? ' active' : ''}${failed ? ' diagnostic-error' : ''}${state.hoveredTargetId === identity ? ' hovered' : ''}" role="button" tabindex="0" aria-pressed="${active}" aria-label="${escape(joint.name)} · ${escape(E.constraintNames[joint.type || 'revolute'])}${failed ? ` · odchýlka ${fmt(diagnostic.mm, 2)} mm, ${fmt(diagnostic.degrees, 2)} stupňov` : ''}">
         <title>${escape(joint.name)}</title>${line(a, b, 'class="joint-line" stroke="var(--green)" stroke-width="1.2" vector-effect="non-scaling-stroke" stroke-dasharray="4 3"')}
         <circle cx="${cx}" cy="${cy}" r="${radius}" class="joint-marker" fill="transparent" stroke="var(--secondary)" stroke-width="1" vector-effect="non-scaling-stroke"/>
         ${joint.type === 'prismatic' ? `<path d="M${cx - radius / 2} ${cy}h${radius}m-${radius * .8}-${radius * .2}-${radius * .2} ${radius * .2} ${radius * .2} ${radius * .2}m${radius * .6}-${radius * .4} ${radius * .2} ${radius * .2}-${radius * .2} ${radius * .2}" fill="none" stroke="var(--secondary)" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>` : ''}</g>`;
-      if (failed && (state.diagnosticsOpen || active)) content += `<text data-editor-overlay="diagnostic" x="${cx + 19 / scale}" y="${cy - 19 / scale}" class="diagnostic-label" font-size="${11 / scale}" pointer-events="none">${fmt(diagnostic.mm, 2)} mm · ${fmt(diagnostic.degrees, 2)}°</text>`;
+      if (!options.exporting && failed && (state.diagnosticsOpen || active)) content += `<text data-editor-overlay="diagnostic" x="${cx + 19 / scale}" y="${cy - 19 / scale}" class="diagnostic-label" font-size="${11 / scale}" pointer-events="none">${fmt(diagnostic.mm, 2)} mm · ${fmt(diagnostic.degrees, 2)}°</text>`;
     }
     if (state.trace) {
       for (const reference of traceReferences()) {
@@ -726,42 +758,58 @@
       if (!pose) continue;
       for (const key of I.pointKeys(e)) {
         const label = state.tool === 'connect' ? `${typeCodes[e.type]} · ${key.toUpperCase()}` : e.primary && state.project.kind === 'drawer' && e.id === 'panel-1' ? ({ a: 'B', b: 'C', c: 'A' })[key] : '';
-        if (pose[key]) content += node(e.id, key, pose[key], label);
+        if (pose[key]) content += node(e.id, key, pose[key], label, false, scale);
       }
     }
-    if (state.mode === 'edit' && state.project.kind === 'drawer' && state.selected === 'slot-1' && ['bezier', 'spline'].includes(p.curveKind)) {
+    if (!options.exporting && state.mode === 'edit' && state.project.kind === 'drawer' && state.selected === 'slot-1' && ['bezier', 'spline'].includes(p.curveKind)) {
       const controls = state.project.controls || K.defaultControls(p);
       const positioned = controls.map((v) => ({ x: v.x + p.slotOffsetX, y: v.y + p.slotOffsetY }));
-      content += `<path d="${pathD(positioned)}" fill="none" stroke="#94aaa3" stroke-width="0.9" stroke-dasharray="4 4"/>`;
+      content += `<path data-editor-overlay="path-controls" d="${pathD(positioned)}" fill="none" stroke="#94aaa3" stroke-width="0.9" stroke-dasharray="4 4"/>`;
       for (const [i, point] of positioned.entries()) content += `<g data-control="${i}" class="control-handle"><rect x="${point.x - 5}" y="${point.y - 5}" width="10" height="10" rx="2" fill="#fff" stroke="#639082" stroke-width="1.5"/><text x="${point.x + 9}" y="${point.y - 9}" class="node-label">P${i}</text></g>`;
     }
     const selected = currentElement();
-    if (state.mode === 'edit' && selected?.type === 'slot' && !selected.primary) {
+    if (!options.exporting && state.mode === 'edit' && selected?.type === 'slot' && !selected.primary) {
       const pose = result.poses[selected.id];
       const controls = selected.controls.map((v) => K.worldPoint({ ...pose, a: pose.controlOrigin || pose.a }, v));
-      content += `<path d="${pathD(controls)}" fill="none" stroke="#a0b4a9" stroke-width="0.8" stroke-dasharray="4 4" pointer-events="none"/>`;
+      content += `<path data-editor-overlay="path-controls" d="${pathD(controls)}" fill="none" stroke="#a0b4a9" stroke-width="0.8" stroke-dasharray="4 4" pointer-events="none"/>`;
       controls.forEach((point, i) => {
         if (i % Math.ceil(controls.length / 64) && i !== controls.length - 1) return;
         content += `<g data-element-control="${i}" class="control-handle"><rect x="${point.x - 5}" y="${point.y - 5}" width="10" height="10" rx="2" fill="#fff" stroke="#719a86" stroke-width="1.5"/><text x="${point.x + 8}" y="${point.y - 8}" class="node-label">P${i}</text></g>`;
       });
     }
-    if (state.mode === 'edit' && selected?.outline?.length && !selected.primary) {
+    if (!options.exporting && state.mode === 'edit' && selected?.outline?.length && !selected.primary) {
       result.poses[selected.id].outline.forEach((point, i) => {
         content += `<g data-outline-control="${i}" class="control-handle"><rect x="${point.x - 5}" y="${point.y - 5}" width="10" height="10" fill="#fff" stroke="#d39a41" stroke-width="1.5"/></g>`;
       });
     }
-    if (state.pendingJoint) {
+    if (!options.exporting && state.pendingJoint) {
       const pendingPose = result.poses[state.pendingJoint.elementId];
       const point = state.pendingJoint.point === 'curve' ? pendingPose?.path?.[Math.floor(pendingPose.path.length / 2)] : pendingPose?.[state.pendingJoint.point];
-      if (point) content += `<circle cx="${point.x}" cy="${point.y}" r="10" fill="#e9b458" fill-opacity=".16" stroke="#d79a36" stroke-width="1.5" stroke-dasharray="3 3" pointer-events="none"/>`;
+      if (point) content += `<circle data-editor-overlay="pending-joint" cx="${point.x}" cy="${point.y}" r="10" fill="#e9b458" fill-opacity=".16" stroke="#d79a36" stroke-width="1.5" stroke-dasharray="3 3" pointer-events="none"/>`;
     }
-    if (state.measure) {
+    if (!options.exporting && state.measure) {
       const { a, b } = state.measure;
-      content += `${line(a, b, 'stroke="#7288a4" stroke-width="1.3" stroke-dasharray="4 3"')}<circle cx="${a.x}" cy="${a.y}" r="3" fill="#7288a4"/><circle cx="${b.x}" cy="${b.y}" r="3" fill="#7288a4"/><text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2 - 9}" text-anchor="middle" class="measure-label">${fmt(K.distance(a, b), 2)} mm</text>`;
+      content += `<g data-editor-overlay="measurement">${line(a, b, 'stroke="#7288a4" stroke-width="1.3" stroke-dasharray="4 3"')}<circle cx="${a.x}" cy="${a.y}" r="3" fill="#7288a4"/><circle cx="${b.x}" cy="${b.y}" r="3" fill="#7288a4"/><text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2 - 9}" text-anchor="middle" class="measure-label">${fmt(K.distance(a, b), 2)} mm</text></g>`;
     }
-    content += manipulationSVG(scale);
-    content += smartSnapSVG(scale);
-    content += magicDrawingSVG(scale);
+    if (!options.exporting) {
+      content += manipulationSVG(scale);
+      content += smartSnapSVG(scale);
+      content += magicDrawingSVG(scale);
+    }
+    return content;
+  }
+
+  function renderScene() {
+    const svg = $('#mechanism-canvas');
+    if (!svg || !state.view || !state.result) return;
+    if (state.magic && state.magic.step <= 2) { renderMagicReference(); return; }
+    const { view, result } = state, elements = state.project.elements;
+    state.diagnosticRows = W.constraints(state.project, result);
+    svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.width} ${view.height}`);
+    svg.classList.toggle('pan-mode', state.tool === 'pan');
+    svg.classList.toggle('connect-mode', state.tool === 'connect');
+    svg.classList.toggle('magic-point-mode', state.tool === 'magic-draw');
+    const content = sceneMarkup(result, { diagnostics: state.diagnosticRows });
     svg.innerHTML = content;
     renderDiagnostics();
     updateSelectionSummary();
@@ -933,8 +981,9 @@
 
   function updateToolbar() {
     updateInspectorVisibility();
+    updatePanelVisibility();
     if (!state.magic) try { localStorage.setItem(settingsKey, JSON.stringify(X.preferences(state))); } catch { /* Export includes settings if storage is unavailable. */ }
-    for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'loop']) {
+    for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'labels', 'loop']) {
       const el = $(`[data-action="${key}"]`);
       if (el) { el.classList.toggle('is-active', state[key]); el.setAttribute('aria-pressed', state[key]); }
     }
@@ -1008,8 +1057,8 @@
     el.textContent = `${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'} · Shift/Ctrl + klik · pravé tlačidlo: úpravy`;
   }
 
-  function jointPoints(joint) {
-    const pa = state.result.poses[joint.a.elementId], pb = state.result.poses[joint.b.elementId];
+  function jointPoints(joint, result = state.result) {
+    const pa = result.poses[joint.a.elementId], pb = result.poses[joint.b.elementId];
     let a = pa?.[joint.a.point], b = pb?.[joint.b.point];
     if (joint.a.point === 'curve' && b && pa?.path) a = K.nearestOnPath(b, pa.path);
     if (joint.b.point === 'curve' && a && pb?.path) b = K.nearestOnPath(a, pb.path);
@@ -1215,6 +1264,7 @@
   }
 
   function onContextMenu(event) {
+    if (state.gifExport) { event.preventDefault(); return; }
     if (state.magic && !magicWorking()) { event.preventDefault(); return; }
     event.preventDefault(); event.stopPropagation(); openContextMenu(event);
   }
@@ -1414,6 +1464,7 @@
   }
 
   function zoom(factor, center) {
+    if (state.gifExport) return;
     closeContextMenu();
     const view = state.view, base = state.baseView;
     const w = K.clamp(view.width * factor, base.width * 0.2, base.width * 3);
@@ -1455,6 +1506,7 @@
   }
 
   function onPointerDown(event) {
+    if (state.gifExport) return;
     if (event.button !== 0 && event.button !== 1) return;
     if (state.drag) return;
     event.preventDefault();
@@ -1563,6 +1615,7 @@
   }
 
   function onPointerMove(event) {
+    if (state.gifExport) return;
     const point = worldPoint(event);
     state.pointer = point;
     $('#pointer-coordinates').innerHTML = `X: ${fmt(point.x)} <span>Y: ${fmt(point.y)}</span>`;
@@ -2058,6 +2111,7 @@
   }
 
   function replaceProject(project, imported = null) {
+    if (state.gifExport) { toast('Najprv dokončite alebo zrušte GIF export.', true); return; }
     if (state.magic) { toast('Najskôr dokončite alebo zrušte Magic import.', true); return; }
     if (!state.dirty || saveProject(true)) { loadProject(project, imported); return; }
     state.pendingProject = project;
@@ -2220,8 +2274,9 @@
       ['kinmo', 'code', 'Natívny projekt .kinmo', 'Geometria, väzby, kóty, trajektórie, fyzika, vzhľad a poloha pohonu.', 'KINMO'],
       ['svg', 'mechanism', 'Vektorový výkres', 'Referenčný výkres v mm s kótami a trajektóriami.', 'SVG'],
       ['png', 'eye', 'Obrázok pracovnej plochy', 'Aktuálny pohľad, najviac 2 000 × 4 000 px, bez externého servera.', 'PNG'],
-      ['pdf', 'folder', 'Technický report', 'Výkres, grafy, rozmery, sily a tabuľky v jednom dokumente.', 'PDF'],
-      ['html', 'folder', 'Prenosný report na tlač', 'Samostatný report s vloženými vektorovými výkresmi.', 'HTML'],
+      ['gif', 'play', 'Animovaný pohyb', 'Celý kinematický rozsah v aktuálnom vzhľade; nastavenia, priebeh a zrušenie.', 'GIF'],
+      ['pdf', 'folder', 'Technický report', 'Ostrá statická schéma ako na plátne, grafy, rozmery, sily a tabuľky.', 'PDF'],
+      ['html', 'folder', 'Prenosný report na tlač', 'Samostatný report so schémou v aktuálnom vzhľade a vektorovými grafmi.', 'HTML'],
       ['dxf', 'ruler', 'CAD výmena', 'Referenčná geometria v mm; strednice a voliteľné uzavreté obrysy drážok.', 'DXF'],
       ['csv', 'chart', 'Kinematické dáta', '121 polôh, uhly, súradnice a chyby väzieb.', 'CSV'],
       ['forces', 'spring', 'Silové / dynamické dáta', 'Sily členov a časový záznam poslednej odhadovej dynamiky.', 'CSV'],
@@ -2233,9 +2288,161 @@
   function download(filename, content, type) {
     const url = URL.createObjectURL(new Blob([content], { type }));
     const anchor = document.createElement('a');
-    anchor.href = url; anchor.download = filename; document.body.append(anchor); anchor.click(); anchor.remove();
+    anchor.href = url; anchor.download = filename; anchor.dataset.kinmoDownload = 'true'; document.body.append(anchor); anchor.click(); anchor.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast(`Súbor ${filename} bol pripravený na stiahnutie.`);
+  }
+
+  function gifOptions(data) {
+    return { width: Number(data.get('width')), duration: Number(data.get('duration')), fps: Number(data.get('fps')), direction: data.get('direction'), loop: data.has('loop') };
+  }
+
+  function gifModal() {
+    if (state.magic || state.drag) { toast('Najprv dokončite rozpracovanú úpravu alebo Magic import.', true); return; }
+    if (!state.project.elements.some((e) => e.visible)) { toast('Najprv vytvorte viditeľný mechanizmus s pohonom.', true); return; }
+    const range = K.driveRange(state.project);
+    modal('Animovaný GIF', `<form id="gif-form"><fieldset id="gif-options" class="gif-fields settings-fields">
+      <label class="property-field"><span>Šírka obrázka</span><select name="width" class="property-select">${[160, 320, 480, 640, 800, 1000, 1200].map((width) => `<option value="${width}"${width === 800 ? ' selected' : ''}>${width} px</option>`).join('')}</select></label>
+      <label class="property-field"><span>Trvanie cyklu (s)</span><input name="duration" class="text-field" type="number" value="6" min="1" max="12" step="0.1" required></label>
+      <label class="property-field"><span>Snímky za sekundu</span><input name="fps" class="text-field" type="number" value="10" min="5" max="20" step="1" required></label>
+      <label class="property-field"><span>Smer pohybu</span><select name="direction" class="property-select"><option value="roundtrip"${range.unit === 'mm' ? ' selected' : ''}>Tam a späť</option><option value="forward"${range.unit === '°' ? ' selected' : ''}>Jedným smerom</option></select></label>
+      <label class="check-row"><input name="loop" type="checkbox" checked><span>Opakovať animáciu bez konca</span></label></fieldset>
+      <p class="section-description">GIF prevezme aktuálny výrez, vzhľad, farby a viditeľné vrstvy schémy. Zobrazuje predpísaný kinematický pohyb, nie časový záznam odhadovej dynamiky. Pred exportom prispôsobte pohľad, aby sa celý pohyb zmestil do plátna.</p>
+      <p class="section-description">Najviac 1 200 × 1 200 px, 180 snímok, 60 miliónov bodov spolu a 32 MB. Prípravu môžete zrušiť; po 90 sekundách sa zastaví. Všetko sa spracuje lokálne, bez odosielania projektu.</p>
+      <p id="gif-estimate" class="gif-estimate" aria-live="polite"></p><progress id="gif-progress" class="gif-progress" value="0" max="1" aria-label="Priebeh GIF exportu" hidden></progress>
+      <p id="gif-status" class="section-description" role="status" hidden></p><p id="gif-error" class="gif-error" role="alert" hidden></p>
+      <div class="modal-actions"><button id="gif-back" type="button" class="button button-secondary" data-action="export">Späť</button><button id="gif-cancel" type="button" class="button button-secondary" data-action="cancel-gif" hidden>Zrušiť export</button><button id="gif-start" type="submit" class="button button-dark">${icon('export', 15)}Vytvoriť GIF</button></div></form>`);
+    updateGIFEstimate();
+  }
+
+  function updateGIFEstimate() {
+    const form = $('#gif-form');
+    if (!form || state.gifExport) return;
+    const estimate = $('#gif-estimate'), start = $('#gif-start');
+    try {
+      const plan = G.plan(K.driveRange(state.project), state.view, gifOptions(new FormData(form)));
+      estimate.textContent = `${plan.width} × ${plan.height} px · ${plan.frames.length} snímok · ${fmt(plan.duration, 1)} s · ${fmt(plan.pixels / 1e6, 1)} mil. bodov`;
+      estimate.classList.remove('gif-invalid'); start.disabled = false;
+    } catch (error) { estimate.textContent = error.message; estimate.classList.add('gif-invalid'); start.disabled = true; }
+  }
+
+  function gifProgress(job, progress, text) {
+    if (state.gifExport !== job || !$('#gif-form')) return;
+    const bar = $('#gif-progress'), status = $('#gif-status');
+    bar.hidden = false; bar.value = progress; status.hidden = false; status.textContent = text;
+  }
+
+  function cancelGIF() {
+    const job = state.gifExport;
+    if (!job || job.controller.signal.aborted) return;
+    job.cancelled = true;
+    job.controller.abort(new Error('GIF export bol zrušený.'));
+    gifProgress(job, $('#gif-progress')?.value || 0, 'Ruším export… Projekt zostáva nezmenený.');
+    const button = $('#gif-cancel'); if (button) button.disabled = true;
+  }
+
+  function checkGIF(job) {
+    if (!$('#modal').open && !job.controller.signal.aborted) {
+      job.cancelled = true;
+      job.controller.abort(new Error('GIF export bol zrušený zatvorením dialógu.'));
+    }
+    if (job.controller.signal.aborted) throw job.controller.signal.reason || new Error('GIF export bol zrušený.');
+    if (state.project !== job.original || state.gifExport !== job) throw new Error('Projekt sa počas GIF exportu zmenil. Súbor nebol vytvorený.');
+  }
+
+  function gifSource(job) {
+    const live = $('#mechanism-canvas'), rect = live.getBoundingClientRect(), matrix = live.getScreenCTM();
+    const host = document.createElement('div'), source = document.createElementNS(svgNS, 'svg');
+    host.setAttribute('aria-hidden', 'true'); host.inert = true;
+    host.style.cssText = 'position:fixed;left:-100000px;top:0;pointer-events:none';
+    source.setAttribute('viewBox', `${job.view.x} ${job.view.y} ${job.view.width} ${job.view.height}`);
+    source.setAttribute('width', rect.width); source.setAttribute('height', rect.height);
+    source.style.cssText = `display:block;width:${rect.width}px;height:${rect.height}px`;
+    source.classList.toggle('labels-hidden', state.labels === false);
+    job.host = host; job.source = source;
+    job.scale = Math.hypot(matrix?.a ?? 1, matrix?.b ?? 0) || 1;
+    host.append(source); document.body.append(host);
+  }
+
+  async function gifFrameCanvas(job, motion) {
+    checkGIF(job);
+    const result = K.solve(job.project, motion, { profile: job.profile, collisions: state.collisions });
+    if (result.blocked) throw new Error(`GIF sa zastavil pri ${fmt(motion, 2)} ${job.range.unit}: ${result.issues[0] || 'Mechanizmus je zablokovaný.'}`);
+    job.source.innerHTML = sceneMarkup(result, { source: job.source, view: job.view, scale: job.scale, exporting: true, ghostSamples: job.ghostSamples });
+    const svg = SC.snapshot(job.source, { view: job.view, width: job.plan.width, maxHeight: job.plan.height, title: job.project.name, description: 'Kinematická animácia mechanizmu.' });
+    const canvas = await SC.rasterize(svg, job.plan, { signal: job.controller.signal, canvas: job.canvas, readPixels: true });
+    job.canvas = canvas;
+    checkGIF(job);
+    return canvas;
+  }
+
+  async function exportGIF(data) {
+    if (state.gifExport) return false;
+    if (state.drag) throw new Error('Najprv dokončite presúvanie prvku.');
+    if (state.magic) throw new Error('Najprv dokončite alebo zrušte Magic import.');
+    if (!state.project.elements.some((e) => e.visible)) throw new Error('GIF potrebuje viditeľný mechanizmus s pohonom.');
+    const project = K.validateProject(K.copy(state.project));
+    if (project.kind === 'custom' && project.elements.filter((e) => e.drive).length !== 1) throw new Error('Vlastný mechanizmus potrebuje jeden nezávislý motor. Nastavte ho v paneli vlastností.');
+    const range = K.driveRange(project), plan = G.plan(range, state.view, gifOptions(data));
+    const blocked = state.samples.find((sample) => sample.blocked);
+    if (blocked) throw new Error(`Najprv opravte zablokovanú polohu pri ${fmt(blocked.motion, 2)} ${range.unit}. ${blocked.issues?.[0] || ''}`.trim());
+    const job = { original: state.project, project, range, plan, view: K.copy(state.view), profile: K.prepareProject(project), controller: new AbortController(), cancelled: false, host: null, canvas: null };
+    const timer = setTimeout(() => job.controller.abort(new Error('GIF export prekročil 90 sekúnd. Zmenšite obrázok, trvanie alebo frekvenciu.')), G.limits.timeout);
+    state.gifExport = job;
+    try {
+      $('#gif-options').disabled = true; $('#gif-start').disabled = true; $('#gif-back').disabled = true;
+      $('#gif-cancel').hidden = false; $('#gif-cancel').disabled = false; $('#gif-error').hidden = true;
+      const calibration = [...new Set([0, Math.floor(plan.frames.length / 2), plan.frames.length - 1])];
+      job.ghostSamples = state.ghosts ? K.projectPhases(project).map((phase) => K.solve(project, phase.motion, { profile: job.profile, collisions: false })) : [];
+      gifSource(job);
+      const builder = G.createPalette();
+      for (let i = 0; i < calibration.length; i++) {
+        gifProgress(job, i / calibration.length * 0.1, `Pripravujem farby schémy (${i + 1}/${calibration.length})…`);
+        const canvas = await gifFrameCanvas(job, plan.frames[calibration[i]].motion);
+        builder.add(canvas.getContext('2d').getImageData(0, 0, plan.width, plan.height).data);
+      }
+      const palette = builder.finish(), encoder = G.createEncoder({ width: plan.width, height: plan.height, palette: palette.colors, loop: plan.loop });
+      let reference = null, hasMotion = false;
+      for (let i = 0; i < plan.frames.length; i++) {
+        const frame = plan.frames[i];
+        gifProgress(job, 0.1 + i / plan.frames.length * 0.9, `Kreslím snímku ${i + 1}/${plan.frames.length}…`);
+        const canvas = await gifFrameCanvas(job, frame.motion), indices = palette.indices(canvas.getContext('2d').getImageData(0, 0, plan.width, plan.height).data);
+        if (!i) reference = indices;
+        else if (!hasMotion) {
+          for (let point = 0; point < indices.length; point++) if (indices[point] !== reference[point]) { hasMotion = true; reference = null; break; }
+        }
+        encoder.addFrame(indices, frame.delay);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        checkGIF(job);
+      }
+      if (!hasMotion) throw new Error('Zvolený pohon a rozsah nevytvárajú viditeľný pohyb. Skontrolujte motor alebo zvýšte frekvenciu snímok.');
+      const bytes = encoder.finish();
+      checkGIF(job);
+      const slug = project.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '-').toLowerCase().slice(0, 70) || 'mechanizmus';
+      download(`${slug}.gif`, bytes, 'image/gif');
+      gifProgress(job, 1, `GIF je pripravený: ${plan.frames.length} snímok, ${fmt(plan.duration, 1)} s, ${fmt(bytes.length / 1024, 0)} kB. Projekt zostal nezmenený.`);
+      return true;
+    } catch (error) {
+      if (job.cancelled) { gifProgress(job, $('#gif-progress')?.value || 0, 'Export zrušený. Projekt zostal nezmenený.'); return false; }
+      if (job.controller.signal.aborted) throw job.controller.signal.reason || error;
+      throw error;
+    } finally {
+      clearTimeout(timer); job.host?.remove();
+      if (job.canvas) { job.canvas.width = 0; job.canvas.height = 0; }
+      if (state.gifExport === job) state.gifExport = null;
+      if (job.resized) renderScene();
+      if ($('#gif-form')) {
+        $('#gif-options').disabled = false; $('#gif-back').disabled = false; $('#gif-cancel').hidden = true;
+        updateGIFEstimate();
+      }
+    }
+  }
+
+  function gifError(error) {
+    const element = $('#gif-error'), status = $('#gif-status');
+    if (element) { element.hidden = false; element.textContent = error.message; }
+    if (status) status.hidden = true;
+    toast(error.message, true);
   }
 
   let pdfLoader;
@@ -2268,9 +2475,11 @@
       }
       if (type === 'html' || type === 'pdf') {
         if (!state.forceContext) prepareForces();
-        const data = X.reportData(state.project, state.result, state.samples, { forceContext: state.forceContext, forceError: state.forceError, history: state.dynamicHistory, references: traceReferences(), traceSpace: state.traceSpace });
+        const data = X.reportData(state.project, state.result, state.samples, { forceContext: state.forceContext, forceError: state.forceError, history: state.dynamicHistory, references: traceReferences(), traceSpace: state.traceSpace, scene: { svg: sceneSVG(), ...SC.size(state.view) } });
         if (type === 'html') download(`${slug}-report.html`, X.htmlReport(data), 'text/html;charset=utf-8');
         else {
+          const canvas = await SC.rasterize(data.drawing, data.drawingSize);
+          data.drawingImage = canvas.toDataURL('image/png');
           const pdfMake = await loadPDF();
           const buffer = await new Promise((resolve, reject) => {
             const timer = setTimeout(() => reject(new Error('Príprava PDF nebola potvrdená. Použite HTML report alebo menší model.')), 30000);
@@ -2280,18 +2489,10 @@
         }
       }
       if (type === 'png') {
-        const svg = sceneSVG(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-        try {
-          const image = new Image();
-          await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Obrázok sa nepodarilo vytvoriť. Použite SVG.')); image.src = url; });
-          const canvas = document.createElement('canvas');
-          const height = Math.max(1, Math.round(2000 * state.view.height / state.view.width)), scale = Math.min(1, 4000 / height);
-          canvas.width = Math.max(1, Math.round(2000 * scale)); canvas.height = Math.max(1, Math.round(height * scale));
-          const context = canvas.getContext('2d'); context.drawImage(image, 0, 0, canvas.width, canvas.height);
-          const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-          if (!blob) throw new Error('Prehliadač nevytvoril PNG.');
-          download(`${slug}.png`, blob, 'image/png');
-        } finally { URL.revokeObjectURL(url); }
+        const canvas = await SC.rasterize(sceneSVG(), SC.size(state.view));
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        if (!blob) throw new Error('Prehliadač nevytvoril PNG.');
+        download(`${slug}.png`, blob, 'image/png');
       }
       if (type === 'csv') {
         const unit = K.driveRange(state.project).unit;
@@ -2317,15 +2518,7 @@
   }
 
   function sceneSVG() {
-    const v = state.view, css = getComputedStyle(document.documentElement), names = ['canvas', 'grid-small', 'grid-large', 'secondary', 'paper', 'ink'];
-    const variables = names.map((name) => `--${name}:${css.getPropertyValue(`--${name}`).trim()};`).join('');
-    const source = $('#mechanism-canvas'), snapshot = source.cloneNode(true), labels = source.querySelectorAll('text');
-    for (const [i, label] of snapshot.querySelectorAll('text').entries()) {
-      const style = getComputedStyle(labels[i]);
-      for (const property of ['font-family', 'font-size', 'font-weight', 'font-style', 'letter-spacing', 'fill', 'stroke', 'paint-order']) label.style.setProperty(property, style.getPropertyValue(property));
-    }
-    for (const overlay of snapshot.querySelectorAll('[data-editor-overlay]')) overlay.remove();
-    return `<svg xmlns="${svgNS}" width="2000" height="${Math.round(2000 * v.height / v.width)}" viewBox="${v.x} ${v.y} ${v.width} ${v.height}" style="${variables}"><title>${escape(state.project.name)}</title><desc>${escape(X.warning)}</desc>${snapshot.innerHTML}</svg>`;
+    return SC.snapshot($('#mechanism-canvas'), { view: state.view, title: state.project.name, description: X.warning });
   }
 
   function settingsModal() {
@@ -2482,6 +2675,8 @@
     'export-html': () => exportFile('html'),
     'export-pdf': () => exportFile('pdf'),
     'export-png': () => exportFile('png'),
+    'export-gif': gifModal,
+    'cancel-gif': cancelGIF,
     'export-csv': () => exportFile('csv'),
     'export-svg': () => exportFile('svg'),
     'import': () => $('#import-file').click(),
@@ -2578,7 +2773,7 @@
         toast('Vodiaca krivka je samostatný editovateľný prvok. Pôvodná trajektória zostala zachovaná.');
       } catch (error) { toast(error.message, true); }
     },
-    'close-modal': () => $('#modal').close(),
+    'close-modal': () => { cancelGIF(); $('#modal').close(); },
     'rename': () => modal('Dajte nápadu meno.', `<form id="rename-form"><label class="property-field"><span>Názov projektu</span><input class="text-field" name="name" value="${escape(state.project.name)}" maxlength="80" required autofocus/></label><div class="modal-actions"><button class="button button-secondary" type="button" data-action="close-modal">Zrušiť</button><button class="button button-dark" type="submit">Premenovať</button></div></form>`),
     'load-template': (el) => replaceProject(K.preset(el.dataset.kind)),
     'load-saved': (el) => {
@@ -2610,6 +2805,9 @@
     },
     'phase': (el) => setMotion(Number(el.dataset.value)),
     'loop': () => { state.loop = !state.loop; updateToolbar(); },
+    'profileVisible': () => toggleViewPanel('profileVisible'),
+    'timelineVisible': () => toggleViewPanel('timelineVisible'),
+    'labels': () => { state.labels = !state.labels; updateToolbar(); renderScene(); },
     'grid': () => { state.grid = !state.grid; renderScene(); updateToolbar(); },
     'dimensions': () => { state.dimensions = !state.dimensions; renderScene(); updateToolbar(); if (state.analysis) renderInspector(); },
     'ghosts': () => { state.ghosts = !state.ghosts; renderScene(); updateToolbar(); if (state.analysis) renderInspector(); },
@@ -2717,6 +2915,8 @@
 
   function onChange(event) {
     const input = event.target;
+    if (state.gifExport) return;
+    if (input.closest?.('#gif-form')) { updateGIFEstimate(); return; }
     if (onMagicSetting(input)) return;
     if (state.magic && !magicWorking()) return;
     if (input.id === 'cad-slot-outlines') { state.cadSlotOutlines = input.checked; return; }
@@ -2813,6 +3013,12 @@
 
   async function onSubmit(event) {
     const form = event.target;
+    if (state.gifExport) { event.preventDefault(); return; }
+    if (form.id === 'gif-form') {
+      event.preventDefault();
+      try { await exportGIF(new FormData(form)); } catch (error) { gifError(error); }
+      return;
+    }
     if (['magic-scale-form', 'magic-finish-form'].includes(form.id)) {
       event.preventDefault();
       try {
@@ -2948,11 +3154,16 @@
 
   function onKeyboard(event) {
     const key = event.key.toLowerCase(), modifier = event.ctrlKey || event.metaKey;
+    if (state.gifExport) {
+      if (key === 'escape') cancelGIF();
+      if (key !== 'escape' && !$('#modal').open) event.preventDefault();
+      return;
+    }
     if (modifier && key === 'a' && !canSelectText(event.target)) {
       event.preventDefault(); window.getSelection()?.removeAllRanges(); return;
     }
     if ($('#modal').open || event.target.closest?.('input,select,textarea,[contenteditable]')) return;
-    if (state.magic && (key === 'enter' || event.code === 'Space') && event.target.closest?.('button,a')) return;
+    if ((key === 'enter' || event.code === 'Space') && event.target.closest?.('button,a')) return;
     if (state.magic) {
       if (modifier && key === 's') { event.preventDefault(); toast('Použite Finish alebo export rozpracovanej geometrie.', true); return; }
       if (key === 'escape' && (state.magic.drawing.length || state.magic.placementType)) { event.preventDefault(); clearMagicDrawing(); return; }
@@ -3002,7 +3213,7 @@
   }
 
   function animate(time) {
-    if (state.playing && !document.hidden) {
+    if (state.playing && !state.gifExport && !document.hidden) {
       const delta = lastFrame ? Math.min((time - lastFrame) / 1000, 0.06) : 0;
       if (state.project.simulation.mode === 'dynamic' && state.dynamic && state.forceContext) {
         try {
@@ -3034,7 +3245,9 @@
 
   function wireEvents() {
     document.addEventListener('click', (event) => {
+      if (event.target.closest('a[data-kinmo-download]')?.href?.startsWith('blob:')) return;
       const button = event.target.closest('[data-action]');
+      if (state.gifExport && (!button || !['cancel-gif', 'close-modal'].includes(button.dataset.action))) { event.preventDefault(); return; }
       if (button && !button.disabled) {
         if (!magicActionAllowed(button.dataset.action)) { toast('Najskôr dokončite alebo zrušte Magic import.', true); return; }
         actions[button.dataset.action]?.(button); return;
@@ -3043,11 +3256,15 @@
       if (component && !component.disabled) addElement(component.dataset.component);
     });
     document.addEventListener('change', onChange);
-    document.addEventListener('input', (event) => { if (event.target.dataset?.magicSetting) onMagicSetting(event.target); });
+    document.addEventListener('input', (event) => {
+      if (state.gifExport) return;
+      if (event.target.closest?.('#gif-form')) { updateGIFEstimate(); return; }
+      if (event.target.dataset?.magicSetting) onMagicSetting(event.target);
+    });
     document.addEventListener('submit', onSubmit);
     document.addEventListener('keydown', onKeyboard);
     document.addEventListener('selectstart', (event) => { if (!canSelectText(event.target)) event.preventDefault(); });
-    $('#motion-range').addEventListener('input', (event) => setMotion(Number(event.target.value)));
+    $('#motion-range').addEventListener('input', (event) => { if (!state.gifExport) setMotion(Number(event.target.value)); });
     const svg = $('#mechanism-canvas');
     svg.addEventListener('pointerdown', onPointerDown);
     svg.addEventListener('pointermove', onPointerMove);
@@ -3060,12 +3277,13 @@
     svg.addEventListener('wheel', (event) => { event.preventDefault(); zoom(event.deltaY > 0 ? 1.08 : 0.925, worldPoint(event)); }, { passive: false });
     $('#palette').addEventListener('dragstart', (event) => {
       const component = event.target.closest('[data-component]');
-      if (!component || component.disabled || state.magic && state.magic.step !== 4) { event.preventDefault(); return; }
+      if (state.gifExport || !component || component.disabled || state.magic && state.magic.step !== 4) { event.preventDefault(); return; }
       event.dataTransfer.setData('application/x-kinematika-element', component.dataset.component);
       event.dataTransfer.effectAllowed = 'copy';
     });
     const area = $('#canvas-area');
     area.addEventListener('dragover', (event) => {
+      if (state.gifExport) return;
       if (state.magic?.step === 1 && event.dataTransfer.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; return; }
       if (state.magic && state.magic.step !== 4) return;
       if (!event.dataTransfer.types.includes('application/x-kinematika-element')) return;
@@ -3074,6 +3292,7 @@
     area.addEventListener('dragleave', (event) => { if (!area.contains(event.relatedTarget)) area.classList.remove('drop-active'); });
     area.addEventListener('drop', (event) => {
       event.preventDefault(); area.classList.remove('drop-active');
+      if (state.gifExport) return;
       if (state.magic?.step === 1 && event.dataTransfer.files.length) {
         if (event.dataTransfer.files.length !== 1) { toast('Vyberte iba jeden obrázok.', true); return; }
         onMagicImage(event.dataTransfer.files[0]); return;
@@ -3083,6 +3302,7 @@
       if (K.TYPES.includes(type)) addElement(type, worldPoint(event));
     });
     $('#import-file').addEventListener('change', async (event) => {
+      if (state.gifExport) { event.target.value = ''; toast('Najprv dokončite alebo zrušte GIF export.', true); return; }
       if (state.magic) { event.target.value = ''; toast('Najskôr dokončite alebo zrušte Magic import.', true); return; }
       const file = event.target.files?.[0];
       if (!file) return;
@@ -3094,6 +3314,7 @@
       event.target.value = '';
     });
     $('#workbench-import-file').addEventListener('change', async (event) => {
+      if (state.gifExport) { event.target.value = ''; toast('Najprv dokončite alebo zrušte GIF export.', true); return; }
       if (state.magic) { event.target.value = ''; toast('Najskôr dokončite alebo zrušte Magic import.', true); return; }
       const input = event.target, file = input.files?.[0], kind = input.dataset.kind;
       if (!file || input.disabled) return;
@@ -3132,12 +3353,14 @@
     });
     graph.addEventListener('pointerleave', () => { $('#graph-tooltip').hidden = true; });
     graph.addEventListener('click', (event) => {
+      if (state.gifExport) return;
       const rect = graph.getBoundingClientRect(), range = K.driveRange(state.project);
       const t = K.clamp(((event.clientX - rect.left) / rect.width * 800 - 43) / 717, 0, 1);
       setMotion(K.lerp(range.min, range.max, t));
     });
-    $('#modal').addEventListener('click', (event) => { if (event.target === $('#modal')) { const r = event.target.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) event.target.close(); } });
-    $('#modal').addEventListener('close', () => { state.pendingSnap = null; state.pendingRevisionId = null; state.pendingCollectionDelete = null; });
+    $('#modal').addEventListener('click', (event) => { if (event.target === $('#modal')) { const r = event.target.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) { cancelGIF(); event.target.close(); } } });
+    $('#modal').addEventListener('cancel', cancelGIF);
+    $('#modal').addEventListener('close', () => { cancelGIF(); state.pendingSnap = null; state.pendingRevisionId = null; state.pendingCollectionDelete = null; });
     document.addEventListener('visibilitychange', () => { lastFrame = 0; });
     window.addEventListener('beforeunload', (event) => {
       if (state.magic) {
@@ -3147,7 +3370,7 @@
       if (state.dirty) saveProject(true);
     });
     let resizeTimer;
-    window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { fitView(); renderScene(); }, 150); });
+    window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (state.gifExport) { state.gifExport.resized = true; return; } fitView(); renderScene(); }, 150); });
   }
 
   buildShell();

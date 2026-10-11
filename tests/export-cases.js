@@ -1,6 +1,6 @@
 (function (global) {
   'use strict';
-  const K = global.Kinematics, E = global.KinmoEditor, P = global.KinmoPhysics, X = global.KinmoExport, S = global.KinmoSlotOutline, cases = [];
+  const K = global.Kinematics, E = global.KinmoEditor, P = global.KinmoPhysics, X = global.KinmoExport, S = global.KinmoSlotOutline, SC = global.KinmoScene, cases = [];
   const add = (name, run) => cases.push({ name, run });
   const assert = (value, message = 'Podmienka nebola splnená.') => { if (!value) throw new Error(message); };
   const near = (a, b, tolerance = .001) => assert(Number.isFinite(a) && Math.abs(a - b) <= tolerance, `${a} ≠ ${b}`);
@@ -85,6 +85,21 @@
     for (const value of [null, [], 'bad']) assert(X.preferences(value).theme === 'mono');
     for (const theme of ['mono', 'orange', 'dark']) assert(X.preferences({ theme }).theme === theme);
     assert(X.preferences({ theme: '<script>', speed: 99 }).speed === 1);
+  });
+  add('Viditeľnosť grafu, časovej osi a popisov je nezávislá a prenosná v .kinmo.', () => {
+    const keys = ['profileVisible', 'timelineVisible', 'labels'];
+    for (const key of keys) {
+      const workspace = X.preferences({ [key]: false }), restored = X.parseNative(X.nativeFile(K.preset('drawer'), { workspace })).workspace;
+      assert(restored[key] === false && keys.filter((v) => v !== key).every((v) => restored[v] === true));
+      assert(restored.dimensions && restored.grid);
+    }
+    for (const key of keys) assert(X.preferences({ [key]: 'false' })[key] === true);
+  });
+  add('Obrázok plátna zachová pomer strán a ohraničí vysoký pohľad na 4 000 px.', () => {
+    let size = SC.size({ width: 1600, height: 900 }); assert(size.width === 2000 && size.height === 1125);
+    size = SC.size({ width: 100, height: 1000 }); assert(size.width === 400 && size.height === 4000);
+    size = SC.size({ width: 1, height: 1 }, { width: 800, maxHeight: 600 }); assert(size.width === 600 && size.height === 600);
+    for (const view of [null, { width: 0, height: 1 }, { width: 1, height: -1 }, { width: Infinity, height: 1 }, { width: 1e-308, height: 1e308 }]) throws(() => SC.size(view));
   });
   add('SVG používa milimetrové rozmery a neobsahuje neplatné čísla.', () => {
     const { project } = fixture(), svg = X.vectorSVG(project, K.solve(project, 30));
@@ -310,6 +325,23 @@
   add('PDF a HTML report zahrnú časový záznam dynamiky.', () => {
     const data = report(); data.history = [{ time: .1, motion: 2, velocity: .02 }];
     assert(X.htmlReport(data).includes('Časový záznam') && JSON.stringify(X.pdfReport(data)).includes('Rýchlosť (mm/s)'));
+  });
+  add('Report preberie schému z plátna bez vynútenia kót alebo iného vzhľadu.', () => {
+    const { project } = fixture(), samples = K.sample(project, 3), svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="#262624"/></svg>';
+    const data = X.reportData(project, samples[0], samples, { scene: { svg, width: 1, height: 1 } });
+    assert(data.drawing === svg && data.drawingKind === 'scene');
+    assert(X.htmlReport(data).includes('Schéma ako na plátne') && X.htmlReport(data).includes('Report je statický'));
+    throws(() => X.pdfReport(data));
+    data.drawingImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6fCgAAAAASUVORK5CYII=';
+    const spec = X.pdfReport(data), drawing = spec.content.find((v) => v.stack?.some((child) => child.image));
+    assert(drawing?.unbreakable && drawing.stack[1].image === data.drawingImage && drawing.stack[2].text.includes('PDF je statické'));
+    assert(spec.content.some((v) => v.table) && spec.defaultStyle.font === 'Roboto');
+  });
+  add('Report odmietne nadmernú snímku a PDF odmietne vzdialený alebo nesprávny obrázok.', () => {
+    const p = K.preset('custom'), samples = K.sample(p, 3), scene = { svg: '<svg/>', width: 2000, height: 4000 };
+    for (const invalid of [{ width: 2001 }, { height: 4001 }, { width: NaN }, { svg: '<svg>' + ' '.repeat(8 * 1024 * 1024) }]) throws(() => X.reportData(p, samples[0], samples, { scene: { ...scene, ...invalid } }));
+    const data = X.reportData(p, samples[0], samples, { scene });
+    for (const image of ['https://example.com/image.png', 'data:image/jpeg;base64,abcd', 'data:image/png;base64,abcd', 'data:image/png;base64,iVBORw0KGgo' + 'a'.repeat(16 * 1024 * 1024)]) { data.drawingImage = image; throws(() => X.pdfReport(data)); }
   });
   add('Reporty nevydávajú uhlovú chybu za milimetre.', () => {
     const p = K.preset('custom'), a = { ...K.makeElement('link', 0, 0), locked: true }, b = { ...K.makeElement('link', 0, 0), locked: true, angle: 30 };

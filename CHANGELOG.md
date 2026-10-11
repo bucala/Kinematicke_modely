@@ -2,6 +2,28 @@
 
 Zmeny Kinematika Studio sú zoradené od najnovších. Dátum a Git commit označujú zmeny zdrojov, nie potvrdenie produkčného nasadenia. Návody sú v [README.md](README.md), rozsah kontrol v [VALIDATION.md](VALIDATION.md).
 
+## Nezverejnené: panely, skutočná schéma v PDF a animovaný GIF
+
+Lokálne úpravy nad publikovaným `dc24ef2`. Nový commit, push ani deploy nie sú súčasťou tejto požiadavky.
+
+### Pridané a zlepšené
+
+- Nezávislé prepínače profilového grafu a prehrávania časovej osi. Obnovenie je trvalo dostupné; plátno sa zväčší okolo rovnakého stredu bez zmeny priblíženia, polohy alebo histórie.
+- Prepínač vizuálnych názvov, textov, uhlov a uhlových oblúkov. Kóty, dostupnosť uzlov a výpočtové údaje ostávajú samostatné. Všetky tri nové voľby sú v preferenciách aj `.kinmo`.
+- `scene-export.js`: snímok skutočného SVG s vypočítanými farbami, fontmi, viditeľnosťou a mierkou čiar. PNG, PDF/HTML a GIF nezahŕňajú editačné úchyty ani dočasný podklad; externý a aktívny SVG obsah sa odmieta.
+- PDF používa ostrú rasterizovanú schému pracovného plátna, vyberateľný slovenský text a vektorové grafy/tabuľky. HTML zachová rovnakú SVG kresbu. Geometrický milimetrový SVG/CAD export ostáva oddelený.
+- `gif-export.js`: závislosťami nezaťažený GIF89a encoder, LZW, adaptívna 256-farebná paleta, presné trvanie, oba smery a voliteľné opakovanie.
+- GIF nastavenia, odhad náročnosti, priebeh, zrušenie a ohraničenie 1 200 × 1 200 px / 180 snímok / 60 miliónov bodov / 32 MB / 90 sekúnd. Prázdny, nehybný, neviditeľný, nepoháňaný vlastný alebo zablokovaný model sa neexportuje.
+- Snímky používajú rovnaké kreslenie na samostatnom skrytom SVG a jednom opakovane využitom rasterovom plátne. Export nemení projekt, aktuálnu polohu, výber, históriu ani dynamický záznam.
+
+### Regresie a hranice
+
+- Vyriešené CSS premenné sa odstránia aj z pôvodných prezentačných atribútov SVG. Snímok nemení zdrojové plátno a dočasné URL sa uvoľnia pri chybe, zrušení aj dokončení.
+- Zámok editora počas GIF dovolí vlastné Blob sťahovanie. Zatvorenie dialógu zruší úlohu aj pri oneskorenom doručení natívnej udalosti `close`; čiastočné súbory sa nestiahnu.
+- Natívne Enter/Space na tlačidlách neovládajú prehrávanie na pozadí. Zaokrúhlenie GIF cyklu neprekročí 20 snímok/s.
+- Encoder kontroluje nezávislý testovací dekóder vrátane 9–12-bitových prechodov a resetu slovníka. Reálne výstupy kontroluje aj natívny dekóder Chromium, nie iba rovnaký encoder.
+- **PDF je statické. GIF zobrazuje predpísaný kinematický rozsah, nie časový záznam odhadovej dynamiky alebo skutočnú rýchlosť motora.** Paleta môže zmeniť jemné odtiene. Aktuálny výrez sa zámerne zachová; pred exportom ho prispôsobte.
+
 ## 2026-10-11: Magic import a rozšírenie editora
 
 Rozšírenie nadväzuje na `5e985fd` a zahŕňa požadované funkcie 2 až 7 aj sprievodcu importom náčrtu. Obdĺžnikový výber nie je súčasťou tejto zmeny.

@@ -31,6 +31,12 @@
 /exports.js
   Cache-Control: no-cache
 
+/scene-export.js
+  Cache-Control: no-cache
+
+/gif-export.js
+  Cache-Control: no-cache
+
 /cad.js
   Cache-Control: no-cache
 
