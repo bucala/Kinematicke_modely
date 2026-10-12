@@ -106,7 +106,7 @@
     const world = (v) => ({ x: v.x * ratio + (from.a.x - to.a.x) * to.mmPerPixel, y: v.y * ratio + (from.a.y - to.a.y) * to.mmPerPixel });
     for (const e of p.elements) {
       Object.assign(e, e.parentId ? local(e) : world(e));
-      for (const key of ['length', 'width', 'radius', 'stroke', 'carriageOffset', 'slotWidth', 'bearingOffset', 'curveRadius']) e[key] *= ratio;
+      for (const key of ['length', 'width', 'radius', 'camLift', 'stroke', 'carriageOffset', 'carriageWidth', 'carriageHeight', 'slotWidth', 'bearingOffset', 'curveRadius']) e[key] *= ratio;
       if (K.isElastic(e)) for (const key of ['restLength', 'minLength', 'maxLength', 'diameter', 'rodDiameter', 'wireDiameter']) e[key] *= ratio;
       e.controls = e.controls.map(local); e.outline = e.outline.map(local);
       if (e.localC) e.localC = local(e.localC);
@@ -166,15 +166,7 @@
     p.elements.push(e);
     return K.validateProject(p);
   }
-  function validateOutline(points) {
-    const area = points.reduce((total, p, i) => { const q = points[(i + 1) % points.length]; return total + p.x * q.y - q.x * p.y; }, 0);
-    if (Math.abs(area) < .00001 || points.some((p, i) => points.some((q, j) => j > i && K.distance(p, q) < .00001))) throw new Error('Obrys rámu nesmie byť nulový ani obsahovať opakované vrcholy.');
-    for (let i = 0; i < points.length; i++) for (let j = i + 2; j < points.length; j++) {
-      if (i === 0 && j === points.length - 1) continue;
-      const a = points[i], b = points[(i + 1) % points.length], c = points[j], d = points[(j + 1) % points.length];
-      if (K.segmentIntersection(a, b, c, d) || K.nearestOnSegment(a, c, d).distance < .00001 || K.nearestOnSegment(b, c, d).distance < .00001 || K.nearestOnSegment(c, a, b).distance < .00001 || K.nearestOnSegment(d, a, b).distance < .00001) throw new Error('Obrys rámu sa pretína alebo prekrýva. Opravte vrcholy pred uzavretím.');
-    }
-  }
+  const validateOutline = K.validateOutline;
   function placeElement(project, type, at) {
     const p = K.copy(K.validateProject(project));
     if (p.kind !== 'custom' || !K.TYPES.includes(type) || !point(at) || Math.abs(at.x) > 5000 || Math.abs(at.y) > 5000) throw new Error('Vyberte prvok a bod vloženia v rozsahu ±5000 mm.');
@@ -193,6 +185,7 @@
     if (!selected.length) throw new Error('Vyberte aspoň jeden rozpoznaný prvok alebo preskočte detekciu.');
     for (const c of selected) {
       if (!['ground', 'link', 'panel', 'rail', 'slot', 'bearing', 'node'].includes(c.type) || !Array.isArray(c.points) || c.points.length < (['bearing', 'node'].includes(c.type) ? 1 : 2) || c.points.length > 64 || c.points.some((v) => !point(v) || v.x < 0 || v.y < 0 || v.x > image.width || v.y > image.height) || !Number.isFinite(c.width) || c.width <= 0 || c.width > Math.max(image.width, image.height) || !Number.isFinite(c.radius) || c.radius <= 0) throw new Error('Rozpoznaný prvok má neplatné body alebo rozmery.');
+      if (c.outline != null && (!Array.isArray(c.outline) || c.outline.length > 64 || c.outline.length && c.outline.length < 3 || c.outline.some((v) => !point(v) || v.x < 0 || v.y < 0 || v.x > image.width || v.y > image.height))) throw new Error('Rozpoznaný obrys má neplatné vrcholy.');
       const points = c.points.map((v) => worldFromPixel(v, scale)), parameters = K.copy(p.parameters);
       let e;
       if (['bearing', 'node', 'slot'].includes(c.type)) {
@@ -207,6 +200,11 @@
       } else {
         p = traceBody(p, c.type, [points[0], points.at(-1)], Math.max(.1, c.width * scale.mmPerPixel));
         e = p.elements.at(-1);
+      }
+      if (c.outline?.length && ['ground', 'link', 'panel'].includes(c.type)) {
+        const outline = c.outline.map((v) => worldFromPixel(v, scale));
+        validateOutline(outline);
+        e.outline = outline.map((v) => K.rotate({ x: v.x - e.x, y: v.y - e.y }, -e.angle));
       }
       e.drive = false; e.locked = c.type === 'ground'; e.color = /^#[0-9a-fA-F]{6}$/.test(c.color || '') ? c.color : '';
       e.name = `Detekcia · ${K.makeElement(c.type).name} ${added.length + 1}`;

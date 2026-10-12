@@ -245,7 +245,7 @@ input, textarea, [contenteditable] input, [contenteditable] textarea, input[cont
 .zoom-control > span:not(.zoom-divider) { font-size: 8px; color: #8c9aa5; width: 35px; text-align: center; }
 .zoom-divider { height: 14px; width: 1px; background: #e8ecef; margin: 0 3px; }
 .canvas-instruction { position: absolute; top: 88px; left: 50%; transform: translateX(-50%); z-index: 3; border: 1px solid #eadfc9; color: #9b7b48; font-size: 9px; padding: 9px 13px; border-radius: 5px; background: #fffcf5f5; max-width: calc(100% - 150px); text-align: center; line-height: 1.6; box-shadow: 0 2px 7px #ac915311; pointer-events: none; }
-.drop-hint { display: none; position: absolute; inset: 9px; z-index: 4; background: #fff9ebea; border: 2px dashed #d8b773; border-radius: 9px; align-items: center; justify-content: center; gap: 12px; color: #aa874a; font-size: 14px; pointer-events: none; }
+.drop-hint { display: none; position: absolute; inset: 9px; z-index: 4; background: transparent; border: 2px dashed #d8b773; border-radius: 9px; align-items: center; justify-content: center; gap: 12px; color: #aa874a; font-size: 14px; pointer-events: none; }
 .drop-active .drop-hint { display: flex; }
 .mechanism-element { cursor: pointer; }
 .mechanism-element.rail, .mechanism-element.panel { cursor: grab; }

@@ -299,6 +299,119 @@
     assert(W.findSnap(p, keys, E.design(p, 0), { x: 20, y: 25 }, { enabled: true, tolerance: 2 }) === null);
     throws(() => W.findSnap(p, keys, E.design(p, 0), { x: NaN, y: 0 }, { enabled: true }));
   });
+  add('Prichytenie na stredovú os ramena funguje aj mimo jeho stredu a bez väzby.', () => {
+    const node = K.makeElement('node', 0, 0), body = { ...K.makeElement('link', 100, 80), length: 160, angle: 35 }, p = custom(node, body);
+    const at = K.along({ x: 100, y: 80 }, 53, 35), normal = K.rotate({ x: 0, y: 2 }, 35);
+    const snap = W.findSnap(p, [I.nodeKey(ref(node))], E.design(p, 0), { x: at.x + normal.x, y: at.y + normal.y }, { enabled: true, tolerance: 3 });
+    assert(snap.kind === 'axis'); near(snap.point.x, at.x); near(snap.point.y, at.y);
+    throws(() => W.connectSnap(p, snap)); assert(!p.connections.length);
+  });
+  add('Pružina je cieľom prichytenia cez montážne body aj svoju os.', () => {
+    const node = K.makeElement('node', 0, 0), spring = K.makeElement('spring-extension', 100, 80), p = custom(node, spring);
+    const endpoint = W.findSnap(p, [I.nodeKey(ref(node))], E.design(p, 0), { x: 219, y: 79 }, { enabled: true, tolerance: 3 });
+    assert(endpoint.kind === 'endpoint' && endpoint.target.ref.elementId === spring.id && endpoint.target.ref.point === 'b');
+    const axis = W.findSnap(p, [I.nodeKey(ref(node))], E.design(p, 0), { x: 137, y: 82 }, { enabled: true, tolerance: 3 });
+    assert(axis.kind === 'axis'); near(axis.point.y, 80);
+  });
+  add('Voľný koniec pružiny sa prichytí a potvrdená montáž sleduje nosný bod.', () => {
+    const spring = K.makeElement('spring-extension', 0, 0), node = K.makeElement('node', 160, 40), p = custom(spring, node), keys = [I.nodeKey(ref(spring, 'b'))];
+    const snap = W.findSnap(p, keys, E.design(p, 0), { x: 39, y: 39 }, { enabled: true, tolerance: 3 });
+    assert(snap.kind === 'endpoint');
+    const moved = I.translate(p, keys, snap.delta), connected = W.connectSnap(moved, snap);
+    assert(K.elasticMount(connected, connected.elements[0], 'b').elementId === node.id);
+    near(E.design(connected, 0).poses[spring.id].b.y, 40); assert(!p.connections.length);
+  });
+  add('Prichytenie na vrch a spodok vozíka používa otočené pohyblivé montážne body.', () => {
+    const rail = { ...K.makeElement('rail', 100, 80), drive: true, angle: 30, carriageOffset: 20 }, node = K.makeElement('node', 0, 0), p = custom(node, rail);
+    const result = E.design(p, 150), cart = result.poses[rail.id];
+    assert(I.pointKeys(rail).includes('ct') && I.pointKeys(rail).includes('cb'));
+    near(K.distance(cart.c, cart.ct), 15); near(K.distance(cart.c, cart.cb), 15);
+    const snap = W.findSnap(p, [I.nodeKey(ref(node))], result, { x: cart.ct.x + 1, y: cart.ct.y + 1 }, { enabled: true, tolerance: 3 });
+    assert(snap.kind === 'endpoint' && snap.target.ref.point === 'ct');
+    assert(I.status(p, ref(rail, 'ct')) === 'driven');
+    const joined = I.setJoint(p, ref(node), { type: 'revolute', other: ref(rail, 'cb') });
+    const first = K.solve(joined, 0, { collisions: false }), last = K.solve(joined, 300, { collisions: false });
+    assert(!first.blocked && !last.blocked); near(K.distance(first.poses[node.id].a, last.poses[node.id].a), rail.stroke);
+  });
+  add('Viditeľná trajektória je geometrický cieľ, nie automatická kinematická väzba.', () => {
+    const node = K.makeElement('node', 0, 0), p = custom(node);
+    const snap = W.findSnap(p, [I.nodeKey(ref(node))], E.design(p, 0), { x: 38, y: 41 }, { enabled: true, tolerance: 3, paths: [{ id: 'trace', points: [{ x: 20, y: 40 }, { x: 90, y: 40 }] }] });
+    assert(snap.kind === 'trajectory'); near(snap.point.x, 38); near(snap.point.y, 40);
+    throws(() => W.connectSnap(p, snap));
+  });
+  add('Nový vložený prvok používa rovnaké geometrické prichytenie bez mutácie projektu.', () => {
+    const body = { ...K.makeElement('link', 100, 80), length: 160 }, p = custom(body), node = K.makeElement('node', 137, 82), before = JSON.stringify(p);
+    const snap = W.findPlacementSnap(p, node, { enabled: true, tolerance: 3 });
+    assert(snap.kind === 'axis'); near(snap.delta.x, 0); near(snap.delta.y, -2); assert(JSON.stringify(p) === before);
+    assert(W.findPlacementSnap(p, node, { enabled: false }) === null);
+  });
+  add('Vačka má uzavretý radiálny profil, presnú rotáciu a prenositeľné parametre.', () => {
+    const cam = { ...K.makeElement('cam', 30, 40), radius: 25, camLift: 15, camPhase: 0, drive: true }, p = custom(cam);
+    assert(K.TYPES.includes('cam'));
+    assert(K.pointKeys(cam).join() === 'a'); throws(() => custom({ ...cam, drivePivot: 'b' }));
+    const range = K.driveRange(p); assert(range.unit === '°'); near(range.max, 360); near(K.solve(p, 360).motion, 360);
+    const report = W.analyzeSweep(p, K.sample(p, 121, { collisions: false }));
+    assert(report.bodies[0].reference === 'a'); near(report.bodies[0].angleMax, 360);
+    const zero = K.solve(p, 0, { collisions: false }).poses[cam.id], quarter = K.solve(p, 90, { collisions: false }).poses[cam.id];
+    near(K.distance(zero.path[0], zero.path.at(-1)), 0); near(K.distance(zero.a, zero.path[0]), 25);
+    near(Math.max(...zero.path.map((v) => K.distance(zero.a, v))), 40);
+    near(quarter.a.x, 30); near(quarter.a.y, 40);
+    const rotated = K.worldPoint({ a: zero.a, angle: 90 }, K.localPoint({ a: zero.a, angle: 0 }, zero.path[30]));
+    near(quarter.path[30].x, rotated.x); near(quarter.path[30].y, rotated.y);
+    const restored = K.validateProject(JSON.parse(JSON.stringify(p))).elements[0];
+    near(restored.camLift, 15); near(restored.camPhase, 0);
+  });
+  add('Vačkový valček ostáva mimo profilu a v lineárnom vedení počas celého cyklu.', () => {
+    const cam = { ...K.makeElement('cam', 120, 140), drive: true }, p = I.addCamFollower(custom(cam), cam.id), before = JSON.stringify(p);
+    const roller = p.elements.find((e) => e.type === 'bearing'), slider = p.elements.find((e) => e.role === 'cam-slider');
+    const samples = K.sample(p, 121, { collisions: false }), positions = [];
+    for (const sample of samples) {
+      assert(!sample.blocked, sample.issues.join('; '));
+      const body = sample.poses[cam.id], at = sample.poses[roller.id].a;
+      near(at.x, cam.x, .01); near(K.nearestOnPath(at, body.path).distance, roller.radius, .01);
+      assert(!K.pointInPolygon(at, body.path)); near(sample.poses[slider.id].angle, 90, .01);
+      assert(W.constraints(p, sample).every((row) => row.status === 'ok'));
+      positions.push(at.y);
+    }
+    assert(Math.max(...positions) - Math.min(...positions) > 15);
+    assert(E.freedom(p, samples[0]).free === 0); assert(JSON.stringify(p) === before);
+  });
+  add('Vačkový kontakt používa skutočný polomer valčeka, nie jeho stred na obryse.', () => {
+    const cam = { ...K.makeElement('cam', 0, 100), radius: 30, camLift: 0, drive: true };
+    let p = I.addCamFollower(custom(cam), cam.id), roller = p.elements.find((e) => e.type === 'bearing');
+    roller.radius = 10; p = K.validateProject(p);
+    for (const motion of [0, 90, 180, 270, 360]) {
+      const result = K.solve(p, motion, { collisions: false }); assert(!result.blocked);
+      near(K.distance(result.poses[roller.id].a, result.poses[cam.id].a), 40, .01);
+    }
+    const impossible = K.copy(p);
+    const slider = impossible.elements.find((e) => e.role === 'cam-slider'); slider.locked = true; slider.y += 20;
+    assert(K.solve(K.validateProject(impossible), 0, { collisions: false }).blocked);
+  });
+  add('Vačkový kontakt odmieta bod bez valčeka, bežnú drážku a strednicovú náhradu.', () => {
+    const cam = K.makeElement('cam'), roller = K.makeElement('bearing'), node = K.makeElement('node'), slot = K.makeElement('slot'), p = custom(cam, roller, node, slot);
+    const curve = ref(cam, 'curve'), contact = joint(ref(roller), curve, 'cam-contact');
+    K.validateProject({ ...p, connections: [contact] });
+    throws(() => K.validateProject({ ...p, connections: [{ ...contact, a: ref(node) }] }));
+    throws(() => K.validateProject({ ...p, connections: [{ ...contact, b: ref(slot, 'curve') }] }));
+    throws(() => K.validateProject({ ...p, connections: [{ ...contact, type: 'point-path' }] }));
+    throws(() => custom({ ...cam, camLift: -1 }));
+    throws(() => custom({ ...cam, drive: true, driveMode: 'linear' }));
+  });
+  add('Vačka bez ukotvenia má tri voľné súradnice a kontakt nepredstiera dynamiku.', () => {
+    const cam = K.makeElement('cam'), p = custom(cam); assert(E.freedom(p, E.design(p, 0)).free === 3);
+    const driven = I.setDriver(p, ref(cam), { enabled: true, mode: 'rotary', min: 0, max: 360, speed: 30 });
+    const contact = I.addCamFollower(driven, cam.id);
+    throws(() => global.KinmoPhysics.prepare(contact, { collisions: false }));
+  });
+  add('Prichytávanie valčeka na vačku zachová jeho polomer a kontakt čaká na potvrdenie.', () => {
+    const cam = { ...K.makeElement('cam', 100, 100), camLift: 0, radius: 30 }, roller = K.makeElement('bearing', 0, 0), p = custom(cam, roller), keys = [I.nodeKey(ref(roller))];
+    const snap = W.findSnap(p, keys, E.design(p, 0), { x: 100, y: 65 }, { enabled: true, tolerance: 3 });
+    assert(snap.kind === 'cam-contact'); assert(snap.label.includes('valček'));
+    const moved = I.translate(p, keys, snap.delta), connected = W.connectSnap(moved, snap);
+    assert(!moved.connections.length && connected.connections[0].type === 'cam-contact');
+    near(K.nearestOnPath(E.design(moved, 0).poses[roller.id].a, E.design(moved, 0).poses[cam.id].path).distance, roller.radius, .01);
+  });
   add('Knižnica zachová vybrané celé členy, potomkov a vnútorné väzby bez zmeny zdroja.', () => {
     const a = K.makeElement('link', 10, 20), b = K.makeElement('link', 130, 20), poi = { ...K.makeElement('node', 40, 0), parentId: a.id }, outside = K.makeElement('node', 300, 300), p = custom(a, b, poi, outside);
     p.connections = [joint(ref(a, 'b'), ref(b)), joint(ref(b, 'b'), ref(outside))];

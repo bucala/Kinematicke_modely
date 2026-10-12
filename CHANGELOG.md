@@ -2,9 +2,28 @@
 
 Zmeny Kinematika Studio sú zoradené od najnovších. Dátum a Git commit označujú zmeny zdrojov, nie potvrdenie produkčného nasadenia. Návody sú v [README.md](README.md), rozsah kontrol v [VALIDATION.md](VALIDATION.md).
 
-## 2026-10-12: mierka, detekcia, projekty, analýza a kóty
+## 2026-10-13: prichytávanie, vačka, obrysy a krivkové časti
 
-Rozšírenie nad `6554b75` pre existujúcu vetvu `main`. Commit a push sú výslovne autorizované; manuálny deploy sa nespúšťa. Úspech vzdialeného CI a Workers Builds sa z lokálnych výsledkov neodvodzuje.
+Rozšírenie nad `5e9798b`. Používateľ výslovne požiadal o aktualizované README/changelog, commit a štandardný push do existujúceho `main`, bez prepisu histórie. Skutočný commit a stav vetvy potvrdzuje Git. Manuálny deploy nie je súčasťou tohto publikovania.
+
+- **Spoločný snap pri drag/drop:** skutočné body pred osami/strednicami, hranami a viditeľnými trajektóriami, rovnaký náhľad a výsledná poloha pri vložení. Vlastné teleso a nesení potomkovia sa vylúčia. Prichytenie samo nevytvára spoj.
+- **Samostatná sieť 5 mm:** prepínač mení iba zaokrúhľovanie polohy. Inteligentné prichytávanie aj viditeľnosť kreslenej mriežky zostávajú nezávislé.
+- **Pružiny a vozíky:** voľné konce pružín sa upravujú a prichytávajú; namontované sú chránené. Vozík má otočený obrys a montážne C/CT/CB. Šablónové polohy ich doplnia ešte pred riešením nesených prvkov; stav bodu zohľadní montážny bod rodiča.
+- **Rotačná vačka:** uzavretý harmonický radiálny profil R/h/fáza, jediná fyzická os A, otočný pohon, vedený posúvač a valček. `cam-contact` používa polomer valčeka, solver, diagnostiku a lokálnu analýzu voľnosti. Odhadová dynamika tento model výslovne odmietne.
+- **Obrysová detekcia:** spojitá geometria nezávislá od odtieňa a tieňovania, vonkajšie obrysy, spojitá strednica zakrivenej dráhy a zachovanie konkávneho rámu. Nejasné/rozvetvené tvary nie sú predvybrané; doplnková segmentácia podľa hrán je nízkodôverná. Import prenesie validovaný obrys v kalibrovanej lokálnej sústave. Ohraničené komponenty, kontúry, návrhy a práca zjednodušovania; stále bez uploadu a automatického pohonu.
+- **Presné časti a pravý klik:** samostatné identity riadiaceho bodu, vrcholu a dráhy. Ponuka kliknutej časti zachová zvýraznené telesá a odstránenie P2 neodstráni kulisu. Pravé pozadie neruší výber. Klávesnicové zameranie a Shift+F10 používajú presnú geometriu časti.
+- **Skutočný Bézier:** všetky 2–32 body, nie iba prvé štyri. Pridanie/odstránenie mení stupeň; vnútorné body nie sú interpolované ani montážne uzly. Lokálne súradnice, otočený rodič a číselné výrazy sa spracujú atómovo.
+- **Presný polkruh s R:** 180° profil s dvoma koncami, voľba strany. Predvolený R zachová konce; zmenený R zachová P0 a nastaví tetivu na 2R. Úprava konca alebo hromadný formulár prepočíta R. Mierka, natívny round-trip a CAD profil zachovajú geometriu.
+- **História a export:** ťahanie bodov vytvorí jeden krok až po skutočnej zmene; zrušenie, zlyhanie a no-op zachovajú aj plnú 60-krokovú históriu. CAD pridáva `CAM`, `CAM_AXIS` a `RAIL_CARRIAGE`; vačka má polygonové ťažisko a zotrvačnosť. Výber sledovaného bodu zahŕňa C/CT/CB a rešpektuje skutočné body prvku.
+- **Opravy z reálneho QA:** pohon vačky používa správny uhlový rozsah vrátane 360°, Analýza a predvolená trajektória sledujú fyzické A aj po čerstvom vložení a karta vačky má popis namiesto `undefined`. Rozšírené regresie najskôr zlyhali a po oprave prešli.
+- **Stabilný cieľ dropu:** náhľad už neprepisuje celé SVG počas HTML5 ťahania. Mení iba neinteraktívnu vrstvu prichytenia a zachová živý cieľ prehliadača. Priehľadná drop plocha nezakrýva geometriu ani snap značku. Samostatná regresia kontroluje opakovaný náhľad aj jeho vyčistenie bez výmeny geometrie.
+- **Overenie:** kompletných **591 JS testov**, syntax a build prešli aj pri predpublikačnej kontrole 13. 10. 2026. Zdieľaná prehliadačová sada pri funkčnom overení 12. 10. prešla **362 / 362** cez HTTP aj offline `file://`; pri publikačnej príprave sa gestá neopakovali. 25 statických assetov sa zhoduje so zdrojmi; verejný inventár má 26 súborov a deterministický Fusion ZIP. Natívne gestá, syntetický drop a presné hranice sú oddelené v [VALIDATION.md](VALIDATION.md).
+
+Vačkový kontakt predpokladá trvalý dotyk, nie reakčné sily alebo odskok. Detektor navrhuje geometriu, nie preukázanú mechanickú funkciu. CAD obrysy nie sú výrobné kontúry. Nové lokálne výsledky nepotvrdzujú vzdialené CI alebo nasadenie.
+
+## Publikované `5e9798b`, 2026-10-12: mierka, detekcia, projekty, analýza a kóty
+
+Rozšírenie nad `6554b75` je publikované štandardným push do existujúcej vetvy `main`. Manuálny deploy sa nespustil. Úspech vzdialeného CI a Workers Builds sa z lokálnych výsledkov neodvodzuje.
 
 - **Jedna mierka X/Y/A–B:** jeden známy rozmer prepočíta celý obrázok bez zmeny pomeru strán. Neskoršia zmena vyžaduje potvrdenie prepočtu geometrie a lineárnych parametrov; Späť/znova obnovia mierku aj geometriu spolu.
 - **Voliteľný krok 2.5:** lokálna detekcia hrubých geometrických návrhov, náhľad, výber a oprava typov pred atómovým vložením. Raster do 768 × 768 px, najviac 60 kandidátov, zrušenie a uvoľnenie dekódera/plátna. Žiadny upload ani automatický pohon.
@@ -83,6 +102,7 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 
 | Dátum | Commit | Zmena |
 |---|---|---|
+| 2026-10-12 | `5e9798b` | Mierka obrázka, voliteľná detekcia, projekty, samostatná Analýza a inteligentné kóty. |
 | 2026-10-11 | `5e985fd` | Click+Select, multiselect, kontextové operácie a interaktívne README. |
 | 2026-10-10 | `3194075` | Ručne otváraný panel Vlastnosti, jediná projektová ponuka, témy a ochrana pred výberom textu rozhrania. |
 | 2026-10-10 | `fc04c71` | Oprava CI: zachovanie pripnutých bajtov PDF fontov pomocou `.gitattributes`. |

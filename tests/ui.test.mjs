@@ -60,7 +60,7 @@ function controller(width = 1440) {
     icon: () => '', escape: (value) => String(value), fmt: (value) => String(value), svgNS: 'http://www.w3.org/2000/svg',
     line: (a, b, attributes = '') => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${attributes}/>`,
     ib: (name, action, title, active = false, extra = '') => `<button data-action="${action}" ${extra}></button>`,
-    K, I, E, W: globalThis.KinmoWorkbench, M: { ...globalThis.KinmoMagicImport }, AD: { ...globalThis.KinmoDetection }, AbortController, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo' }, typeIcons: { ground: 'ground' },
+    K, I, E, W: globalThis.KinmoWorkbench, M: { ...globalThis.KinmoMagicImport }, AD: { ...globalThis.KinmoDetection }, AbortController, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo', cam: 'Rotačná vačka' }, typeIcons: { ground: 'ground', cam: 'cam' },
     CAD: { ENDPOINT: 'http://127.0.0.1:8765' },
     renderTree() {}, renderInspector() {}, renderScene() {}, renderGraph() {}, fitView() {},
     onChange() {}, onSubmit() {}, onContextMenu() {}, updateHover() {}, updateMotion() {},
@@ -91,10 +91,119 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
+  for (const name of ['toggleGridSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
 
+function curveController() {
+  const fixture = controller(), { context, state } = fixture;
+  const e = { ...context.K.makeElement('slot', 200, 150), id: 'qa-slot', controls: [{ x: 0, y: 0 }, { x: 40, y: 80 }, { x: 120, y: 80 }, { x: 150, y: 0 }] };
+  state.project.elements.push(e); state.project = context.K.validateProject(state.project); state.result = context.E.design(state.project, 0);
+  context.selectTarget(context.I.elementKey(e.id));
+  return { ...fixture, slot: state.project.elements.at(-1), event: (point) => ({ clientX: point.x, clientY: point.y, target: { closest: () => null } }) };
+}
+test('Part menus keep existing highlights and fix only the clicked node, not another selected node', () => {
+  const { context, state } = controller(), clicked = { elementId: 'body', point: 'a' }, other = { elementId: 'another-body', point: 'a' };
+  const keys = [context.I.nodeKey(other), context.I.elementKey('body')]; state.selectedElementIds = keys; context.repairSelection();
+  context.openContextMenu({ clientX: 10, clientY: 20, target: { closest: () => null } }, context.I.nodeKey(clicked));
+  assert.deepEqual([...state.selectedElementIds], keys); assert(context.memberSelected('body') && context.memberSelected('another-body'));
+  context.onContextAction('fix'); assert(context.I.fixed(state.project, clicked)); assert(!context.I.fixed(state.project, other));
+  assert.deepEqual([...state.selectedElementIds], keys);
+});
+test('The background context menu does not clear an existing highlighted selection', () => {
+  const { context, state } = controller();
+  context.selectTarget(context.I.elementKey('body'));
+  context.openContextMenu({ clientX: 400, clientY: 400, target: { closest: () => null } }, null);
+  assert.deepEqual([...state.selectedElementIds], [context.I.elementKey('body')]);
+});
+test('Active Bezier control handles are geometrically hit before bodies and have exact part identities', () => {
+  const { context, slot, event } = curveController(), point = { x: slot.x + slot.controls[2].x, y: slot.y + slot.controls[2].y };
+  assert.equal(context.canvasHit(event(point)), context.I.controlKey(slot.id, 2));
+  context.openContextMenu(event(point), context.I.controlKey(slot.id, 2));
+  assert.match(context.openedMenu.title, /P2/); assert(context.openedMenu.items.some((item) => item.id === 'control-delete'));
+  assert(!context.openedMenu.items.some((item) => item.id === 'delete'));
+});
+test('Shift-F10 anchors the exact selected Bezier control rather than the body midpoint', () => {
+  const { context, state, slot } = curveController(), key = context.I.controlKey(slot.id, 2), pose = state.result.poses[slot.id], point = context.K.worldPoint({ ...pose, a: pose.controlOrigin || pose.a }, slot.controls[2]);
+  const target = { closest: (selector) => selector === '[data-selection-key]' ? { dataset: { selectionKey: key } } : null };
+  context.openContextMenu = (event, targetKey) => { context.menuProbe = { event, targetKey }; };
+  context.onKeyboard({ key: 'F10', shiftKey: true, target, preventDefault() {} });
+  assert.equal(context.menuProbe.targetKey, key); assert.equal(context.menuProbe.event.clientX, point.x); assert.equal(context.menuProbe.event.clientY, point.y);
+});
+test('The bulk geometry form keeps an edited semicircle exact and makes one undo step', async () => {
+  const { context, state, slot } = curveController();
+  state.project = context.I.semicircle(state.project, slot.id, 80, -1); state.result = context.E.design(state.project, 0);
+  context.FormData = function () { return new Map([['points', '0;0\n200;0']]); };
+  vm.runInContext(source.match(/  async function onSubmit\([^\n]*\) \{[\s\S]*?\n  \}/)[0], context);
+  await context.onSubmit({ target: { id: 'geometry-form', dataset: { outline: 'false' } }, preventDefault() {} });
+  const next = state.project.elements.at(-1);
+  assert(next.curveSemicircle && next.curveSide === -1); assert.equal(next.curveRadius, 100); assert.equal(state.history.length, 1);
+  context.undo(); assert.equal(state.project.elements.at(-1).curveRadius, 80);
+});
+test('Trace point choices include carriage CT/CB and switch to the single cam axis', () => {
+  const { context, state } = controller(), rail = { ...context.K.makeElement('rail', 200, 300), drive: false }, cam = context.K.makeElement('cam', 350, 300);
+  state.project.elements.push(rail, cam); state.project = context.K.validateProject(state.project); state.traceRef = { elementId: rail.id, point: 'ct' };
+  vm.runInContext(source.match(/  function traceModal\([^\n]*\) \{[\s\S]*?\n  \}/)[0], context);
+  context.traceModal();
+  const choices = context.dialog.html.match(/<select[^>]*name="point">([\s\S]*?)<\/select>/)[1];
+  assert.match(choices, /value="ct" selected/); assert.match(choices, /value="cb"/);
+  const point = { value: 'ct', innerHTML: choices };
+  context.onChange({ target: { name: 'element', value: cam.id, dataset: {}, closest: () => null, form: { id: 'trace-form', elements: { point } } } });
+  assert.match(point.innerHTML, /value="a"/); assert.doesNotMatch(point.innerHTML, /value="(b|c|ct|cb)"/);
+});
+test('Right-click P2 removes only that control point, retains highlighted members and creates one undo step', () => {
+  const { context, state, slot, event } = curveController();
+  state.selectedElementIds = [context.I.elementKey('another-body'), context.I.elementKey(slot.id)]; context.repairSelection();
+  const before = JSON.stringify(state.project), point = { x: slot.x + slot.controls[2].x, y: slot.y + slot.controls[2].y };
+  context.openContextMenu(event(point), context.I.controlKey(slot.id, 2)); context.onContextAction('control-delete');
+  assert.equal(state.project.elements.length, 3); assert.equal(state.project.elements.at(-1).controls.length, 3);
+  assert.equal(state.history.length, 1); assert(context.memberSelected('another-body') && context.memberSelected(slot.id));
+  context.undo(); assert.equal(JSON.stringify(state.project), before);
+});
+test('A curve part menu adds a Bezier control at the clicked path without creating a joint', () => {
+  const { context, state, slot, event } = curveController(), at = state.result.poses[slot.id].path[50];
+  context.openContextMenu(event(at), context.I.pathKey(slot.id)); context.onContextAction('curve-add-control');
+  const next = state.project.elements.at(-1);
+  assert.equal(next.controls.length, 5); assert.equal(state.project.connections.length, 0); assert.equal(state.history.length, 1);
+  assert(next.controls.some((p) => Math.abs(p.x + next.x - at.x) < 1e-8 && Math.abs(p.y + next.y - at.y) < 1e-8));
+});
+test('A slot curve context menu offers a semicircle radius form with the endpoint rule stated', () => {
+  const { context, state, slot, event } = curveController(), before = JSON.stringify(state.project), at = state.result.poses[slot.id].path[50];
+  context.openContextMenu(event(at), context.I.pathKey(slot.id)); context.onContextAction('curve-semicircle');
+  assert.match(context.dialog?.html || '', /slot-semicircle-form/); assert.match(context.dialog.html, /2R/);
+  assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
+});
+test('The semicircle form accepts radius expressions, retains bad input and inserts one undoable exact arc', () => {
+  const { context, state, slot } = curveController(), form = { dataset: { element: slot.id } }, before = JSON.stringify(state.project);
+  context.slotSemicircleModal(slot.id); const dialog = context.dialog;
+  assert.throws(() => context.submitSlotSemicircle(form, new Map([['radius', '1/0'], ['side', '1']])));
+  assert.equal(context.dialog, dialog); assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
+  context.submitSlotSemicircle(form, new Map([['radius', '8 cm'], ['side', '-1']]));
+  const next = state.project.elements.at(-1); assert(next.curveSemicircle && next.curveKind === 'arc'); assert.equal(next.curveRadius, 80);
+  assert.equal(context.K.distance(next.controls[0], next.controls[1]), 160); assert.equal(state.history.length, 1);
+  context.undo(); assert.equal(JSON.stringify(state.project), before);
+});
+test('A part coordinate form changes only the chosen control and does not masquerade as a joint node', () => {
+  const { context, state, slot } = curveController(), key = context.I.controlKey(slot.id, 2), form = { dataset: { key } };
+  context.partPointModal(key); assert.match(context.dialog.html, /part-point-form/);
+  context.submitPartPoint(form, new Map([['x', '12/2 cm'], ['y', '25 mm']]));
+  const controls = state.project.elements.at(-1).controls; assert.equal(controls[2].x, 60); assert.equal(controls[2].y, 25);
+  assert.equal(controls[1].x, 40); assert.equal(controls[3].x, 150); assert.equal(state.project.connections.length, 0); assert.equal(state.history.length, 1);
+});
+test('Clicking a control adds no history and cancelling its drag preserves a full 60-step undo/redo history', () => {
+  const { context, state, slot } = curveController(), key = context.I.controlKey(slot.id, 2), at = { x: slot.x + slot.controls[2].x, y: slot.y + slot.controls[2].y };
+  const target = { closest: (selector) => selector === '[data-element-control]' ? { dataset: { elementControl: '2' } } : selector === '[data-context-key]' ? { dataset: { contextKey: key } } : null };
+  const event = (point, extra = {}) => ({ clientX: point.x, clientY: point.y, button: 0, pointerId: 1, target, preventDefault() {}, ...extra });
+  context.onPointerDown(event(at)); context.onPointerUp(event(at)); assert.equal(state.history.length, 0);
+  state.history = Array.from({ length: 60 }, (_, i) => ({ ...context.K.copy(state.project), name: `Before ${i}` }));
+  state.historySelections = Array.from({ length: 60 }, () => [key]); state.future = [{ ...context.K.copy(state.project), name: 'Redo' }]; state.futureSelections = [[key]];
+  const history = [...state.history], future = state.future, before = JSON.stringify(state.project);
+  context.onPointerDown(event(at)); context.onPointerMove(event({ x: at.x + 20, y: at.y + 10 }));
+  assert.notEqual(JSON.stringify(state.project), before);
+  context.onPointerUp(event(at, { cancelled: true }));
+  assert.equal(JSON.stringify(state.project), before); assert.deepEqual([...state.history], history); assert.equal(state.future, future);
+});
 const gifData = (values = {}) => new Map(Object.entries({ width: '160', duration: '1', fps: '6', direction: 'roundtrip', loop: 'on', ...values }).filter(([, value]) => value !== null));
 function gifController() {
   const fixture = controller(), { context, state, element, document } = fixture, hosts = [], frames = [], snapshots = [];
@@ -751,6 +860,86 @@ test('Diagnostics present separate unit columns without opening properties', () 
   assert(!state.inspectorOpen);
 });
 
+test('Grid toggle is discoverable and independent from intelligent snap', () => {
+  const { context, state, element } = controller();
+  context.buildShell();
+  assert.match(element('#app').innerHTML, /data-action="grid-snap"/);
+  state.snap = true; state.smartSnap = true;
+  context.toggleGridSnap();
+  assert.equal(state.snap, false); assert.equal(state.smartSnap, true);
+  context.toggleGridSnap();
+  assert.equal(state.snap, true); assert.equal(state.smartSnap, true);
+  assert.equal(state.history.length, 0);
+});
+
+test('Free insertion retains arbitrary coordinates without five-millimetre steps', () => {
+  const { context, state } = controller();
+  state.snap = false; state.smartSnap = false;
+  context.addElement('node', { x: 43.17, y: 22.24 });
+  const e = state.project.elements.at(-1);
+  assert.equal(e.x, 43.17); assert.equal(e.y, 22.24);
+  assert.equal(state.history.length, 1); assert.equal(state.project.connections.length, 0);
+});
+
+test('Insertion prioritizes the nearby body axis over the grid and creates no joint', () => {
+  const { context, state } = controller();
+  state.snap = true; state.smartSnap = true;
+  context.addElement('node', { x: 43.17, y: 22.24 });
+  const e = state.project.elements.at(-1);
+  assert.equal(e.x, 43.17); assert.equal(e.y, 20);
+  assert.equal(state.history.length, 1); assert.equal(state.project.connections.length, 0);
+  assert.equal(context.dialog, undefined);
+});
+
+test('Grid visibility does not control grid movement, and drawing honors the separate choices', () => {
+  const { context, state } = controller();
+  state.grid = true; state.snap = false; state.smartSnap = false;
+  assert.deepEqual(context.snapDrawingPoint({ x: 43.17, y: 22.24 }), { x: 43.17, y: 22.24 });
+  state.grid = false; state.snap = true;
+  assert.equal(context.snapDrawingPoint({ x: 43.17, y: 22.24 }).x, 45);
+  state.smartSnap = true;
+  assert.equal(context.snapDrawingPoint({ x: 43.17, y: 22.24 }).y, 20);
+});
+
+test('Palette drop uses intelligent insertion and cleans its preview', () => {
+  const { context, state, element } = controller();
+  context.wireEvents(); state.snap = true; state.smartSnap = true;
+  state.draggedPaletteType = 'node'; state.snapPreview = { kind: 'axis' };
+  element('#canvas-area').listeners.get('drop')({
+    preventDefault() {}, clientX: 43.17, clientY: 22.24,
+    dataTransfer: { getData: () => 'node' },
+  });
+  assert.equal(state.project.elements.at(-1).x, 43.17);
+  assert.equal(state.project.elements.at(-1).y, 20);
+  assert.equal(state.draggedPaletteType, null); assert.equal(state.snapPreview, null);
+});
+
+test('Palette drag previews preserve the live SVG drop target and clean only their overlay', () => {
+  const { context, state, element } = controller(), svg = element('#mechanism-canvas'), overlays = [];
+  assert.match(styles.match(/\.drop-hint \{([^}]+)\}/)?.[1] || '', /background: transparent;/);
+  let redraws = 0, removals = 0;
+  svg.innerHTML = 'stable drop target';
+  svg.querySelectorAll = () => [...overlays];
+  svg.insertAdjacentHTML = (position, markup) => {
+    assert.equal(position, 'beforeend'); assert.match(markup, /data-editor-overlay="smart-snap"/);
+    overlays.push({ remove() { removals++; overlays.splice(overlays.indexOf(this), 1); } });
+  };
+  context.renderScene = () => { redraws++; svg.innerHTML = 'replaced drop target'; };
+  context.wireEvents(); state.smartSnap = true; state.draggedPaletteType = 'node';
+  const over = { clientX: 43.17, clientY: 22.24, preventDefault() { this.accepted = true; }, dataTransfer: { types: ['application/x-kinematika-element'] } };
+  const area = element('#canvas-area');
+  area.listeners.get('dragover')(over);
+  assert.equal(over.accepted, true); assert.equal(over.dataTransfer.dropEffect, 'copy');
+  assert.equal(redraws, 0); assert.equal(svg.innerHTML, 'stable drop target'); assert.equal(overlays.length, 1);
+  assert.equal(state.snapPreview.point.y, 20);
+  area.listeners.get('dragover')(over);
+  assert.equal(overlays.length, 1); assert.equal(removals, 1);
+  area.listeners.get('dragleave')({ relatedTarget: null });
+  assert.equal(state.snapPreview, null); assert.equal(overlays.length, 0); assert.equal(redraws, 0);
+  element('#palette').listeners.get('dragend')();
+  assert.equal(state.draggedPaletteType, null); assert.equal(svg.innerHTML, 'stable drop target');
+});
+
 test('Intelligent snap starts off, has an explicit button and resets on project load', () => {
   const { context, state, element } = controller(); context.buildShell();
   assert.equal(state.smartSnap, false);
@@ -758,6 +947,42 @@ test('Intelligent snap starts off, has an explicit button and resets on project 
   assert.match(source, /state\.smartSnap = false; state\.snapPreview = null; state\.pendingSnap = null/);
   context.toggleSmartSnap(); assert.equal(state.smartSnap, true); assert(!state.inspectorOpen);
   context.toggleSmartSnap(); assert.equal(state.smartSnap, false);
+});
+
+test('Cam is discoverable, its profile accepts quantities and a follower is one undo step', () => {
+  const { context, state, element } = controller();
+  context.buildShell();
+  const tile = element('#app').innerHTML.match(/<button[^>]*data-component="cam"[\s\S]*?<\/button>/)[0];
+  assert.match(tile, /<small>Harmonický profil<\/small>/); assert.doesNotMatch(tile, /undefined/);
+  context.addElement('cam', { x: 200, y: 180 }); const cam = state.project.elements.at(-1);
+  assert.equal(state.traceRef.elementId, cam.id); assert.equal(state.traceRef.point, 'a');
+  assert.equal(context.defaultTraceReference().point, 'a');
+  assert.match(source, /cam: 'Rotačná vačka'/);
+  state.contextMenuState.targetId = `e:${cam.id}`;
+  context.onContextAction('cam-profile');
+  assert.match(context.dialog.html, /name="camLift"/); assert.match(context.dialog.html, /trvalého dotyku/);
+  context.onCanvasSubmit({ dataset: { kind: 'cam-profile', reference: `n:${cam.id}:a` } }, new Map([['radius', '3 cm'], ['camLift', '20/2 mm'], ['camPhase', '90 deg']]));
+  const edited = state.project.elements.find((e) => e.id === cam.id);
+  assert.equal(edited.radius, 30); assert.equal(edited.camLift, 10); assert.equal(edited.camPhase, 90);
+  const history = state.history.length, count = state.project.elements.length;
+  state.contextMenuState.targetId = `e:${cam.id}`; context.onContextAction('cam-follower');
+  assert.equal(state.project.elements.length, count + 3); assert.equal(state.history.length, history + 1);
+  assert.equal(state.project.connections.filter((j) => j.type === 'cam-contact').length, 1);
+  context.undo(); assert.equal(state.project.elements.length, count);
+  context.nodeOptions(null, true); context.jointModal(); assert.match(context.dialog.html, /value="cam-contact"/);
+  assert.match(context.dialog.html, /obrys vačky/); assert.equal(element('#modal').open, false);
+});
+
+test('Connecting a roller to a cam creates contact; a nonroller fails without a history edit', () => {
+  const { context, state } = controller();
+  context.addElement('cam', { x: 200, y: 180 }); const cam = state.project.elements.at(-1);
+  context.addElement('bearing', { x: 200, y: 120 }); const roller = state.project.elements.at(-1);
+  const history = state.history.length;
+  context.connectPoint({ elementId: roller.id, point: 'a' }); context.connectPoint({ elementId: cam.id, point: 'curve' });
+  assert.equal(state.project.connections.at(-1).type, 'cam-contact'); assert.equal(state.history.length, history + 1);
+  context.connectPoint({ elementId: 'body', point: 'a' }); context.connectPoint({ elementId: cam.id, point: 'curve' });
+  assert.equal(state.history.length, history + 1); assert.equal(state.project.connections.length, 1);
+  assert.match(context.lastToast, /Vačkový kontakt/);
 });
 
 test('Disabled intelligent snap does not offer a joint after an ordinary drag', () => {

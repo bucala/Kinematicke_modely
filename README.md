@@ -15,9 +15,22 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 
 > Kinematika a odhadová dynamika jedného pohonu, nie pevnostný výpočet ani výrobný výkres. Pred použitím návrhu si prečítajte [hranice simulácie](#limits).
 
-## Novinky z 12. 10. 2026: mierka, detekcia, projekty a inteligentné kóty
+## 13. 10. 2026: prichytávanie, vačka a úpravy kriviek
 
-Rozšírenie nad `6554b75` pridáva **mierku obrázka z jedného rozmeru X/Y/A–B**, voliteľné lokálne geometrické návrhy v kroku **2.5**, bezpečné číselné dialógy, duplikovanie a potvrdené mazanie projektov, samostatnú analýzu celého pohybu a spoľahlivejší výber/pravé menu.
+Rozšírenie zdrojov nad `5e9798b` pridáva:
+
+- **[Spoločné prichytávanie](#snapping)** pri ťahaní aj vkladaní: uzly, osi/strednice, hrany a viditeľné trajektórie. Samostatné tlačidlo **Sieť 5 mm** vypína iba zaokrúhľovanie, nie inteligentné prichytávanie ani kreslenú mriežku.
+- Voľné konce pružín a tri montážne body vozíka **C / CT / CB**, aj v otočenom vedení a pôvodných šablónach.
+- **[Rotačnú vačku s vedeným valčekom](#cam)** a kontaktom podľa skutočného polomeru valčeka.
+- **[Magic import podľa obrysov a spojitosti](#magic-import)**, so zachovaním konkávneho obrysu a bez automatického určovania mechanickej funkcie podľa farby.
+- Pravý klik na časť vybraného telesa zachová zvýraznenie skupiny, ale ponuka cieli presný bod, vrchol alebo dráhu. Pravý klik na pozadie výber neruší.
+- **[Bézierove riadiace body P0 až Pn a presný polkruh s R](#curves)**, s lokálnymi súradnicami a atómovým Späť/znova.
+
+Syntax, **591 JavaScriptových testov** a statický build prešli aj pri predpublikačnej kontrole 13. 10. 2026. Zdieľaná prehliadačová sada pri funkčnom overení 12. 10. prešla **362 / 362** cez HTTP aj offline `file://`. Natívne gestá, syntetický drop a hranice rozpoznávania sú rozlíšené v [VALIDATION.md](VALIDATION.md). Commit a push zdrojov nepotvrdzujú úspešné vzdialené CI ani produkčné nasadenie; tie treba overiť samostatne.
+
+## Publikované 12. 10. 2026: mierka, detekcia, projekty a inteligentné kóty
+
+Commit `5e9798b` nad `6554b75` pridáva **mierku obrázka z jedného rozmeru X/Y/A–B**, voliteľné lokálne geometrické návrhy v kroku **2.5**, bezpečné číselné dialógy, duplikovanie a potvrdené mazanie projektov, samostatnú analýzu celého pohybu a spoľahlivejší výber/pravé menu.
 
 **[Kóty a presné vstupy](#handles)** prijímajú výrazy a jednotky, dva body možno vybrať na plátne a zmenou dĺžky zachovať A, B alebo stred, aj pri zobrazenom pohone. **[Profil a prehrávanie](#view-controls)** začínajú skryté; ich prepínače sú pri diagnostike.
 
@@ -50,6 +63,7 @@ Podrobný záznam noviniek, opráv a hraníc je v **[CHANGELOG.md](CHANGELOG.md)
 | [Prichytávanie na požiadanie](#snapping) | [Vlastné podzostavy](#assemblies) | [Pomenované verzie a porovnanie](#versions) |
 | [Magic import z náčrtu](#magic-import) | [Mierka a pevný rám](#magic-import) | [Bezpečné Finish alebo zrušenie](#magic-import) |
 | [Skrytie panelov a popisov](#view-controls) | [Aktuálny výrez do PDF](#exports) | [Animovaný GIF](#gif-export) |
+| [Bézierove body a polkruh s R](#curves) | [Rotačná vačka a valček](#cam) | [Hranice kontaktu](#limits) |
 
 Kliknutím na názov rozbaľovacieho návodu ho otvoríte. Navigácia a návody fungujú priamo na GitHube, bez JavaScriptu.
 
@@ -139,18 +153,18 @@ Toto je kinematický príklad. Nový bod má predvolene nulovú hmotnosť; samot
 <details>
 <summary><strong>Rozbaliť celý prehľad funkcií</strong></summary>
 
-- Knižnica prvkov: samostatný bod, pevný rám, lineárne vedenie, tiahlo, kulisa, ložisko, čelo, tlačná/ťažná pružina a tlačný/ťažný piest.
+- Knižnica prvkov: samostatný bod, pevný rám, lineárne vedenie, tiahlo, kulisa, rotačná vačka, ložisko, čelo, tlačná/ťažná pružina a tlačný/ťažný piest.
 - Click+Select bodov, koncov členov, väzieb a telies; Shift/Ctrl multiselect, skupinový posun a kontextové menu.
 - Pridávanie kliknutím alebo drag & drop, prichytávanie na mriežku, zarovnanie, zoom a meranie.
 - **Magic import**: lokálny obrázok, jednotná mierka z jednej známej hodnoty X/Y/A–B, voliteľné geometrické návrhy, ručne opravený rám, členy a väzby, samostatný projekt cez Finish.
 - Priame úchyty X/Y, otočenie okolo zvoleného bodu, dĺžka jednoduchého člena a presné číselné zadanie bez otvárania Vlastností.
 - Samostatná diagnostika konkrétnych väzieb, oddelené chyby v mm/°, zostávajúca voľnosť a upozornenia na opakované alebo konfliktné požiadavky.
-- Inteligentné prichytávanie bodov, stredov, vedení a osí, **iba po zapnutí tlačidlom**. Nový spoj vyžaduje ďalšie potvrdenie.
-- Otočný kĺb, posuvný kĺb, čap vo vedení, pevné spojenie, vzdialenosť, rovnobežnosť a relatívny uhol; upraviteľný názov, uzly a hodnota.
+- Inteligentné prichytávanie pri ťahaní aj drop: body, strednice, hrany a viditeľné trajektórie, **iba po zapnutí tlačidlom**. Samostatná sieť 5 mm. Nový spoj vyžaduje ďalšie potvrdenie.
+- Otočný kĺb, posuvný kĺb, čap vo vedení, vačkový kontakt, pevné spojenie, vzdialenosť, rovnobežnosť a relatívny uhol; upraviteľný názov, uzly a hodnota.
 - Inšpektor rozmerov, polohy, uhlov, ložísk, pohybových limitov a kontrolných bodov.
 - Ručné ťahanie výsuvu a čela s inverzným kinematickým výpočtom.
 - Automatický pohon, nastavenie rýchlosti, trvania cyklu, opakovania a presnej polohy.
-- Parametrická kulisa, oblúk, Bézierova krivka, spline a polyline; editovateľné vrcholy, nosné teleso a polygonálny obrys.
+- Parametrická kulisa, oblúk, presný polkruh s R, Bézierova krivka so všetkými 2–32 riadiacimi bodmi, spline a polyline; samostatné identity bodov, nosné teleso a polygonálny obrys.
 - Vizualizácia troch polôh a trajektória ľubovoľného dostupného uzlového bodu.
 - Živý graf pohybového profilu; kliknutím na graf sa nastaví poloha.
 - Nezávislé skrytie profilového grafu a prehrávania časovej osi, s trvalo dostupnými tlačidlami na obnovenie.
@@ -195,7 +209,11 @@ Vlastnosti sa samy neotvoria. Inteligentné prichytávanie začína vypnuté a z
 
 Vyberte dlhý známy úsek, aspoň 2 pixely. Známy rozmer musí byť 0,1–5 000 mm a celý kalibrovaný podklad sa musí zmestiť do rozsahu ±5 000 mm. Jedna mierka **neopravuje perspektívu, natočenie roviny ani skreslenie objektívu**. Kalibrácia neotáča obrázok. Fotografia šikmo odfotenej zostavy nie je presný technický výkres.
 
-Detekcia používa zmenšený raster do 768 × 768 px a najviac 60 kandidátov. V textoch, legendách, prekrytých čiarach a neostrých fotografiách môže navrhnúť nesprávne alebo chýbajúce prvky. Typ, konce, pevné časti a väzby musí skontrolovať používateľ; ručné nástroje ostávajú dostupné.
+Detekcia vychádza zo spojitého tvaru, vonkajšieho obrysu a priebehu strednice, nie z farebnej identity súčiastky. Rozpoznaný konkávny obrys rámu/ramena/čela sa prenesie v kalibrovanej mierke. Tenká zakrivená dráha ostáva spojitou lomenou strednicou. Rozvetvené alebo nejasné tvary sa nepredvyberajú; doplnkové návrhy podľa hrán pri prekrytí majú nízku dôveru. Farba je vzhľad, nie dôkaz fixácie, pohonu alebo funkcie.
+
+Detekcia používa zmenšený raster do 768 × 768 px, najviac 4 000 komponentov, 8 192 bodov jednej kontúry, 240 pracovných návrhov a 60 výsledných kandidátov. Zjednodušovanie má samostatný pracovný limit. V textoch, legendách, prekrytých čiarach a neostrých fotografiách môže navrhnúť nesprávne alebo chýbajúce prvky. Typ, konce, pevné časti a väzby musí skontrolovať používateľ; ručné nástroje ostávajú dostupné.
+
+Pri reálnej kontrole pribaleného náčrtu s troma polohami a legendou vzniklo 10 návrhov, z toho 6 predvybraných. Pracovný postup, vloženie a Späť fungovali, ale návrhy správne nezrekonštruovali obe kulisy a rameno. Tento obrázok preto vyžaduje ručnú opravu alebo obkreslenie, nie slepé prijatie automatického výsledku.
 
 </details>
 
@@ -263,7 +281,7 @@ Poloha piesta sa vypočíta z pevnej dĺžky ojnice a osi priamkového vedenia.
 
 Pridajte pevné body, vedenia, ramená a ložiská. Nástrojom **J** vyberte dva uzly. Kliknutím na drážku a uzol sa vytvorí čap vo vedení. Ložisko sa dá na kulisu naviazať aj priamo v inšpektore.
 
-Lineárne vedenie má riadený uzol **C**. Spojte ho so začiatkom ramena alebo čela. Na vlastnom ramene môžete zapnúť rotačný pohon; jeho začiatočný bod potom zostáva pevný. Aktivácia rotačného pohonu vypne ostatné vlastné pohony.
+Lineárne vedenie má body vozíka **C** (stred), **CT** (vrch) a **CB** (spodok). Ich poloha rešpektuje otočenie vedenia; môžete na ne pripojiť člen alebo pružinu. Na vlastnom ramene môžete zapnúť rotačný pohon; jeho začiatočný bod potom zostáva pevný. Aktivácia rotačného pohonu vypne ostatné vlastné pohony.
 
 Vlastné uzavreté reťazce používajú iteratívnu projekciu tuhých telies. Solver nemení dĺžky ramien. Ak nedosiahne polohovú toleranciu 0,05 mm alebo uhlovú toleranciu 0,05°, pomenuje nesplnenú väzbu. Pri zložitom alebo presne singularitnom reťazci upravte počiatočnú konfiguráciu, dĺžky alebo pevné uloženia.
 
@@ -283,6 +301,60 @@ Parametrickú šablónu zmeníte bez obmedzení cez **Voľná kópia**. Originá
 
 V inšpektore upravíte obrys, vrcholy krivky, nosné teleso, kóty a uložené trajektórie. Meranie vytvorí referenčnú kótu. Riadiaca dĺžka mení člen alebo vytvorí vzdialenostnú väzbu. Vypočítaná trajektória nie je sama vodiaca väzba; jej prevedená krivka je nezávislá kópia.
 
+<a id="curves"></a>
+
+## Bézierove body a polkruh s R
+
+<details>
+<summary><strong>Pridať, odstrániť alebo presne upraviť bod P0 až Pn</strong></summary>
+
+1. V **Úprave geometrie** vyberte vlastnú kulisu. Zobrazia sa jej riadiace body.
+2. Potiahnite konkrétny **P2**, alebo na ňom pravým klikom otvorte lokálne súradnice či **Pridať bod za P2**.
+3. Pravým klikom na dráhu použite **Pridať riadiaci bod tu**. Nový bod riadi tvar; nie je požiadavkou, aby cezň krivka prechádzala.
+4. **Odstrániť iba P2** odoberie bod, nie kulisu ani iné zvýraznené telesá. To isté platí pre samostatne vybraný vrchol obrysu V0 až Vn.
+5. Späť/znova obnovia operáciu aj výber. Zrušené alebo nulové ťahanie nezoberie predchádzajúci krok histórie.
+
+Bézier používa **všetky 2–32 body**, prechádza P0 a posledným bodom, ale nemusí prechádzať vnútornými riadiacimi bodmi. Spline naopak interpoluje svoje body a vyžaduje aspoň 4. Polyline má 2–1 001 vrcholov; obrys 3–64. Body možno upraviť aj hromadne vo formáte `X;Y`.
+
+Súradnice sú lokálne v mm, aj pri otočenom nosnom telese. Číselný formulár konkrétneho bodu prijíma výrazy a jednotky. Riadiace body nie sú montážne uzly ani fiktívne kĺby. Zameranie klávesnicou a **Shift+F10** sprístupnia ponuku presnej časti.
+
+</details>
+
+<details>
+<summary><strong>Previesť kulisu na presný polkruh</strong></summary>
+
+Pravým klikom na kulisu alebo jej riadiaci bod zvoľte **Previesť dráhu na polkruh s R…**. Vyberte R a stranu tetivy P0 → koniec.
+
+- Predvolený R je polovica vzdialenosti koncov a zachová oba konce.
+- Pri zmene R ostane **P0 pevný**. Druhý koniec sa posunie po pôvodnom smere tetivy na vzdialenosť **2R**.
+- Vznikne presný **180° oblúk s dvoma koncovými bodmi**. Zmena koncového bodu prepočíta R; zmena R zachová pravidlo P0/2R.
+- Natívny projekt, zmena mierky aj CAD strednica zachovajú R a stranu. Neplatný alebo nulový vstup nemení model ani históriu.
+
+Pôvodné chránené profily upravujte vo **Voľnej kópii**.
+
+</details>
+
+<a id="cam"></a>
+
+## Rotačná vačka s vedeným valčekom
+
+<details>
+<summary><strong>Vytvoriť kinematický kontakt</strong></summary>
+
+1. Vložte **Rotačnú vačku** z knižnice.
+2. V jej ponuke **Polomer, zdvih a fáza vačky…** nastavte základný R, zdvih h a fázu. Profil má jednu hladkú radiálnu vlnu, polomer R až R + h.
+3. Zvoľte **Pridať vedený valčekový sledovač**. Vznikne pevné priame vedenie, posúvač, nesené ložisko a dve väzby: posuvný kĺb a vačkový kontakt.
+4. Vačke priraďte **otočný pohon na osi A**. Prepnite na simuláciu a overte rozsah, napríklad 0–360°.
+5. Existujúci valček možno pripojiť aj vačkovým kontaktom k profilu. Jeho vedenie a ostatné uloženia musia odstrániť nežiaducu voľnosť.
+
+Kontakt používa **skutočný polomer valčeka**, nie jeho stred položený na obryse. Model predpokladá **trvalý dotyk**. Nepočíta kontaktnú reakciu, odskok ani stratu kontaktu; odhadová dynamika model s týmto kontaktom výslovne odmietne.
+
+Vačka má iba fyzický uzol **A**. Predvolené sledovanie a Analýza používajú os A, nie fiktívny koniec B; rotáciu vyjadruje uhol telesa. Rozsah jej otočného pohonu a vzorkovania je v **stupňoch**, napríklad 0–360°, nie v mm.
+
+Natívny projekt zachová profil aj kontakt. DXF/Fusion prenesú uzavretý referenčný profil `CAM`, os `CAM_AXIS` a obrys vozíka `RAIL_CARRIAGE`, nie fyzikálne Fusion joints ani výrobný návrh.
+
+</details>
+
 <a id="view-controls"></a>
 
 ## Skrytie panelov a popisov schémy
@@ -299,7 +371,7 @@ Všetky tri voľby si pamätajú nastavenia pracovného priestoru aj `.kinmo`. P
 
 Ľavým kliknutím vyberiete bod, kĺb alebo telo členu. Koncové body majú prednosť pred telesom a približovanie nemení veľkosť ich klikateľnej oblasti. **Shift/Ctrl/Cmd + klik** pridá alebo odoberie položku. Kliknutie na prázdne plátno výber zruší. Symboly a kurzor odlišujú pevné, voľné a poháňané body; akcent zvýrazňuje výber.
 
-**Pravé tlačidlo** otvorí vlastnú ponuku, nie ponuku prehliadača. Pravý klik na už vybraný objekt zachová skupinu. Ponuka sa zmestí do viewportu a zavrie sa kliknutím mimo nej, Escape, posunom alebo priblížením plátna. Klávesnica podporuje Shift+F10, šípky, Home/End, Enter a Escape. Výber ani kontextové formuláre automaticky neotvárajú Vlastnosti.
+**Pravé tlačidlo** otvorí vlastnú ponuku, nie ponuku prehliadača. Pravý klik na časť už zvýrazneného telesa zachová skupinu, ale cieľom ponuky ostáva presne kliknutý bod, vrchol či dráha. Pravý klik na pozadie výber neruší. Ponuka sa zmestí do viewportu a zavrie sa kliknutím mimo nej, Escape, posunom alebo priblížením plátna. Klávesnica podporuje Shift+F10, šípky, Home/End, Enter a Escape. Výber ani kontextové formuláre automaticky neotvárajú Vlastnosti.
 
 Výber používa aj geometriu, takže nemusíte trafiť presný SVG element a prekrývajúca vrstva neodstráni dostupnosť člena. **Vybrať entitu pod kurzorom** rozlíši prekrývajúce sa uzly, kĺby a telesá. Podponuky sa otvoria kurzorom alebo pravou šípkou a neoreže ich posuvná hlavná ponuka. **Klik mimo číselného dialógu ho nezatvorí**, dialóg sa potvrdzuje alebo ruší výslovne.
 
@@ -308,6 +380,8 @@ Výber používa aj geometriu, takže nemusíte trafiť presný SVG element a pr
 | Bod / kĺb | Otočný alebo posuvný kĺb, odpojenie, fixácia, pohon, limity, absolútne XYZ, mriežka 5 mm, zarovnanie, trajektória a odstránenie |
 | Telo jednoduchého ramena | Zoznam väzieb, odpojenie všetkých väzieb, fixácia celého telesa, pohon vybraného konca, XYZ, rozdelenie v strede, pripojený POI, vlastnosti a odstránenie |
 | Rozmerová kóta | Úprava a odstránenie iba tejto kóty a jej vlastnej riadiacej väzby, nie vybraných členov |
+| Riadiaci bod / vrchol obrysu | Lokálne súradnice, pridanie alebo odstránenie iba presnej časti; bod nie je montážny kĺb |
+| Dráha kulisy | Pridanie riadiaceho bodu a prevod na polkruh s R |
 | Prázdne plátno | Samostatný bod, pevný Ground bod, priame vedenie, štvorkĺbová alebo kľuková podzostava a prispôsobenie pohľadu |
 
 <details>
@@ -390,14 +464,14 @@ Odchýlky mm/° zostávajú oddelené aj v analýze, kinematickom CSV a PDF/HTML
 <summary><strong>Zapnúť náhľad prichytenia a samostatne potvrdiť spoj</strong></summary>
 
 1. **Inteligentné prichytávanie je pri štarte a po každom načítaní projektu vypnuté.** Zapnite ho výslovne jeho tlačidlom na plátne.
-2. Pri ťahaní uzla, skupiny alebo X/Y úchytu sa ponúkne blízky koncový bod, stred člena, vodiaca krivka alebo osové zarovnanie. Tolerancia je približne **9 pixelov obrazovky**, aj po zoome.
+2. Pri ťahaní uzla, skupiny, úchytu alebo pri drop z knižnice sa ponúkne blízky koncový bod, stred/os člena, hrana, vedenie alebo viditeľná trajektória. Voľný koniec pružiny aj body vozíka C/CT/CB používajú tú istú geometriu. Tolerancia je približne **9 pixelov obrazovky**, aj po zoome.
 3. Náhľad upraví polohu, ale **nevytvorí väzbu**. Po uvoľnení sa pri skutočnom bode alebo vedení zobrazí samostatná otázka.
 4. Vyberte **Ponechať iba polohu**, alebo potvrďte skutočný otočný kĺb, posuvný kĺb či čap vo vedení. Stredový POI vznikne až po potvrdení.
-5. Potvrdenie spojenia je ďalší krok Späť. Jeho zrušenie ponechá prichytenú polohu. Osové zarovnanie spoj nikdy nevytvára.
+5. Potvrdenie spojenia je ďalší krok Späť. Jeho zrušenie ponechá prichytenú polohu. Osi, hrany ani vypočítaná trajektória samy spoj nevytvárajú.
 
 Vlastné teleso a jeho nesení potomkovia nie sú cieľom pre nadbytočné prichytenie. Neaktuálny náhľad ani duplicitná väzba sa nepotvrdia. Vypnutie tlačidlom zruší aj rozpracované ťahanie.
 
-Toto je samostatná funkcia od bežného **prichytávania na mriežku 5 mm**. Nastavenie inteligentného prichytávania sa neukladá do preferencií, `.kinmo` ani pomenovaných verzií.
+Tlačidlo **Sieť 5 mm** je nezávislé. Jeho vypnutie umožní voľnú polohu, ale nevypne inteligentné prichytávanie ani kreslenú mriežku pozadia. Viditeľnosť mriežky je ďalšia samostatná voľba. Nastavenie inteligentného prichytávania sa neukladá do preferencií, `.kinmo` ani pomenovaných verzií.
 
 </details>
 
@@ -450,6 +524,8 @@ Limit je **40 verzií naprieč projektmi a 2 MB spolu**, vrátane záloh pred ob
 ## Pružiny, piesty a odhadová dynamika
 
 Pridajte pružný prvok a nastavte montážne body A/B v inšpektore. Zadajte minimálnu, maximálnu a voľnú dĺžku, priemer, silu alebo tuhosť, predpätie a osové tlmenie. Piest má aj priemer tyče a pomer progresie 1–3. **F je v N, k v N/mm, osové tlmenie v N·s/m, hmotnosť v kg a zotrvačnosť v kg·m².**
+
+Nenamontovaný koniec A/B môžete v editore samostatne ťahať a prichytávať. Namontovaný koniec sleduje svoje teleso a neprepisuje sa ručným posunom; pred úpravou ho odpojte. Montážna ponuka zahŕňa aj stred/vrch/spodok vozíka C/CT/CB.
 
 - Tlačná pružina: $F = k \max(0, L_0-L)$.
 - Ťažná pružina: $F = -(F_0+k(L-L_0))$ pri $L \ge L_0$, inak nulová sila.
@@ -711,10 +787,12 @@ Bez Node.js môžete otvoriť `tests/browser.html`. Spúšťa spoločné výpoč
 
 | Posledné zaznamenané lokálne overenie | Výsledok |
 |---|---|
-| Syntax, JavaScript testy a build | 542 JS testov, bez zlyhania |
-| Izolovaný Python / Fusion | 23 testov, bez zlyhania (skorší beh tohto rozšírenia) |
-| Spoločné prehliadačové testy | 338 / 338 cez HTTP aj sieťovo vypnuté `file://` |
-| Aktuálne rozhranie | Natívne kliknutia a snímky desktop/mobil; presný rozsah v `VALIDATION.md` |
+| Syntax, JavaScript testy a build | 591 JS testov, bez zlyhania |
+| Statické assety | 25 súborov sa zhoduje so zdrojmi; 26 verejných súborov vrátane deterministického ZIP |
+| Historický Python / Fusion | 23 testov, bez zlyhania; v aktuálnom kole sa nezopakovali |
+| Aktuálne spoločné prehliadačové testy | 362 / 362 cez HTTP aj sieťovo vypnuté `file://` |
+| Historické spoločné prehliadačové testy | 338 / 338 pri vydaní `5e9798b`, nie počet aktuálnej sady |
+| Prehliadačové rozhranie | Presný rozsah aktuálneho kola a oddelená história v `VALIDATION.md` |
 | Historické UI overenie pred týmto rozšírením | 147 / 147 desktop a offline mobil |
 
 Rozsah, aktuálne prehliadačové výsledky a historické kontroly sú oddelené v **[VALIDATION.md](VALIDATION.md)**. VM UI testy nenahrádzajú natívne gestá. Živý Fusion import, vzdialené CI a produkčné nasadenie sa pri tomto rozšírení nevykonali; lokálne výsledky ich nepotvrdzujú.
@@ -725,7 +803,7 @@ Pri oprave chyby pridajte regresiu do príslušnej sady v [`tests/`](tests/). Za
 
 ## GitHub a Cloudflare Workers
 
-Zdrojový repozitár je **[bucala/Kinematicke_modely](https://github.com/bucala/Kinematicke_modely)**, produkčná vetva **main** a existujúci Cloudflare Worker **kinematicke-modely**. Táto verzia zahŕňa úchyty, diagnostiku, opt-in prichytávanie, podzostavy, pomenované verzie, referenčné obrysy drážok a Magic import. [História zmien](CHANGELOG.md) opisuje celý rozsah. Podrobný postup publikovania je v **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+Zdrojový repozitár je **[bucala/Kinematicke_modely](https://github.com/bucala/Kinematicke_modely)**, produkčná vetva **main** a existujúci Cloudflare Worker **kinematicke-modely**. Táto verzia pridáva k úchytom, diagnostike, podzostavám, verziám a Magic import aj rozšírený snap, vačku a presné krivkové časti. [História zmien](CHANGELOG.md) opisuje celý rozsah. Podrobný postup publikovania je v **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 [GitHub Actions](https://github.com/bucala/Kinematicke_modely/actions/workflows/ci.yml) kontrolujú syntax, JavaScript, izolované Python CAD testy a build pri pushi a pull requeste na `main`. Nasadzovanie cez **Workers Builds** sa pripája v nastaveniach existujúceho Workeru.
 

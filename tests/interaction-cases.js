@@ -10,6 +10,72 @@
   const link = () => ({ ...K.makeElement('link', 10, 20), length: 100 });
   const joint = (a, b, type = 'revolute') => ({ id: K.uid(), a, b, type, value: 0, name: 'Väzba' });
 
+  add('Krivky: Bézier ľubovoľného stupňa používa všetky P0 až Pn a neinterpoluje vnútorné riadiace body.', () => {
+    const points = [{ x: 0, y: 0 }, { x: 10, y: 40 }, { x: 80, y: 90 }, { x: 100, y: -10 }, { x: 130, y: 40 }];
+    const middle = K.bezier(points, .5); near(middle.x, 65.625, 1e-8); near(middle.y, 43.75, 1e-8);
+    near(K.bezier(points, 1).x, 130); near(K.bezier(points, 1).y, 40);
+    const e = { ...K.makeElement('slot', 0, 0), controls: points }, p = custom(e), path = E.design(p, 0).poses[e.id].path;
+    near(path.at(-1).x, 130); near(path.at(-1).y, 40);
+    const quadratic = custom({ ...e, controls: [{ x: 0, y: 0 }, { x: 50, y: 100 }, { x: 100, y: 0 }] });
+    near(E.design(quadratic, 0).poses[e.id].path[50].y, 50);
+  });
+  add('Krivky: riadiaci bod a dráha majú vlastnú identitu, nie fiktívnu montážnu referenciu.', () => {
+    const e = K.makeElement('slot'), p = custom(e), key = I.controlKey(e.id, 2), t = I.target(p, key);
+    assert(t.type === 'control' && t.index === 2 && t.elementId === e.id && !I.reference(t));
+    assert(I.target(p, I.pathKey(e.id)).type === 'path'); assert(!I.target(p, I.controlKey(e.id, 99)));
+  });
+  add('Krivky: vymazanie P2 zníži Bézierov stupeň bez vymazania kulisy a odmietne menej než dva body.', () => {
+    const e = K.makeElement('slot'), p = custom(e), before = JSON.stringify(p), next = I.removeControl(p, e.id, 2);
+    assert(next.elements.length === 1 && next.elements[0].controls.length === 3);
+    near(next.elements[0].controls[2].x, e.controls[3].x);
+    const linear = I.removeControl(next, e.id, 1); assert(linear.elements[0].controls.length === 2);
+    throws(() => I.removeControl(linear, e.id, 1)); throws(() => I.removeControl(p, e.id, -1));
+    throws(() => I.removeControl(K.preset('drawer'), 'slot-1', 2));
+    assert(JSON.stringify(p) === before);
+  });
+  add('Krivky: nový riadiaci bod z dráhy použije lokálnu sústavu otočeného nosného telesa a má limit 32.', () => {
+    const carrier = { ...link(), angle: 30, locked: true }, e = { ...K.makeElement('slot', 15, 20), parentId: carrier.id, angle: 25 };
+    const p = custom(carrier, e), result = E.design(p, 0), pose = result.poses[e.id], local = { x: 45, y: 15 }, rotated = K.rotate(local, pose.angle);
+    const at = { x: pose.controlOrigin.x + rotated.x, y: pose.controlOrigin.y + rotated.y }, next = I.insertControl(p, e.id, at, 2, result);
+    const controls = next.elements.find((v) => v.id === e.id).controls;
+    assert(controls.length === 5); near(controls[2].x, local.x); near(controls[2].y, local.y);
+    const full = custom({ ...e, parentId: '', controls: Array.from({ length: 32 }, (_, i) => ({ x: i * 4, y: i % 3 })) });
+    throws(() => I.insertControl(full, e.id, { x: 30, y: 20 }, 2));
+    assert(p.elements.find((v) => v.id === e.id).controls.length === 4);
+  });
+  add('Krivky: polkruh zachová počiatočné konce a zmena R ponechá P0 a posunie druhý koniec na 2R.', () => {
+    const e = { ...K.makeElement('slot', 0, 0), controls: [{ x: 10, y: 20 }, { x: 10, y: 80 }, { x: 110, y: 80 }, { x: 110, y: 20 }] }, p = custom(e), before = JSON.stringify(p);
+    const next = I.semicircle(p, e.id), arc = next.elements[0], points = E.design(next, 0).poses[e.id].path;
+    assert(arc.curveKind === 'arc' && arc.curveSemicircle && arc.controls.length === 2); near(arc.curveRadius, 50);
+    for (const point of points) near(K.distance(point, { x: 60, y: 20 }), 50, 1e-7);
+    near(points[0].x, 10); near(points.at(-1).x, 110); assert(points[90].y > 20);
+    const changed = I.semicircle(next, e.id, 75).elements[0]; near(changed.controls[0].x, 10); near(changed.controls[1].x, 160);
+    near(changed.controls[1].y, 20); near(changed.curveRadius, 75);
+    throws(() => I.semicircle(p, e.id, 0)); throws(() => I.semicircle(p, e.id, Infinity)); assert(JSON.stringify(p) === before);
+  });
+  add('Krivky: strana polkruhu je konzistentná aj pri zvislej tetive a presun konca prepočíta R.', () => {
+    const e = { ...K.makeElement('slot', 0, 0), controls: [{ x: 0, y: 0 }, { x: 0, y: 30 }, { x: 0, y: 60 }, { x: 0, y: 100 }] }, p = custom(e);
+    const left = I.semicircle(p, e.id, 50, 1), right = I.semicircle(p, e.id, 50, -1);
+    assert(E.design(left, 0).poses[e.id].path[90].x < 0 && E.design(right, 0).poses[e.id].path[90].x > 0);
+    const moved = I.setControlPoint(left, e.id, 1, { x: 0, y: 80 }); near(moved.elements[0].curveRadius, 40);
+    assert(moved.elements[0].curveSemicircle);
+    throws(() => I.setControlPoint(left, e.id, 1, { x: 0, y: 0 }));
+    throws(() => custom({ ...left.elements[0], curveRadius: 30 }));
+  });
+  add('Šablónové vozíky majú montážne CT/CB a nesený bod ich sleduje počas celého pohonu.', () => {
+    for (const kind of ['drawer', 'crank', 'double-drawer']) {
+      let p = K.preset(kind); const rail = p.elements.find((e) => e.type === 'rail'), node = { ...K.makeElement('node', 0, 0), parentId: rail.id, parentPoint: 'cb' };
+      rail.drive = false; p.elements.push(node); p = K.validateProject(p); const range = K.driveRange(p);
+      assert(!I.fixed(p, { elementId: node.id, point: 'a' })); assert(I.status(p, { elementId: node.id, point: 'a' }) === 'driven');
+      for (const fraction of [0, .25, .5, .75, 1]) {
+        const result = K.solve(p, range.min + (range.max - range.min) * fraction, { collisions: false }), pose = result.poses[rail.id];
+        assert(pose.ct && pose.cb && pose.carriageOutline.length === 4);
+        near(pose.ct.y, pose.c.y - rail.carriageHeight / 2); near(pose.cb.y, pose.c.y + rail.carriageHeight / 2);
+        near(result.poses[node.id].a.x, pose.cb.x); near(result.poses[node.id].a.y, pose.cb.y);
+      }
+    }
+  });
+
   add('Plátno pridá skutočný voľný uzol bez zmeny pôvodného projektu.', () => {
     const original = custom(), p = I.addNode(original, { x: 42, y: -18 }), e = p.elements[0];
     assert(!original.elements.length && e.type === 'node' && !e.locked && e.mass === 0);

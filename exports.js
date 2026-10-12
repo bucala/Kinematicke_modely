@@ -152,6 +152,8 @@
         }
       } else if (e.type === 'ground') poly(e, [pose.a, pose.b]);
       else poly(e, polygon(pose, e.primary && e.type === 'panel' ? p.panelThickness : e.width), true);
+      if (e.type === 'cam') entities.push({ kind: 'circle', elementId: e.id, name: `${e.name} · os`, layer: 'CAM_AXIS', center: point(pose.a), radius: 3, color: stroke(e) });
+      if (pose.carriageOutline?.length) poly(e, pose.carriageOutline, true, 'RAIL_CARRIAGE');
       if (options.labels !== false) text(e.name, { x: (pose.a.x + pose.b.x) / 2, y: (pose.a.y + pose.b.y) / 2 - 12 }, 'LABELS', e.id);
     }
     const dimensions = [...(project.dimensions || [])];

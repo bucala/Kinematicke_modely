@@ -53,8 +53,20 @@
     });
   }
 
+  function camMass(pose) {
+    const points = pose.outline.map((p) => ({ x: p.x - pose.a.x, y: p.y - pose.a.y }));
+    let area = 0, x = 0, y = 0, moment = 0;
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i], b = points[(i + 1) % points.length], cross = a.x * b.y - b.x * a.y;
+      area += cross; x += (a.x + b.x) * cross; y += (a.y + b.y) * cross;
+      moment += cross * (a.x * a.x + a.x * b.x + b.x * b.x + a.y * a.y + a.y * b.y + b.y * b.y);
+    }
+    const center = { x: x / (3 * area), y: y / (3 * area) };
+    return { center: { x: pose.a.x + center.x, y: pose.a.y + center.y }, variance: Math.max(0, moment / (6 * area) - center.x ** 2 - center.y ** 2) };
+  }
   function centerOfMass(element, pose) {
     if (element.com) return K.worldPoint(pose, element.com);
+    if (element.type === 'cam') return camMass(pose).center;
     if (['bearing', 'node'].includes(element.type)) return pose.a;
     if (element.type === 'rail' && pose.c) return pose.c;
     return { x: (pose.a.x + pose.b.x) / 2, y: (pose.a.y + pose.b.y) / 2 };
@@ -62,6 +74,10 @@
 
   function inertia(element, pose) {
     if (element.inertia > 0) return element.inertia;
+    if (element.type === 'cam') {
+      const mass = camMass(pose), at = centerOfMass(element, pose);
+      return (element.mass || 0) * (mass.variance + K.distance(mass.center, at) ** 2) / 1000000;
+    }
     if (['bearing', 'node'].includes(element.type)) return 0;
     const length = pose.length / 1000, width = (element.width || 0) / 1000;
     return (element.mass || 0) * (length * length + width * width) / 12;
@@ -69,6 +85,7 @@
 
   function prepare(project, options = {}) {
     const p = K.validateProject(project), range = K.driveRange(p), scale = range.unit === '°' ? K.DEG : 0.001;
+    if (p.connections.some((j) => j.type === 'cam-contact')) throw new Error('Vačkový kontakt je kinematický s predpokladom trvalého dotyku. Odhadová dynamika nepočíta kontaktné reakcie, predpätie ani odtrhnutie valčeka.');
     const profile = options.profile || K.prepareProject(p);
     const initial = K.solve(p, options.motion ?? range.min, { profile, collisions: options.collisions !== false });
     if (initial.blocked) throw new Error(`Dynamiku nemožno spustiť: ${initial.issues[0]}`);

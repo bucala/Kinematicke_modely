@@ -6,9 +6,13 @@
   const elementKey = (id) => `e:${id}`;
   const jointKey = (id) => `j:${id}`;
   const dimensionKey = (id) => `d:${id}`;
+  const controlKey = (id, index) => `p:${id}:control:${index}`;
+  const outlineKey = (id, index) => `p:${id}:outline:${index}`;
+  const pathKey = (id) => `p:${id}:path`;
   const same = (a, b) => a?.elementId === b?.elementId && a?.point === b?.point;
-  const pointKeys = (e) => ['bearing', 'node'].includes(e.type) ? ['a'] : ['panel', 'rail'].includes(e.type) ? ['a', 'b', 'c'] : ['a', 'b'];
+  const pointKeys = K.pointKeys;
   const poseOf = (p) => E.design(p, K.driveRange(p).min);
+  const controlPoints = (p, e) => e?.primary && p.kind === 'drawer' && e.id === 'slot-1' ? p.controls || K.defaultControls(p.parameters) : e?.controls || [];
   const mutable = (e) => {
     if (!e || e.primary) throw new Error('Pôvodná šablóna je chránená. Najskôr vytvorte voľnú kópiu.');
     return e;
@@ -27,6 +31,13 @@
       const [, elementId, point] = key.split(':'), element = project.elements.find((e) => e.id === elementId);
       return element && pointKeys(element).includes(point) ? { type: 'node', id: key, elementId, point, element } : null;
     }
+    if (key.startsWith('p:')) {
+      const [, elementId, kind, value] = key.split(':'), element = project.elements.find((e) => e.id === elementId), index = Number(value);
+      if (!element) return null;
+      if (kind === 'path') return element.type === 'slot' ? { type: 'path', id: key, elementId, element } : null;
+      const points = kind === 'control' && element.type === 'slot' ? controlPoints(project, element) : kind === 'outline' ? element.outline : null;
+      return points && Number.isInteger(index) && index >= 0 && index < points.length ? { type: kind, id: key, elementId, element, index } : null;
+    }
     const id = key.startsWith('e:') ? key.slice(2) : key, element = project.elements.find((e) => e.id === id);
     return element ? { type: 'link', id, elementId: id, element } : null;
   }
@@ -34,15 +45,17 @@
   const select = (ids, key, additive = false) => !key ? [] : !additive ? [key] : ids.includes(key) ? ids.filter((id) => id !== key) : [...ids, key];
   const reference = (t) => t?.type === 'node' ? { elementId: t.elementId, point: t.point } : t?.type === 'joint' ? K.copy(t.joint.a.point === 'curve' ? t.joint.b : t.joint.a) : null;
   function root(project, e) {
-    while (e?.parentId) e = project.elements.find((v) => v.id === e.parentId);
-    return e;
+    return rootReference(project, e).body;
   }
+  function rootReference(project, e, point) {
+    while (e?.parentId) { point = e.parentPoint; e = project.elements.find((v) => v.id === e.parentId); }
+    return { body: e, point };
+  }
+  const railDriven = (p, e, point) => e?.primary && (e.role === 'carrier' || p.kind === 'drawer' && point === 'b') || (e?.drive || e?.primary) && K.carriagePoints.includes(point);
   function fixed(project, r) {
-    const e = project.elements.find((v) => v.id === r.elementId), body = root(project, e);
+    const e = project.elements.find((v) => v.id === r.elementId), { body, point: rootPoint } = rootReference(project, e, r.point);
     if (!body) return false;
-    let rootPoint = r.point, child = e;
-    while (child?.parentId) { rootPoint = child.parentPoint; child = project.elements.find((v) => v.id === child.parentId); }
-    if (body.type === 'rail' && (!body.drive || rootPoint !== 'c')) return true;
+    if (body.type === 'rail' && !railDriven(project, body, rootPoint)) return true;
     if (body.type === 'ground' || (!body.primary && body.locked && !body.drive) || body.type === 'slot') return true;
     if (e === body && body.drive && body.driveMode === 'rotary' && r.point === body.drivePivot) return true;
     return project.connections.some((j) => ['revolute', 'fixed'].includes(j.type || 'revolute') && [j.a, j.b].some((a, i) => {
@@ -52,8 +65,8 @@
     }));
   }
   function status(project, r, samples = []) {
-    const e = root(project, project.elements.find((v) => v.id === r.elementId));
-    if (e?.drive || (e?.primary && (['input', 'carrier'].includes(e.role) || (e.type === 'rail' && (r.point === 'c' || (project.kind === 'drawer' && r.point === 'b')))))) return 'driven';
+    const { body: e, point } = rootReference(project, project.elements.find((v) => v.id === r.elementId), r.point);
+    if (e?.type === 'rail' ? railDriven(project, e, point) : e?.drive || e?.primary && ['input', 'carrier'].includes(e.role)) return 'driven';
     if (e?.primary && samples.length) {
       const first = K.point(samples[0], r);
       return first && samples.every((s) => K.point(s, r) && K.distance(first, K.point(s, r)) < K.TOLERANCE) ? 'fixed' : 'free';
@@ -160,7 +173,7 @@
       const parent = root(p, e);
       if ((shouldFix && !e.parentId) || (e.drive && e.driveMode === 'rotary' && e.drivePivot === r.point)) storePose(e, result);
       if (!shouldFix && e.parentId && (parent.locked || parent.type === 'ground') && ['node', 'bearing'].includes(e.type)) detach(p, e, result.poses);
-      if (!shouldFix && e.type === 'rail' && r.point === 'c') {
+      if (!shouldFix && e.type === 'rail' && K.carriagePoints.includes(r.point)) {
         if (p.kind !== 'custom' || p.elements.some((v) => v.drive && v.id !== e.id)) throw new Error('Obnovenie vozíka vyžaduje vlastný model bez ďalšieho nezávislého pohonu.');
         e.drive = true;
       } else if (['node', 'bearing'].includes(e.type) && !e.parentId) { e.locked = shouldFix; if (shouldFix) e.drive = false; }
@@ -186,13 +199,15 @@
     return K.validateProject(p);
   }
   function deleteSelection(project, keys, result = poseOf(project)) {
-    const p = K.copy(project), removed = new Set(), joints = [], dimensions = new Set();
-    for (const key of keys) {
+    const p = K.copy(project), removed = new Set(), joints = [], dimensions = new Set(), parts = [];
+    for (const key of new Set(keys)) {
       const t = target(p, key); if (!t) continue;
       if (t.type === 'joint') joints.push(t.id);
       else if (t.type === 'dimension') dimensions.add(t.id);
+      else if (['control', 'outline'].includes(t.type)) parts.push(t);
       else removed.add(mutable(t.element).id);
     }
+    for (const t of parts.sort((a, b) => b.index - a.index)) if (!removed.has(t.elementId)) erasePart(mutable(p.elements.find((e) => e.id === t.elementId)), t.index, t.type === 'outline');
     const owned = p.dimensions.filter((d) => dimensions.has(d.id)).map((d) => d.constraintId).filter(Boolean);
     p.dimensions = p.dimensions.filter((d) => !dimensions.has(d.id));
     joints.push(...owned.filter((id) => !p.dimensions.some((d) => d.constraintId === id) && p.connections.some((j) => j.id === id && !j.builtin)));
@@ -213,9 +228,11 @@
     if (!pose?.[r.point] || !Number.isFinite(at.x) || !Number.isFinite(at.y) || (at.z != null && at.z !== 0)) throw new Error('Zadajte platné X a Y; v 2D musí byť Z = 0.');
     const parent = result.poses[e.parentId], parentAngle = parent?.angle || 0;
     const localOrigin = (point) => parent ? K.rotate({ x: point.x - parent[e.parentPoint].x, y: point.y - parent[e.parentPoint].y }, -parentAngle) : point;
-    if (e.type === 'rail' && r.point === 'c') throw new Error('Polohu vozíka určuje pohon. Upravte jeho zdvih alebo polohu vedenia.');
+    if (e.type === 'rail' && K.carriagePoints.includes(r.point)) throw new Error('Polohu vozíka určuje pohon. Upravte jeho zdvih alebo polohu vedenia.');
+    if (K.isElastic(e) && K.elasticMount(p, e, r.point)) throw new Error('Montážny bod je pripojený. Najskôr ho odpojte alebo upravte nosné teleso.');
     if (e.type === 'slot') {
       e.controls[r.point === 'a' ? 0 : e.controls.length - 1] = K.localPoint({ a: pose.controlOrigin, angle: pose.angle }, at);
+      if (e.curveSemicircle) e.curveRadius = K.distance(e.controls[0], e.controls[1]) / 2;
     } else if (['bearing', 'node'].includes(e.type)) {
       const v = localOrigin(at); e.x = v.x; e.y = v.y;
     } else if (r.point === 'c') e.localC = K.localPoint(pose, at);
@@ -227,6 +244,63 @@
       const other = p.elements.find((v) => v.id === (same(j.a, r) ? j.b : j.a).elementId);
       if (other?.role === 'canvas-anchor') { other.x = at.x; other.y = at.y; }
     }
+  }
+  function erasePart(e, index, outline = false) {
+    const points = outline ? e.outline : e.controls, minimum = outline ? 3 : e.curveKind === 'spline' ? 4 : 2;
+    if (!outline && e.type !== 'slot' || !points || !Number.isInteger(index) || index < 0 || index >= points.length) throw new Error('Vyberte existujúci riadiaci bod alebo vrchol.');
+    if (points.length <= minimum) throw new Error(`Profil musí mať aspoň ${minimum} body. Tento bod už nemožno odstrániť.`);
+    points.splice(index, 1);
+    if (outline) K.validateOutline(points);
+  }
+  function removeControl(project, id, index) {
+    const p = K.copy(project), e = mutable(p.elements.find((e) => e.id === id));
+    erasePart(e, index); return K.validateProject(p);
+  }
+  function setControlPoint(project, id, index, at, outline = false) {
+    const p = K.copy(project), e = mutable(p.elements.find((e) => e.id === id)), points = outline ? e.outline : e.controls;
+    if (!outline && e.type !== 'slot' || !points || !Number.isInteger(index) || index < 0 || index >= points.length || !Number.isFinite(at?.x) || !Number.isFinite(at?.y)) throw new Error('Vyberte existujúci bod a platné lokálne X/Y.');
+    points[index] = { x: at.x, y: at.y };
+    if (outline) K.validateOutline(points);
+    else if (e.curveSemicircle) e.curveRadius = K.distance(points[0], points[1]) / 2;
+    return K.validateProject(p);
+  }
+  function insertControl(project, id, at = null, index = null, result = poseOf(project)) {
+    const p = K.copy(project), e = mutable(p.elements.find((e) => e.id === id)), pose = result.poses[id], points = e.controls;
+    if (e.type !== 'slot' || e.curveKind === 'arc' || points.length >= (e.curveKind === 'polyline' ? 1001 : 32)) throw new Error('Do oblúka bod nepridávajte; Bézier a spline majú najviac 32 bodov.');
+    if (index == null) {
+      let fraction = .5, minimum = Infinity;
+      if (at) for (let i = 1; i < pose.path.length; i++) {
+        const nearest = K.nearestOnSegment(at, pose.path[i - 1], pose.path[i]);
+        if (nearest.distance < minimum) { minimum = nearest.distance; fraction = (i - 1 + nearest.t) / (pose.path.length - 1); }
+      }
+      index = Math.max(1, Math.min(points.length - 1, Math.floor(fraction * (points.length - 1)) + 1));
+    }
+    if (!Number.isInteger(index) || index < 0 || index > points.length) throw new Error('Poradie nového riadiaceho bodu je neplatné.');
+    let local;
+    if (at) {
+      if (!Number.isFinite(at.x) || !Number.isFinite(at.y)) throw new Error('Bod musí mať platné X/Y.');
+      local = K.localPoint({ a: pose.controlOrigin || pose.a, angle: pose.angle }, at);
+    } else {
+      const a = points[Math.max(0, index - 1)], b = points[Math.min(points.length - 1, index)], adjacent = index === points.length ? points.at(-2) : points[1];
+      local = index === 0 || index === points.length ? { x: a.x + (a.x - adjacent.x) / 2, y: a.y + (a.y - adjacent.y) / 2 } : { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    }
+    points.splice(index, 0, local);
+    return K.validateProject(p);
+  }
+  function semicircle(project, id, radius = null, side = null, result = poseOf(project)) {
+    const p = K.copy(project), e = mutable(p.elements.find((e) => e.id === id));
+    if (e.type !== 'slot') throw new Error('Na polkruh možno previesť vodiacu kulisu.');
+    const a = e.controls[0], b = e.controls.at(-1), length = K.distance(a, b);
+    if (length < K.EPS || radius != null && (!Number.isFinite(radius) || radius <= 0 || radius > 5000)) throw new Error('Polkruh potrebuje rôzne konce a kladný polomer do 5000 mm.');
+    radius ??= length / 2;
+    if (side == null) {
+      const pose = result.poses[id], mid = K.localPoint({ a: pose.controlOrigin || pose.a, angle: pose.angle }, pose.path[Math.floor(pose.path.length / 2)]);
+      side = e.curveSemicircle ? e.curveSide : (b.x - a.x) * (mid.y - a.y) - (b.y - a.y) * (mid.x - a.x) < 0 ? -1 : 1;
+    }
+    if (![1, -1].includes(side)) throw new Error('Vyberte jednu z dvoch strán tetivy.');
+    e.controls = [{ ...a }, { x: a.x + (b.x - a.x) * 2 * radius / length, y: a.y + (b.y - a.y) * 2 * radius / length }];
+    e.curveKind = 'arc'; e.curveRadius = radius; e.curveSide = side; e.curveSemicircle = true;
+    return K.validateProject(p);
   }
   function setCoordinates(project, r, at, result = poseOf(project)) {
     const p = K.copy(project); coordinates(p, r, at, result); return K.validateProject(p);
@@ -245,7 +319,7 @@
   }
   function translate(project, keys, delta, result = poseOf(project)) {
     let p = K.copy(project);
-    const bodies = new Set(keys.map((key) => target(p, key)).filter((t) => t?.type === 'link').map((t) => t.elementId));
+    const bodies = new Set(keys.map((key) => target(p, key)).filter((t) => ['link', 'path'].includes(t?.type)).map((t) => t.elementId));
     const carried = (e) => {
       while (e?.parentId) {
         if (bodies.has(e.parentId)) return true;
@@ -255,7 +329,7 @@
     };
     for (const id of bodies) {
       const e = mutable(p.elements.find((v) => v.id === id));
-      if (e.locked || e.type === 'ground' || carried(e)) continue;
+      if (e.locked || e.type === 'ground' || carried(e) || K.isElastic(e) && ['a', 'b'].some((key) => K.elasticMount(p, e, key))) continue;
       const parent = result.poses[e.parentId], v = parent ? K.rotate(delta, -parent.angle) : delta;
       e.x += v.x; e.y += v.y;
     }
@@ -270,7 +344,8 @@
     if (!options.enabled) { e.drive = false; return K.validateProject(p); }
     const linear = options.mode === 'linear', min = options.min, max = options.max;
     if (!Number.isFinite(options.speed) || !(max > min)) throw new Error('Pohon vyžaduje konečnú rýchlosť a zoradené limity.');
-    if (!linear && !['link', 'panel'].includes(e.type)) throw new Error('Otočný pohon vyžaduje rameno alebo panel.');
+    if (!linear && !['link', 'panel', 'cam'].includes(e.type)) throw new Error('Otočný pohon vyžaduje rameno, panel alebo vačku.');
+    if (linear && e.type === 'cam') throw new Error('Vačka používa otočný pohon.');
     if (linear && min < 0) throw new Error('Začiatok lineárneho zdvihu nesmie byť záporný.');
     for (const body of p.elements) body.drive = false;
     Object.assign(e, { drive: true, locked: false, driveMode: linear ? 'linear' : 'rotary', drivePivot: linear ? 'a' : r.point, driveSpeed: options.speed, driveAngle: options.angle || 0 });
@@ -310,6 +385,21 @@
     const e = { ...K.makeElement('node', pose.length / 2, 0), parentId: id, parentPoint: 'a', length: 1, radius: 3, name: `${host.name} · POI`, role: 'poi' };
     p.elements.push(e);
     p.trajectories.push({ id: K.uid(), reference: { elementId: e.id, point: 'a' }, space: 'world', name: e.name, color: host.color || '#4d9b91', visible: true });
+    return K.validateProject(p);
+  }
+  function addCamFollower(project, id, result = poseOf(project)) {
+    const p = K.copy(project), cam = mutable(p.elements.find((e) => e.id === id)), pose = result.poses[id];
+    if (cam.type !== 'cam' || !pose) throw new Error('Vyberte rotačnú vačku.');
+    if (p.elements.length > 117 || p.connections.length > 238) throw new Error('Pre valček, posúvač a vedenie chýba miesto v projekte.');
+    const rollerRadius = 6, extent = cam.radius + cam.camLift + rollerRadius, at = { x: pose.a.x, y: pose.a.y - extent };
+    const rail = { ...K.makeElement('rail', at.x, at.y - 90), drive: false, locked: true, angle: -90, length: extent * 2 + 180, name: `${cam.name} · vedenie sledovača` };
+    const slider = { ...K.makeElement('link', at.x, at.y), angle: 90, length: 70, width: 8, role: 'cam-slider', name: `${cam.name} · posúvač` };
+    const roller = { ...K.makeElement('bearing', 0, 0), parentId: slider.id, parentPoint: 'a', radius: rollerRadius, role: 'cam-roller', name: `${cam.name} · valček` };
+    p.elements.push(rail, slider, roller);
+    p.connections.push(
+      { id: K.uid(), a: { elementId: slider.id, point: 'a' }, b: { elementId: rail.id, point: 'curve' }, type: 'prismatic', value: -180, name: 'Posuvný kĺb sledovača', builtin: false },
+      { id: K.uid(), a: { elementId: roller.id, point: 'a' }, b: { elementId: cam.id, point: 'curve' }, type: 'cam-contact', value: 0, name: 'Vačkový kontakt · trvalý dotyk valčeka', builtin: false },
+    );
     return K.validateProject(p);
   }
   function split(project, id, result = poseOf(project)) {
@@ -364,6 +454,7 @@
   }
   // Screen-space candidates make small nodes equally easy to hit at every zoom.
   function hitTargets(candidates, at, nodeRadius = 12, jointRadius = 8) {
+    const parts = candidates.filter((c) => ['control', 'outline'].includes(c.type) && K.distance(c.at, at) <= 9).sort((a, b) => K.distance(a.at, at) - K.distance(b.at, at));
     const nodes = candidates.filter((c) => c.type === 'node' && K.distance(c.at, at) <= nodeRadius);
     nodes.sort((a, b) => K.distance(a.at, at) - K.distance(b.at, at) || (b.selected ? 1 : 0) - (a.selected ? 1 : 0) || (b.priority || 0) - (a.priority || 0));
     const joints = candidates.filter((c) => c.type === 'joint' && ((c.marker && Math.abs(K.distance(c.marker, at) - 15) <= 4) || K.nearestOnSegment(at, c.a, c.b).distance <= jointRadius));
@@ -383,14 +474,14 @@
       if (c.polygon?.length) for (let i = 0; i < c.polygon.length; i++) distance = Math.min(distance, K.nearestOnSegment(at, c.polygon[i], c.polygon[(i + 1) % c.polygon.length]).distance);
       return distance <= Math.max(7, c.radius || 0) ? [{ ...c, distance }] : [];
     }).sort((a, b) => a.distance - b.distance || (b.priority || 0) - (a.priority || 0));
-    return [...new Set([...nodes, ...joints, ...bodies].map((c) => c.key))];
+    return [...new Set([...parts, ...nodes, ...joints, ...bodies].map((c) => c.key))];
   }
   function hitTest(candidates, at, nodeRadius = 12, jointRadius = 8) {
     return hitTargets(candidates, at, nodeRadius, jointRadius)[0] || null;
   }
   global.KinmoInteraction = Object.freeze({
-    nodeKey, elementKey, jointKey, dimensionKey, pointKeys, target, reference, validSelection, select, fixed, status, root, hitTest, hitTargets,
+    nodeKey, elementKey, jointKey, dimensionKey, controlKey, outlineKey, pathKey, controlPoints, pointKeys, target, reference, validSelection, select, fixed, status, root, hitTest, hitTargets,
     addNode, disconnect, disconnectBody, toggleBodyFixed, setJoint, toggleFixed, deleteSelection, setCoordinates, transformPoints, translate,
-    setDriver, setLimits, setJointLimits, setProperties, addPOI, split, insertAssembly,
+    setDriver, setLimits, setJointLimits, setProperties, addPOI, addCamFollower, split, insertAssembly, removeControl, insertControl, setControlPoint, semicircle,
   });
 })(globalThis);

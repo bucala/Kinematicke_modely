@@ -11,6 +11,35 @@
     Object.assign(slot, { id: 'reference-slot', curveKind: 'polyline', controls: points, slotWidth: width });
     p.elements = [slot]; return p;
   };
+  add('Vačka exportuje uzavretý obrys a os, natívny súbor zachová profil aj kontakt.', () => {
+    const cam = { ...K.makeElement('cam', 100, 160), drive: true, radius: 35, camLift: 12, camPhase: 30 };
+    const p = global.KinmoInteraction.addCamFollower(K.validateProject({ ...K.preset('custom'), elements: [cam] }), cam.id), result = K.solve(p, 90, { collisions: false });
+    const snapshot = X.cadSnapshot(p, result, { dimensions: false }), profile = snapshot.entities.find((e) => e.layer === 'CAM');
+    assert(profile.closed && profile.points.length === 240);
+    assert(snapshot.entities.some((e) => e.layer === 'CAM_AXIS' && e.kind === 'circle'));
+    assert(snapshot.entities.some((e) => e.layer === 'RAIL_CARRIAGE' && e.closed));
+    assert(X.dxf(p, result, { dimensions: false }).includes('CAM'));
+    const restored = X.parseNative(X.serializeNative(p)).project, saved = restored.elements.find((e) => e.id === cam.id);
+    near(saved.radius, 35); near(saved.camLift, 12); near(saved.camPhase, 30);
+    assert(restored.connections.some((j) => j.type === 'cam-contact'));
+  });
+  add('Kruhová vačka má ťažisko v osi a zotrvačnosť podľa skutočného uzavretého profilu.', () => {
+    const cam = { ...K.makeElement('cam', 100, 160), radius: 30, camLift: 0, mass: 2 };
+    const p = K.validateProject({ ...K.preset('custom'), elements: [cam] }), pose = E.design(p, 0).poses[cam.id], center = P.centerOfMass(cam, pose);
+    near(center.x, 100); near(center.y, 160); near(P.inertia(cam, pose), 2 * .03 ** 2 / 2, .000001);
+  });
+  add('Bézier všetkých piatich bodov aj pravý polkruh zachovajú geometriu v natívnom a CAD exporte.', () => {
+    const e = { ...K.makeElement('slot', 20, 30), controls: [{ x: 0, y: 0 }, { x: 20, y: -50 }, { x: 70, y: -80 }, { x: 110, y: -10 }, { x: 140, y: 0 }] };
+    const p = K.validateProject({ ...K.preset('custom'), elements: [e] }), restored = X.parseNative(X.serializeNative(p)).project;
+    assert(restored.elements[0].controls.length === 5);
+    near(K.solve(restored, 0).poses[e.id].path.at(-1).x, 160);
+    const arc = global.KinmoInteraction.semicircle(p, e.id, 80, -1), next = X.parseNative(X.serializeNative(arc)).project, result = E.design(next, 0);
+    assert(next.elements[0].curveSemicircle && next.elements[0].curveSide === -1); near(next.elements[0].curveRadius, 80);
+    const snapshot = X.cadSnapshot(next, result, { dimensions: false, slotOutlines: true }), centerline = snapshot.entities.find((e) => e.layer === 'SLOT');
+    assert(centerline && !centerline.closed && centerline.points.length === 181);
+    assert(snapshot.entities.some((e) => e.layer === 'SLOT_REFERENCE_OUTLINE' && e.closed));
+    near(centerline.points[0].x, 20); near(centerline.points.at(-1).x, 180);
+  });
   const fixture = () => {
     const project = K.preset('custom'), anchor = K.makeElement('ground', 0, 0), body = K.makeElement('link', 120, 0), spring = K.makeElement('spring-compression');
     Object.assign(body, { drive: true, driveMode: 'linear', stroke: 120, length: 50, mass: 1 });

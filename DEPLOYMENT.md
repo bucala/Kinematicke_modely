@@ -27,6 +27,8 @@ Magic import a rozšírenie editora sú publikované v `dc24ef2`. Následné pre
 
 Dňa 12. 10. 2026 používateľ výslovne autorizoval **commit a push do existujúceho `main`** pre rozšírenie nad `6554b75`: jedna mierka X/Y/A–B, voliteľná detekcia 2.5, stabilné dialógy, projekty, Analýza, kontextové úpravy a inteligentné kóty. Prenášajú sa aj `magic-detection.js`, nové regresie, aplikácia/štýly, README/changelog a explicitné allowlisty. Detekcia funguje lokálne, nepridáva endpoint, externý model ani nový binding. Pravidlá Workeru a pripnuté PDF fonty sa nemenia. Manuálny deploy sa nespúšťa; push môže spustiť existujúce CI a Workers Builds, ktorých výsledok treba overiť samostatne.
 
+Dňa 13. 10. 2026 používateľ výslovne požiadal o README/changelog a **commit/push rozšírenia nad `5e9798b` do existujúceho `main`**: spoločné prichytávanie a samostatná sieť, montážne body, rotačná vačka, obrysový import a presné krivkové časti. Predpublikačná syntax, 591 JS testov a build prešli. Natívne a offline prehliadačové dôkazy sú zo samostatného funkčného overenia 12. 10. Rozšírenie nemení Worker, bindingy, DNS, Git-integráciu ani pripnuté PDF bajty. Manuálny deploy sa nespúšťa; stav CI a Workers Builds treba po pushi overiť samostatne.
+
 Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolovať diff. Pri commite sa použije už nakonfigurovaná Git identita. Ak chýba, publikovanie sa musí zastaviť, nie vymyslieť autora. Tokeny sa nevkladajú do repozitára, príkazovej histórie ani odpovede.
 
 ## Pripravené súbory

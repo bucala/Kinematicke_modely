@@ -180,8 +180,10 @@
     for (const j of project.connections) {
       const pa = result.poses[j.a.elementId], pb = result.poses[j.b.elementId], type = j.type || 'revolute';
       let a = pa?.[j.a.point], b = pb?.[j.b.point];
-      if (j.a.point === 'curve' && b && pa?.path?.length) a = K.nearestOnPath(b, pa.path);
-      if (j.b.point === 'curve' && a && pb?.path?.length) b = K.nearestOnPath(a, pb.path);
+      const roller = elements.get((j.a.point === 'curve' ? j.b : j.a).elementId);
+      const nearest = (point, pose) => type === 'cam-contact' ? K.nearestOnCam(point, pose, roller.primary ? project.parameters.bearingRadius : roller.radius) : K.nearestOnPath(point, pose.path);
+      if (j.a.point === 'curve' && b && pa?.path?.length) a = nearest(b, pa);
+      if (j.b.point === 'curve' && a && pb?.path?.length) b = nearest(a, pb);
       let mm = a && b ? (type === 'distance' ? Math.abs(K.distance(a, b) - j.value) : ['angle', 'parallel'].includes(type) ? 0 : K.distance(a, b)) : null;
       let degrees = ['fixed', 'angle', 'parallel'].includes(type) || (type === 'prismatic' && K.hasOrientation(project, j.a.point === 'curve' ? j.b : j.a))
         ? pa && pb ? Math.abs(angle(pb.angle - pa.angle - j.value)) : null : 0;
@@ -231,7 +233,7 @@
       if (!drivers.length && project.elements.length) hints.push('Chýba priradený pohon. Statická geometria môže byť platná, ale simulátor nevie, ktorý pohyb má meniť.');
       if (drivers.length > 1) hints.push('Model má viac pohonov. Tento simulátor podporuje iba jeden nezávislý vstup.');
       if (freedom.free) hints.push(`Po určení pohonu zostáva ${freedom.free} voľných súradníc. Doplňte uloženie, ďalší kĺb alebo vedenie. Limity pohybu nenahrádzajú väzbu.`);
-      for (const e of project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'bearing', 'node'].includes(e.type))) {
+      for (const e of project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'cam', 'bearing', 'node'].includes(e.type))) {
         const family = descendants(project, [e.id]);
         const linked = project.connections.some((j) => family.has(j.a.elementId) !== family.has(j.b.elementId));
         if (!linked && !(e.type === 'bearing' && e.slotId)) hints.push(`„${e.name}“ nemá väzbu na iné teleso. Voľný bod potrebuje polohové uloženie; tuhý člen aj určenie orientácie.`);
@@ -265,7 +267,7 @@
       }
     }
     const bodyRows = p.elements.filter((e) => e.visible && e.role !== 'canvas-anchor').map((e) => {
-      const reference = ['node', 'bearing'].includes(e.type) ? 'a' : e.type === 'rail' ? 'c' : 'b';
+      const reference = K.defaultTracePoint(e);
       const poses = samples.map((s) => s.poses[e.id]), points = poses.map((pose) => pose?.[reference]).filter((v) => v && Number.isFinite(v.x) && Number.isFinite(v.y));
       let previous = null, unwrapped = 0;
       const angles = poses.flatMap((pose) => {
@@ -297,18 +299,18 @@
     }
     return points;
   }
-  function movingSnapPoints(project, keys, result, wholeBodies) {
+  function movingSnapPoints(project, keys, result, wholeBodies, inserting = false) {
     const targets = I.validSelection(project, keys).map((key) => I.target(project, key));
     const full = new Set(targets.filter((t) => t.type === 'link' || wholeBodies && t.type === 'node').map((t) => t.elementId));
     const movable = [...full].filter((id) => {
       const e = project.elements.find((e) => e.id === id);
-      return !e.primary && !e.locked && !K.isElastic(e) && !carried(project, e, full);
+      return !e.primary && (inserting || !e.locked) && (!K.isElastic(e) || !['a', 'b'].some((key) => K.elasticMount(project, e, key))) && !carried(project, e, full);
     });
     const family = descendants(project, movable), points = [];
     for (const e of project.elements.filter((e) => e.visible && family.has(e.id))) points.push(...snapPoints(project, e, result));
     for (const t of targets.filter((t) => t.type === 'node' && !family.has(t.elementId) && !full.has(t.elementId))) {
       const r = I.reference(t), e = t.element, at = K.point(result, r);
-      if (at && !e.primary && !K.isElastic(e) && !I.fixed(project, r) && !carried(project, e, full)) points.push({ elementId: e.id, ref: r, at, kind: 'endpoint' });
+      if (at && !e.primary && (!K.isElastic(e) || !K.elasticMount(project, e, r.point)) && (inserting || !I.fixed(project, r)) && !carried(project, e, full)) points.push({ elementId: e.id, ref: r, at, kind: 'endpoint' });
     }
     return points;
   }
@@ -316,22 +318,33 @@
     if (options.enabled !== true) return null;
     const tolerance = options.tolerance ?? 8;
     if (![delta.x, delta.y, tolerance].every(Number.isFinite) || tolerance <= 0) throw new Error('Neplatný posun alebo tolerancia prichytávania.');
-    const sources = movingSnapPoints(project, keys, result, !!options.wholeBodies), excluded = new Set(sources.map((s) => s.elementId));
+    const sources = movingSnapPoints(project, keys, result, !!options.wholeBodies, !!options.inserting), excluded = new Set(sources.map((s) => s.elementId));
     const roots = new Set(sources.map((s) => I.root(project, project.elements.find((e) => e.id === s.elementId))?.id));
-    const candidates = [], destinations = project.elements.filter((e) => e.visible && !excluded.has(e.id) && !roots.has(I.root(project, e)?.id) && !K.isElastic(e));
+    const candidates = [], destinations = project.elements.filter((e) => e.visible && !excluded.has(e.id) && !roots.has(I.root(project, e)?.id));
     const offer = (source, target, point, kind, distance, tier = 0) => {
       const at = { x: source.at.x + delta.x, y: source.at.y + delta.y };
       if (options.axis === 'x' && Math.abs(point.y - at.y) > .00001 || options.axis === 'y' && Math.abs(point.x - at.x) > .00001) return;
       const adjustment = { x: point.x - at.x, y: point.y - at.y };
-      const label = ({ endpoint: 'Uzlový bod', midpoint: 'Stred člena', guide: 'Vodiaca krivka', 'alignment-x': 'Zarovnanie X', 'alignment-y': 'Zarovnanie Y' })[kind];
+      const label = ({ endpoint: target.ref ? K.pointName(target.ref.point) + ' · montážny bod' : 'Uzlový bod', midpoint: 'Stred člena', guide: 'Vodiaca krivka', 'cam-contact': 'Vačkový kontakt · valček', axis: 'Stredová os', edge: 'Obrys / hrana', trajectory: 'Trajektória', 'alignment-x': 'Zarovnanie X', 'alignment-y': 'Zarovnanie Y' })[kind];
       candidates.push({ source: K.copy(source), target: K.copy(target), point: { x: point.x, y: point.y }, delta: { x: delta.x + adjustment.x, y: delta.y + adjustment.y }, kind, distance, tier, label, priority: options.cursor ? K.distance(source.at, options.cursor) : 0 });
     };
     const targets = destinations.flatMap((e) => snapPoints(project, e, result));
-    const guides = destinations.filter((e) => ['slot', 'rail'].includes(e.type)).map((e) => {
-      const path = result.poses[e.id]?.path || [];
+    const guides = destinations.flatMap((e) => {
+      const pose = result.poses[e.id];
+      if (!pose) return [];
+      const paths = ['slot', 'rail', 'cam'].includes(e.type) ? [{ path: pose.path, kind: e.type === 'cam' ? 'cam-contact' : 'guide', ref: { elementId: e.id, point: 'curve' } }] : K.distance(pose.a, pose.b) > K.EPS ? [{ path: [pose.a, pose.b], kind: 'axis' }] : [];
+      const outline = e.type === 'rail' ? pose.carriageOutline : pose.outline;
+      if (outline?.length) paths.push({ path: [...outline, outline[0]], kind: 'edge' });
+      if (e.type === 'panel' && !outline?.length) {
+        const normal = K.rotate({ x: 0, y: (e.primary ? project.parameters.panelThickness : e.width) / 2 }, pose.angle);
+        for (const sign of [-1, 1]) paths.push({ path: [pose.a, pose.b].map((p) => ({ x: p.x + sign * normal.x, y: p.y + sign * normal.y })), kind: 'edge' });
+      }
+      return paths.map((path) => ({ ...path, elementId: e.id }));
+    }).concat((options.paths || []).filter((p) => Array.isArray(p.points) && p.points.length > 1 && p.points.length <= 1001).map((p) => ({ path: p.points, kind: 'trajectory', id: p.id }))).map((descriptor) => {
+      const path = descriptor.path || [];
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (const p of path) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
-      return { elementId: e.id, path, minX, maxX, minY, maxY };
+      return { ...descriptor, path, minX, maxX, minY, maxY };
     });
     for (const source of sources) {
       const at = { x: source.at.x + delta.x, y: source.at.y + delta.y };
@@ -344,17 +357,28 @@
         }
       }
       for (const guide of guides) {
-        if (guide.path.length < 2 || at.x < guide.minX - tolerance || at.x > guide.maxX + tolerance || at.y < guide.minY - tolerance || at.y > guide.maxY + tolerance) continue;
-        const nearest = K.nearestOnPath(at, guide.path);
-        if (nearest.distance <= tolerance) offer(source, { elementId: guide.elementId, ref: { elementId: guide.elementId, point: 'curve' }, at: nearest, kind: 'guide' }, nearest, 'guide', nearest.distance);
+        const roller = project.elements.find((e) => e.id === source.ref?.elementId), contact = guide.kind === 'cam-contact';
+        if (contact && (roller?.type !== 'bearing' || source.ref.point !== 'a')) continue;
+        const radius = contact ? roller.primary ? project.parameters.bearingRadius : roller.radius : 0, margin = tolerance + radius;
+        if (guide.path.length < 2 || at.x < guide.minX - margin || at.x > guide.maxX + margin || at.y < guide.minY - margin || at.y > guide.maxY + margin) continue;
+        const nearest = contact ? K.nearestOnCam(at, result.poses[guide.elementId], radius) : K.nearestOnPath(at, guide.path);
+        if (nearest.distance <= tolerance) offer(source, { elementId: guide.elementId || '', ref: guide.ref, at: nearest, kind: guide.kind, id: guide.id }, nearest, guide.kind, nearest.distance, ['guide', 'cam-contact'].includes(guide.kind) ? 0 : .5);
       }
     }
-    const priority = { endpoint: 0, midpoint: 1, guide: 2, 'alignment-x': 3, 'alignment-y': 3 };
+    const priority = { endpoint: 0, midpoint: 1, guide: 2, 'cam-contact': 2, axis: 3, edge: 4, trajectory: 4, 'alignment-x': 5, 'alignment-y': 5 };
     candidates.sort((a, b) => a.tier - b.tier || (Math.abs(a.distance - b.distance) > .00001 ? a.distance - b.distance : priority[a.kind] - priority[b.kind] || a.priority - b.priority));
     return candidates[0] || null;
   }
+  function findPlacementSnap(project, element, options = {}) {
+    if (options.enabled !== true) return null;
+    const p = K.copy(project), e = K.copy(element);
+    if (e.drive && (p.kind !== 'custom' || p.elements.some((body) => body.drive))) e.drive = false;
+    p.elements.push(e);
+    const validated = K.validateProject(p);
+    return findSnap(validated, [I.elementKey(e.id)], design(validated), { x: 0, y: 0 }, { ...options, inserting: true, wholeBodies: true });
+  }
   function connectSnap(project, preview, type = null) {
-    if (!preview || !['endpoint', 'midpoint', 'guide'].includes(preview.kind)) throw new Error('Osové zarovnanie nevytvára kĺb. Vyberte skutočný bod, stred alebo vedenie.');
+    if (!preview || !['endpoint', 'midpoint', 'guide', 'cam-contact'].includes(preview.kind)) throw new Error('Osové zarovnanie nevytvára kĺb. Vyberte skutočný bod, stred alebo vedenie.');
     const p = K.copy(project);
     const materialize = (descriptor) => {
       if (descriptor.ref) return K.copy(descriptor.ref);
@@ -366,12 +390,12 @@
     };
     const a = materialize(preview.source), b = materialize(preview.target), result = design(p), first = K.point(result, a);
     if (I.root(p, p.elements.find((e) => e.id === a.elementId))?.id === I.root(p, p.elements.find((e) => e.id === b.elementId))?.id) throw new Error('Uzly patria tomu istému tuhému telesu; ďalší kĺb by bol nadbytočný.');
-    const path = result.poses[b.elementId]?.path, second = b.point === 'curve' && first && path?.length ? K.nearestOnPath(first, path) : K.point(result, b);
+    const target = p.elements.find((e) => e.id === b.elementId), source = p.elements.find((e) => e.id === a.elementId);
+    const path = result.poses[b.elementId]?.path, second = b.point === 'curve' && first && path?.length ? target.type === 'cam' ? K.nearestOnCam(first, result.poses[b.elementId], source.radius) : K.nearestOnPath(first, path) : K.point(result, b);
     if (!first || !second || K.distance(first, second) > K.TOLERANCE) throw new Error('Body sa už nezhodujú. Najskôr ich znova prichyťte.');
     if (p.connections.some((j) => [j.a, j.b].some((r) => r.elementId === a.elementId && r.point === a.point) && [j.a, j.b].some((r) => r.elementId === b.elementId && r.point === b.point))) throw new Error('Tieto body už majú väzbu. Jej typ zmeňte cez úpravu kĺbu.');
-    const target = p.elements.find((e) => e.id === b.elementId);
-    const mode = type || (b.point === 'curve' ? target?.type === 'rail' ? 'prismatic' : 'point-path' : 'revolute');
-    if (b.point === 'curve' ? !['prismatic', 'point-path'].includes(mode) : mode !== 'revolute') throw new Error('Typ spojenia nezodpovedá prichytenému bodu.');
+    const mode = type || (b.point === 'curve' ? target?.type === 'cam' ? 'cam-contact' : target?.type === 'rail' ? 'prismatic' : 'point-path' : 'revolute');
+    if (b.point === 'curve' ? !['prismatic', 'point-path', 'cam-contact'].includes(mode) : mode !== 'revolute') throw new Error('Typ spojenia nezodpovedá prichytenému bodu.');
     const value = mode === 'prismatic' ? angle(result.poses[b.elementId].angle - result.poses[a.elementId].angle) : 0;
     return I.setJoint(p, a, { type: mode, other: b, value });
   }
@@ -526,7 +550,7 @@
     });
   }
   global.KinmoWorkbench = Object.freeze({
-    parseNumber, applyDimension, preferredEnd, bodies, descendants, pivot, transform, setLength, constraints, diagnose, analyzeSweep, findSnap, connectSnap,
+    parseNumber, applyDimension, preferredEnd, bodies, descendants, pivot, transform, setLength, constraints, diagnose, analyzeSweep, findSnap, findPlacementSnap, connectSnap,
     collectionLimits, normalizeRecord, normalizeCollection, serializeCollection, mergeCollection,
     captureAssembly, insertAssembly, createRevision, restoreRevision, compareDimensions,
   });

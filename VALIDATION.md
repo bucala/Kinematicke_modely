@@ -1,8 +1,73 @@
 # Stav overenia
 
-Rozšírenie nad `6554b75`, verzia 2.0.0. Nižšie uvedené staršie dátumy a počty sú historické výsledky, nie opätovné overenie aktuálneho rozhrania.
+Rozšírenie nad `5e9798b`, verzia 2.0.0. Funkčné overenie pochádza z 12. 10. 2026; predpublikačná kontrola z 13. 10. je zaznamenaná samostatne. Staršie dátumy a počty sú historické výsledky, nie opätovné overenie aktuálneho rozhrania.
 
-## Aktuálne rozšírenie: všetkých osem požiadaviek
+## Rozšírenie: snap, vačka, obrysy a krivkové časti
+
+- `npm run check`: prešlo.
+- `npm test`: **591 JavaScriptových testov, 0 zlyhaní**, kompletných sedem sád.
+- `npm run build`: prešlo. **25 statických assetov** sa bajtovo zhoduje so zdrojmi, deterministický Fusion ZIP tiež; verejný inventár má **26 súborov**, bez QA príloh.
+- Izolované Python/Fusion testy sa v tomto kole nezopakovali. Historických 23 prípadov ani starších 338 / 338 prehliadačových výsledkov nie je počet aktuálnej sady.
+
+### Nové regresie a opravy
+
+- Spoločné prichytávanie pri ťahaní/vkladaní, osi a strednice, hrany, viditeľná trajektória, voľné konce pružín a otočený vozík C/CT/CB; priority skutočných bodov, vylúčenie vlastného telesa, žiadna tichá väzba a nezávislá sieť 5 mm.
+- Šablónové vozíky výsuvu, kľuky a dvojkulisovej zásuvky majú CT/CB pred riešením potomkov. Nesený bod sleduje vozík v celom rozsahu a stav správne vyhodnotí bod rodiča.
+- Radiálny profil vačky, os A bez fiktívneho B, vedený posúvač a valček, offset podľa polomeru valčeka, **121 polôh kontaktu v plnej otáčke**, uhlový rozsah vrátane 360°, Analýza bodu A, diagnostika/voľnosť, odmietnutie dynamiky, natívny aj CAD export a polygonové ťažisko/zotrvačnosť.
+- Detekcia odolná voči zmene farby, tieňovaniu a dvojfarebnému členu; vonkajší dutý obrys, celý konkávny rám, spojitý zakrivený pás vrátane širokého polkruhu, nepredvybrané vetvenie a ohraničená práca. Konkávny import zachová vrcholy v mierke a neplatný polygon odmietne bez čiastočnej zmeny.
+- Bézier všetkých 2–32 bodov, samostatné identity P0 až Pn/vrcholov/dráhy, nemenné vloženie/odstránenie, rodičovské súradnice a ochrana originálov. Pravý klik zachová zvýraznenie, ale P2 operácia nezmení iný vybraný uzol alebo teleso.
+- Presný 180° polkruh, pravidlo P0/2R a strana, výraz pre R, lokálna úprava bodu, hromadný formulár, natívny round-trip, zmena mierky a CAD strednica/uzavretý referenčný obrys.
+- Atómové ťahanie bodu, zrušenie/no-op bez spotrebovania Späť či Znova, aj pri plných 60 krokoch. Klávesnicová ponuka P2 kotví na P2, nie na stred telesa. Sledovanie bodu ponúkne C/CT/CB a pri vačke iba skutočnú os A.
+- Náhľad HTML5 drag/drop zachová živú geometriu SVG; opakované aktualizácie menia iba neinteraktívny snap overlay. Odchod a koniec ťahania odstránia náhľad bez výmeny cieľa. Čerstvo vložená vačka hneď nastaví sledovaný bod A.
+
+Nové sondy najskôr zlyhali na chýbajúcich šablónových CT/CB, klasifikácii širokej oblúkovej dráhy, rodičovskom stave, klávesnicovej polohe P2 a nezmenenom R v hromadnom formulári. Po opravách prešli aj celé dotknuté sady a finálna kompletná kontrola. CAD sonda navyše opravila nesprávny názov očakávanej referenčnej vrstvy v samotnom teste.
+
+VM a modelové regresie nenahrádzajú reálne gestá alebo vizuálne rozloženie. Dočasné súbory dvoch posledných používateľských obrázkov už v prostredí nie sú dostupné; toto kolo preto neuvádza nové prehliadačové rozpoznanie týchto príloh. Živý Fusion, fyzický telefón, vzdialené CI a produkčné nasadenie nie sú týmito kontrolami potvrdené. Používateľ 13. 10. výslovne požiadal o commit/push zdrojov do existujúceho `main`; manuálny deploy nie je súčasťou tohto kroku.
+
+### Prehliadačové kontroly aktuálneho kola
+
+Izolovaný `agent-browser` 0.39.0, HeadlessChrome 155 na Windows, nový profil bez prihlásení. Zdroj cez loopback HTTP pri 1 440 × 900 a zostavená aplikácia cez sieťovo vypnuté `file://` pri 393 × 852. Rozloženie nepretieklo vodorovne; Vlastnosti boli zatvorené a inteligentné prichytávanie začalo vypnuté.
+
+- Zdieľaný `tests/browser.html` prešiel **362 / 362** cez HTTP aj offline `file://`. Ide o zdieľané modelové prípady, nie 362 natívnych gest.
+- Natívne ťahanie voľného konca pružiny aj bežného ramena ukázalo prichytenie na **CT vozíka**. Potvrdenie **Ponechať iba polohu** nepridalo spoj; Späť obnovilo polohu ramena. Prvá pružinová sekvencia stlačila Späť ešte pri otvorenom potvrdení, preto nie je čistým porovnaním jednej operácie.
+- Vypnutá sieť dovolila nezaokrúhlenú polohu P2; zapnutá sieť dala (100, 100) mm. Kreslená mriežka ostala viditeľná a smart snap vypnutý. Osi, hrany, trajektórie a samostatné C/CB majú modelové, nie natívne prehliadačové pokrytie.
+- Prvé natívne pretiahnutia z knižnice nevložili prvok. Výslovne označený **syntetický HTML5 fallback** vložil rameno, vedenie a pružinu cez skutočné obsluhy udalostí, bez náhrady modelu, pointer capture alebo `requestAnimationFrame`. Zhodu polohového náhľadu a výsledného natívneho drop tento prvý beh nepotvrdil.
+- Natívne ťahanie P2 zmenilo iba jeho lokálne súradnice. Pridanie/odstránenie bodu dalo 4 → 5 → 4; Späť obnovilo bod aj pôvodnú krivku. Dvojitý multivýber vytvorený klávesnicou zostal zvýraznený po pravom kliku na P2 aj pozadie. Shift+F10 ponúkol operácie presného P2. Pôvodné úchyty mali `role="button"` a `tabindex="0"`; novo pridaný úchyt v prvom behu nemal samostatne zachytený tabindex.
+- Polkruhový dialóg ponechal neplatné `1/0` otvorené. `8 cm` dalo **R = 80 mm**, dva konce vzdialené 160 mm a nezmenené P0; Späť obnovilo pôvodné štyri Bézierove body. Úzky offline formulár sa zmestil do viewportu.
+- Reálny pribalený PNG sa dekódoval na **908 × 1 024 px**, aj offline. Obrysová detekcia pri citlivosti 50 dala **10 návrhov, 6 predvybraných**; vloženie bolo jednou dávkou, jedno Späť ju celú odstránilo a potvrdené zrušenie obnovilo pôvodný projekt. **Rozpoznanie bolo slabé/nejasné:** tri zobrazené polohy a legenda vytvorili opakované rámy či nevhodné čelá; obe kulisy a rameno sa správne nezrekonštruovali. Úspech pracovného postupu nie je úspech funkčného rozpoznania.
+- Prvý reálny vačkový príklad vytvoril vedenie, posúvač, valček a kontakt; dynamika správne odmietla kontaktné sily. QA však odhalilo **0–300 mm namiesto 0–360°**, odmietnutých 360°, fiktívne B v Analýze a `undefined` v karte. Po reprodukcii zlyhávajúcimi regresiami sú chyby opravené.
+
+Opakovaný izolovaný beh v `.analysis/qa-followup-20261012-232717-a32e5d5f/` natívne potvrdil skutočných **0°, 90°, 180°, 270° a 360°**, uhlové vstupy s max. 360, zhodnú polohu valčeka pri 0/360 a **121 / 121** vzoriek v celom rozsahu. Analýza označila vačku bodom A a bez dráhy fiktívneho B; karta mala správny popis. Novo pridaný **P4** mal samostatne zachytené `role="button"` a `tabindex="0"`. Zdieľaná sada po rozšírení vačkových kontrol znova prešla 362 / 362 cez HTTP aj offline, so zlyhaním a následným obnovením kontrolného fetchu.
+
+Tento beh ešte odhalil B v predvolenej trajektórii **hneď po vložení**, hoci po uložení/načítaní už bolo A. Vkladanie teraz používa rovnakú spoločnú voľbu fyzického bodu. Pri natívnom ťahaní boli zaznamenané dôveryhodné `dragstart` a prijaté `dragover`, ale nie `drop`. Kontrola kódu a zlyhávajúca regresia ukázali, že náhľad prepisoval SVG a odpojil živý cieľ. Oprava aktualizuje iba neinteraktívny overlay; obe nové sondy, kompletných **591 / 591**, syntax a build prešli. Samotný výsledok ovládača bez `drop` nie je dôkazom jeho jedinej príčiny; finálne natívne výsledky opravy sú nižšie.
+
+#### Finálne natívne potvrdenie opráv
+
+Nový izolovaný beh v `.analysis/qa-final-20261012-234400-636a5b78/` prešiel vo všetkých troch bodoch, bez syntetických udalostí alebo náhrad aplikačného stavu:
+
+- **PASS, čerstvá vačka:** okamžite po kliknutí v knižnici ukázala **Trajektória A**, pred uložením/načítaním alebo výberom iného bodu. Mala iba fyzický úchyt A.
+- **PASS, natívny drop ramena:** prijaté `dragover` zachovali pripojený SVG cieľ. Pri uvoľnení nasledoval dôveryhodný `drop` a `dragend`, 0 → 1 teleso. Ctrl+Z obnovilo prázdnu scénu; Znova vrátilo rameno.
+- **PASS, snap pri natívnom vložení uzla:** po výslovnom zapnutí smart snap náhľad označil A ramena na **(225, 30) mm**. Výsledný uzol mal presne rovnakú polohu. Voľba **Ponechať iba polohu** zachovala **0 spojov**; Späť odstránilo iba vložený uzol.
+
+Snímky čerstvej vačky, držaného náhľadu a potvrdeného vloženia boli vizuálne prezreté. Neboli zaznamenané aplikačné chyby. Po tejto snímke sa ešte odstránilo nepriehľadné pozadie drop plochy, ktoré zbytočne zosvetľovalo geometriu a snap značku. Zmenil sa iba CSS background, nie rozloženie, udalosti alebo geometria; priehľadnosť má regresiu. Nová snímka po tejto poslednej vizuálnej úprave sa nezachytávala.
+
+Vlastné pomenované prehliadače aj identitou overené servery/obslužné procesy skončili; opakované kontroly portov 5193/5195 nenašli listener. Prvý server na 5191 ukončil rodič až po preukázaní vlastného spustenia. Dôkazy ostali v ignorovanom QA priestore, mimo verejného inventára.
+
+Prvé dôkazy sú v ignorovanom `.analysis/qa-20261012-225218-2f703c81/`, vrátane snímok pravého P2, polkruhu, Analýzy, kontúr a úzkeho offline formulára. Page-error kontroly pri HTTP sade, offline aplikácii a offline sade boli prázdne. Sieťové vypnutie potvrdilo `navigator.onLine === false` aj zlyhanie kontrolného fetchu; po obnovení fetch prešiel. Úzky viewport používal desktopovú myš/klávesnicu, nie fyzické dotykové zariadenie.
+
+Pôvodná pomenovaná relácia prehliadača bola zatvorená. Worker nezastavil pôvodný server, lebo mu nepatril; rodič následne overil väzbu PID na vlastné spustenie a ukončil iba tento vlastný proces. QA dôkazy nie sú verejné assety ani publikované prílohy.
+
+### Predpublikačná kontrola, 13. 10. 2026
+
+Po výslovnej požiadavke na commit/push sa README, changelog a publikačné poznámky zosúladili pre celý rozsah prichytávania, vačky, obrysového importu a krivkových častí. Znovu prešli `npm run check`, **591 JavaScriptových testov** a `npm run build`. Runtime kód sa pri tejto publikačnej príprave nemenil.
+
+Prehliadačových **362 / 362**, natívny drop/prichytenie, vačka 0–360° a ostatné snímky pochádzajú z funkčného overenia 12. 10.; pri úprave dokumentácie sa tieto gestá ani živý Fusion neopakovali. Izolovaná Python sada sa v tomto kole nezopakovala.
+
+Aktuálny vzdialený `main` bol načítaný Gitom a pred commitom zodpovedal `5e9798b`. Používa sa existujúca Git identita, spoluautorský trailer a štandardný push bez `--force`, bez prepisu histórie či prepínania druhého pracovného checkoutu. Vzdialené CI a nasadenie sa z lokálnych kontrol neodvodzujú.
+
+## Historické publikované rozšírenie `5e9798b`: osem požiadaviek
+
+Nasledujúci záznam patrí k staršiemu rozšíreniu nad `6554b75`, nie k aktuálnemu lokálnemu kolu.
 
 - `npm run check`: prešlo, vrátane nového detektora a kontextových regresií.
 - `npm test`: **542 JavaScriptových testov, 0 zlyhaní**. Zdieľané modely, VM funkcie skutočného kontroléra, lokálny dekóder, detektor, podponuky, CAD/export integrácie, PDF bajty, SVG snímky a GIF.

@@ -112,6 +112,17 @@
     throws(() => M.calibration(image, { x: 100, y: 80 }, { x: 102, y: 80 }, 5000));
     throws(() => M.worldFromPixel({ x: 0, y: 0 }, null)); throws(() => M.pixelFromWorld({ x: 0, y: Infinity }, scale()));
   });
+  add('Prepočet mierky zachová stranu a presný polkruh, profil vačky a všetky tri body vozíka.', () => {
+    const slot = K.makeElement('slot', 20, 40), rail = { ...K.makeElement('rail', 200, 80), drive: false }, cam = { ...K.makeElement('cam', 350, 100), drive: false };
+    const p = I.semicircle(K.validateProject({ ...K.preset('custom'), elements: [slot, rail, cam] }), slot.id, 80, -1), before = JSON.stringify(p);
+    const next = M.rescale(p, { a: { x: 0, y: 0 }, mmPerPixel: 1 }, { a: { x: 0, y: 0 }, mmPerPixel: 1.5 });
+    const restored = X.parseNative(X.serializeNative(next)).project, result = E.design(restored, 0), previous = E.design(p, 0);
+    assert(restored.elements[0].curveSemicircle && restored.elements[0].curveSide === -1); near(restored.elements[0].curveRadius, 120);
+    near(restored.elements[2].radius, cam.radius * 1.5); near(restored.elements[2].camLift, cam.camLift * 1.5);
+    for (const key of K.carriagePoints) { near(result.poses[rail.id][key].x, previous.poses[rail.id][key].x * 1.5); near(result.poses[rail.id][key].y, previous.poses[rail.id][key].y * 1.5); }
+    previous.poses[slot.id].path.forEach((point, i) => { near(result.poses[slot.id].path[i].x, point.x * 1.5); near(result.poses[slot.id].path[i].y, point.y * 1.5); });
+    assert(JSON.stringify(p) === before);
+  });
   add('Pevná podlaha Magic import vznikne ako ukotvený obrys s presnou dĺžkou a hrúbkou.', () => {
     const original = K.preset('custom'), before = JSON.stringify(original), next = M.traceBody(original, 'ground', [{ x: 10, y: 20 }, { x: 110, y: 20 }], 8), e = next.elements.at(-1), pose = E.design(next, 0).poses[e.id];
     assert(e.locked && !e.drive && e.mass === 0 && e.outline.length === 4); near(e.length, 100); near(e.width, 8);
@@ -213,6 +224,16 @@
     throws(() => M.finish(K.preset('custom'), image, calibration, 'Prázdny'));
     for (const name of ['', '  ', 'a'.repeat(81), 'Názov\n']) throws(() => M.finish(p, image, calibration, name));
     throws(() => M.finish(p, image, null, 'Bez mierky')); throws(() => M.finish(p, image, { ...calibration, mmPerPixel: 1 }, 'Zmenená'));
+    assert(JSON.stringify(p) === before);
+  });
+  add('Obrysový návrh zachová celý konkávny obrys v mierke a odmietne neplatný polygon bez čiastočného vloženia.', () => {
+    const p = K.preset('custom'), before = JSON.stringify(p), outline = [{ x: 100, y: 80 }, { x: 500, y: 80 }, { x: 500, y: 100 }, { x: 120, y: 100 }, { x: 120, y: 280 }, { x: 100, y: 280 }];
+    const candidate = { type: 'ground', selected: true, points: [{ x: 100, y: 80 }, { x: 500, y: 80 }], outline, width: 8, radius: 4 };
+    const next = M.applyDetected(p, image, scale(), [candidate]).project, e = next.elements[0], pose = E.design(next, 0).poses[e.id];
+    assert(e.outline.length === outline.length);
+    pose.outline.forEach((point, i) => { const expected = M.worldFromPixel(outline[i], scale()); near(point.x, expected.x); near(point.y, expected.y); });
+    throws(() => M.applyDetected(p, image, scale(), [{ ...candidate, outline: [...outline, { x: 801, y: 50 }] }]));
+    throws(() => M.applyDetected(p, image, scale(), [{ ...candidate, outline: [{ x: 100, y: 80 }, { x: 200, y: 180 }, { x: 100, y: 180 }, { x: 200, y: 80 }] }]));
     assert(JSON.stringify(p) === before);
   });
   global.KinematicsTestCases.push(...cases);

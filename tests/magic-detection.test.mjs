@@ -20,7 +20,8 @@ test('Offline detection extracts colored members, a frame and a round node', () 
   for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) if (Math.hypot(x - 45, y - 150) < 7 && Math.hypot(x - 45, y - 150) > 3) image.pixel(x, y, [200, 110, 20]);
   const before = image.data.slice(), result = D.detectPixels(image);
   for (const type of ['ground', 'link', 'panel', 'bearing']) assert(result.candidates.some((c) => c.type === type), type);
-  assert(result.candidates.filter((c) => c.type === 'ground').length >= 3);
+  const frame = result.candidates.filter((c) => c.type === 'ground');
+  assert.equal(frame.length, 1); assert(frame[0].outline.length >= 8);
   assert(result.candidates.every((c) => c.points.every((p) => p.x >= 0 && p.x < image.width && p.y >= 0 && p.y < image.height)));
   assert.deepEqual(image.data, before); assert.match(result.note, /neurčuje pohon/);
 });
@@ -31,6 +32,61 @@ test('Slanted links stay links rather than being mistaken for hollow guides', ()
   }
   const link = D.detectPixels(image).candidates.find((c) => c.type === 'link');
   assert(link); assert(Math.abs(link.points[1].y - link.points[0].y) > 60);
+});
+test('Contour geometry does not change when a member changes color or has gradual shading', () => {
+  const signatures = [];
+  for (const color of [[40, 90, 180], [80, 80, 80], [180, 40, 60]]) {
+    const image = raster(); image.rect(25, 60, 170, 12, color);
+    const result = D.detectPixels(image);
+    assert.equal(result.method, 'contours');
+    signatures.push(result.candidates.map((c) => ({ type: c.type, points: c.points, outline: c.outline })));
+  }
+  assert.deepEqual(signatures[0], signatures[1]); assert.deepEqual(signatures[0], signatures[2]);
+  const image = raster();
+  for (let x = 25; x < 195; x++) image.rect(x, 60, 1, 12, [60 + Math.floor((x - 25) / 2), 60 + Math.floor((x - 25) / 2), 60 + Math.floor((x - 25) / 2)]);
+  const main = D.detectPixels(image).candidates.find((c) => c.type === 'link');
+  assert(main && main.outline.length >= 4); assert(Math.abs(main.points[1].x - main.points[0].x) > 150);
+  const twoTone = raster(); twoTone.rect(25, 60, 85, 12, [40, 90, 180]); twoTone.rect(110, 60, 85, 12, [180, 40, 60]);
+  const members = D.detectPixels(twoTone).candidates.filter((c) => c.points.length > 1);
+  assert.equal(members.length, 1); assert(Math.abs(members[0].points[1].x - members[0].points[0].x) > 160);
+});
+test('Hollow outlined members keep their outer contour instead of becoming several edge strips', () => {
+  const image = raster(); image.rect(25, 55, 170, 22); image.rect(28, 58, 164, 16, [255, 255, 255]);
+  const result = D.detectPixels(image), bodies = result.candidates.filter((c) => c.points.length > 1);
+  assert.equal(bodies.length, 1);
+  assert(bodies[0].outline?.length >= 4); assert.equal(bodies[0].geometry, 'contour');
+  assert(Math.abs(bodies[0].points[1].x - bodies[0].points[0].x) > 155);
+});
+test('A curved strip yields an ordered continuous centerline rather than a straight colored chord', () => {
+  const image = raster();
+  for (let x = 25; x <= 200; x++) {
+    const y = 65 + 34 * Math.sin((x - 25) / 175 * Math.PI / 2);
+    image.rect(x, Math.round(y) - 3, 1, 7, [80, 80, 80]);
+  }
+  const result = D.detectPixels(image), curve = result.candidates.find((c) => c.type === 'slot');
+  assert(curve && curve.points.length >= 4);
+  for (let i = 1; i < curve.points.length; i++) assert(Math.hypot(curve.points[i].x - curve.points[i - 1].x, curve.points[i].y - curve.points[i - 1].y) < 30);
+  assert(curve.evidence.continuity > .85);
+});
+test('Touching branched members are not preselected as a confident mechanical part', () => {
+  const image = raster();
+  for (let x = 30; x < 200; x++) {
+    image.rect(x, Math.round(30 + (x - 30) * .6), 1, 5, [80, 80, 80]);
+    image.rect(x, Math.round(130 - (x - 30) * .6), 1, 5, [40, 90, 180]);
+  }
+  const result = D.detectPixels(image);
+  assert(result.candidates.length > 0); assert(result.candidates.every((c) => !c.selected));
+  assert(result.candidates.some((c) => c.evidence.branched));
+});
+test('A broad thin semicircular strip keeps the continuous curved path rather than becoming a panel', () => {
+  const image = raster();
+  for (let i = 0; i <= 320; i++) {
+    const angle = Math.PI * i / 320;
+    image.rect(Math.round(120 + 65 * Math.cos(angle)) - 2, Math.round(90 - 65 * Math.sin(angle)) - 2, 5, 5, [80, 80, 80]);
+  }
+  const curve = D.detectPixels(image).candidates.find((c) => c.type === 'slot');
+  assert(curve && curve.selected && curve.points.length <= 64 && curve.evidence.continuity >= .85);
+  assert(Math.max(...curve.points.map((p) => p.y)) - Math.min(...curve.points.map((p) => p.y)) > 40);
 });
 test('Blank and transparent backgrounds do not manufacture mechanism geometry', () => {
   assert.equal(D.detectPixels(raster()).candidates.length, 0);
