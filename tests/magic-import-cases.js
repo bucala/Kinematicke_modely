@@ -80,6 +80,32 @@
     const p = M.traceBody(K.preset('custom'), 'link', [a, b]);
     near(p.elements[0].x, 100); near(p.elements[0].length, 400);
   });
+  add('Jedna známa hodnota X alebo Y zachová rovnakú mierku oboch osí.', () => {
+    const a = { x: 100, y: 80 }, b = { x: 500, y: 180 };
+    const x = M.calibration(image, a, b, 300, 'horizontal'), y = M.calibration(image, a, b, 75, 'vertical');
+    near(x.mmPerPixel, .75); near(y.mmPerPixel, .75);
+    near(M.imageRect(image, x).height, 450); near(M.worldFromPixel(b, x).y, 75);
+    throws(() => M.calibration(image, a, { x: 100, y: 280 }, 300, 'horizontal'));
+    throws(() => M.calibration(image, a, b, 300, 'bad-axis'));
+  });
+  add('Prekalibrovanie prepočíta rodičov, obrysy, dĺžkové väzby aj kóty atomicky.', () => {
+    let p = M.traceBody(K.preset('custom'), 'link', [{ x: 10, y: 20 }, { x: 110, y: 20 }]);
+    const e = p.elements[0], child = { ...K.makeElement('node', 20, 5), parentId: e.id, mass: 0 };
+    p.elements.push(child, { ...K.makeElement('node', 210, 20), locked: true });
+    p.connections.push({ id: 'd', a: { elementId: e.id, point: 'b' }, b: { elementId: p.elements[2].id, point: 'a' }, type: 'distance', value: 100 });
+    p.dimensions.push({ id: 'dim', type: 'distance', a: { x: 10, y: 20 }, b: { x: 110, y: 20 }, offset: 25 });
+    p = K.validateProject(p);
+    const before = JSON.stringify(p), from = scale(), to = M.calibration(image, { x: 80, y: 60 }, { x: 480, y: 60 }, 300);
+    const next = M.rescale(p, from, to), result = E.design(next, 0);
+    near(next.elements[0].length, 150); near(next.elements[0].x, 30); near(next.elements[0].y, 45);
+    near(next.elements[1].x, 30); near(next.elements[1].y, 7.5);
+    near(result.poses[child.id].a.x, 60); near(result.poses[child.id].a.y, 52.5);
+    near(next.connections[0].value, 150); near(next.dimensions[0].a.x, 30); near(next.dimensions[0].offset, 37.5);
+    near(next.elements[0].mass, p.elements[0].mass); near(next.elements[0].angle, p.elements[0].angle);
+    assert(JSON.stringify(p) === before);
+    throws(() => M.rescale(p, from, { a: { x: 0, y: 0 }, mmPerPixel: 1000 }));
+    assert(JSON.stringify(p) === before);
+  });
   add('Kalibrácia odmietne krátky úsek, body mimo fotografie a neplatný známy rozmer.', () => {
     for (const b of [{ x: 101, y: 80 }, { x: -1, y: 80 }, { x: 801, y: 80 }, { x: 100, y: 601 }, { x: NaN, y: 80 }]) throws(() => M.calibration(image, { x: 100, y: 80 }, b, 10));
     for (const distance of [0, .09, 5001, NaN, Infinity]) throws(() => M.calibration(image, { x: 100, y: 80 }, { x: 500, y: 80 }, distance));
@@ -166,6 +192,21 @@
     assert(next.source.note.includes('200 mm / 400 px') && next.source.note.includes('perspektívu'));
     const text = X.serializeNative(next), parsed = X.parseNative(text).project;
     assert(parsed.source.name === 'Magic import' && !text.includes('blob:') && !text.includes(image.name) && !('image' in next) && JSON.stringify(original) === before);
+  });
+  add('Autodetekcia vloží vybrané návrhy atomicky bez pohonu a neprepíše existujúce členy.', () => {
+    const p = K.preset('custom'), before = JSON.stringify(p);
+    const candidates = [
+      { type: 'ground', selected: true, points: [{ x: 100, y: 80 }, { x: 500, y: 80 }], width: 8, radius: 4, color: '#00aa44' },
+      { type: 'link', selected: true, points: [{ x: 100, y: 80 }, { x: 100, y: 280 }], width: 10, radius: 4 },
+      { type: 'rail', selected: false, points: [{ x: 300, y: 80 }, { x: 600, y: 80 }], width: 10, radius: 4 },
+    ];
+    const result = M.applyDetected(p, image, scale(), candidates, { connections: true });
+    assert(result.project.elements.length === 2 && result.added.length === 2 && result.project.connections.length === 1);
+    assert(!result.project.elements.some((e) => e.drive)); near(result.project.elements[0].length, 200);
+    assert(result.project.elements[0].locked && !result.project.elements[1].locked && JSON.stringify(p) === before);
+    throws(() => M.applyDetected(p, image, scale(), [...candidates, { ...candidates[0], points: [{ x: -1, y: 0 }, { x: 100, y: 0 }] }]));
+    throws(() => M.applyDetected(p, image, scale(), candidates.map((c) => ({ ...c, selected: false }))));
+    assert(JSON.stringify(p) === before);
   });
   add('Finish odmietne prázdny projekt, neplatný názov a zmenenú kalibráciu.', () => {
     const p = M.traceBody(K.preset('custom'), 'node', [{ x: 0, y: 0 }]), calibration = scale(), before = JSON.stringify(p);

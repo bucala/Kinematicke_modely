@@ -5,6 +5,7 @@
   const nodeKey = (r) => `n:${r.elementId}:${r.point}`;
   const elementKey = (id) => `e:${id}`;
   const jointKey = (id) => `j:${id}`;
+  const dimensionKey = (id) => `d:${id}`;
   const same = (a, b) => a?.elementId === b?.elementId && a?.point === b?.point;
   const pointKeys = (e) => ['bearing', 'node'].includes(e.type) ? ['a'] : ['panel', 'rail'].includes(e.type) ? ['a', 'b', 'c'] : ['a', 'b'];
   const poseOf = (p) => E.design(p, K.driveRange(p).min);
@@ -14,6 +15,10 @@
   };
   function target(project, key) {
     if (!key) return null;
+    if (key.startsWith('d:')) {
+      const dimension = project.dimensions.find((d) => d.id === key.slice(2));
+      return dimension ? { type: 'dimension', id: dimension.id, dimension } : null;
+    }
     if (key.startsWith('j:')) {
       const joint = project.connections.find((j) => j.id === key.slice(2));
       return joint ? { type: 'joint', id: joint.id, joint } : null;
@@ -101,6 +106,24 @@
     cleanAnchors(p);
     return K.validateProject(p);
   }
+  function disconnectBody(project, id, result = poseOf(project)) {
+    const p = K.copy(project), e = mutable(p.elements.find((v) => v.id === id)), family = new Set([id]);
+    for (let pass = 0; pass < p.elements.length; pass++) for (const child of p.elements) if (family.has(child.parentId)) family.add(child.id);
+    removeConnections(p, p.connections.filter((j) => [j.a, j.b].some((r) => family.has(r.elementId))).map((j) => j.id));
+    detach(p, e, result.poses);
+    for (const member of p.elements.filter((v) => family.has(v.id))) if (member.type === 'bearing') member.slotId = '';
+    cleanAnchors(p);
+    return K.validateProject(p);
+  }
+  function toggleBodyFixed(project, id, result = poseOf(project)) {
+    const p = K.copy(project), e = mutable(p.elements.find((v) => v.id === id));
+    if (K.isElastic(e) || ['rail', 'slot'].includes(e.type)) throw new Error('Uloženie vedenia alebo pružného prvku upravte cez jeho uzly a montážne väzby.');
+    const shouldFix = !(e.locked || e.type === 'ground');
+    detach(p, e, result.poses); storePose(e, result); e.drive = false; e.locked = shouldFix;
+    if (!shouldFix && e.type === 'ground') e.type = 'link';
+    if (!shouldFix) removeConnections(p, p.connections.filter((j) => [j.a, j.b].some((r) => r.elementId === id) && [j.a, j.b].some((r) => p.elements.find((v) => v.id === r.elementId)?.role === 'canvas-anchor')).map((j) => j.id));
+    cleanAnchors(p); return K.validateProject(p);
+  }
   function setJoint(project, r, options) {
     if (options.type === 'free') return disconnect(project, r);
     const p = K.copy(project);
@@ -163,12 +186,16 @@
     return K.validateProject(p);
   }
   function deleteSelection(project, keys, result = poseOf(project)) {
-    const p = K.copy(project), removed = new Set(), joints = [];
+    const p = K.copy(project), removed = new Set(), joints = [], dimensions = new Set();
     for (const key of keys) {
       const t = target(p, key); if (!t) continue;
       if (t.type === 'joint') joints.push(t.id);
+      else if (t.type === 'dimension') dimensions.add(t.id);
       else removed.add(mutable(t.element).id);
     }
+    const owned = p.dimensions.filter((d) => dimensions.has(d.id)).map((d) => d.constraintId).filter(Boolean);
+    p.dimensions = p.dimensions.filter((d) => !dimensions.has(d.id));
+    joints.push(...owned.filter((id) => !p.dimensions.some((d) => d.constraintId === id) && p.connections.some((j) => j.id === id && !j.builtin)));
     removeConnections(p, [...joints, ...p.connections.filter((j) => [j.a, j.b].some((r) => removed.has(r.elementId))).map((j) => j.id)]);
     for (const e of p.elements) {
       if (removed.has(e.parentId)) detach(p, e, result.poses);
@@ -336,17 +363,34 @@
     return K.validateProject(p);
   }
   // Screen-space candidates make small nodes equally easy to hit at every zoom.
-  function hitTest(candidates, at, nodeRadius = 11, jointRadius = 6) {
+  function hitTargets(candidates, at, nodeRadius = 12, jointRadius = 8) {
     const nodes = candidates.filter((c) => c.type === 'node' && K.distance(c.at, at) <= nodeRadius);
     nodes.sort((a, b) => K.distance(a.at, at) - K.distance(b.at, at) || (b.selected ? 1 : 0) - (a.selected ? 1 : 0) || (b.priority || 0) - (a.priority || 0));
-    if (nodes.length) return nodes[0].key;
     const joints = candidates.filter((c) => c.type === 'joint' && ((c.marker && Math.abs(K.distance(c.marker, at) - 15) <= 4) || K.nearestOnSegment(at, c.a, c.b).distance <= jointRadius));
     joints.sort((a, b) => K.nearestOnSegment(at, a.a, a.b).distance - K.nearestOnSegment(at, b.a, b.b).distance);
-    return joints[0]?.key || null;
+    const inside = (polygon) => {
+      let result = false;
+      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const a = polygon[i], b = polygon[j];
+        if ((a.y > at.y) !== (b.y > at.y) && at.x < (b.x - a.x) * (at.y - a.y) / (b.y - a.y) + a.x) result = !result;
+      }
+      return result;
+    };
+    const bodies = candidates.filter((c) => c.type === 'body').flatMap((c) => {
+      let distance = c.polygon?.length >= 3 && inside(c.polygon) ? 0 : Infinity;
+      const points = c.path || [];
+      for (let i = 1; i < points.length; i++) distance = Math.min(distance, K.nearestOnSegment(at, points[i - 1], points[i]).distance);
+      if (c.polygon?.length) for (let i = 0; i < c.polygon.length; i++) distance = Math.min(distance, K.nearestOnSegment(at, c.polygon[i], c.polygon[(i + 1) % c.polygon.length]).distance);
+      return distance <= Math.max(7, c.radius || 0) ? [{ ...c, distance }] : [];
+    }).sort((a, b) => a.distance - b.distance || (b.priority || 0) - (a.priority || 0));
+    return [...new Set([...nodes, ...joints, ...bodies].map((c) => c.key))];
+  }
+  function hitTest(candidates, at, nodeRadius = 12, jointRadius = 8) {
+    return hitTargets(candidates, at, nodeRadius, jointRadius)[0] || null;
   }
   global.KinmoInteraction = Object.freeze({
-    nodeKey, elementKey, jointKey, pointKeys, target, reference, validSelection, select, fixed, status, root, hitTest,
-    addNode, disconnect, setJoint, toggleFixed, deleteSelection, setCoordinates, transformPoints, translate,
+    nodeKey, elementKey, jointKey, dimensionKey, pointKeys, target, reference, validSelection, select, fixed, status, root, hitTest, hitTargets,
+    addNode, disconnect, disconnectBody, toggleBodyFixed, setJoint, toggleFixed, deleteSelection, setCoordinates, transformPoints, translate,
     setDriver, setLimits, setJointLimits, setProperties, addPOI, split, insertAssembly,
   });
 })(globalThis);

@@ -151,15 +151,20 @@ test('Manifest requires a manual add-in start', async () => {
 test('Canvas modules and regression cases are in the public build and explicit publisher', async () => {
   const html = await readFile(path.join(root, 'index.html'), 'utf8'), build = await readFile(path.join(root, 'scripts/build.mjs'), 'utf8');
   const server = await readFile(path.join(root, 'scripts/server.mjs'), 'utf8'), publisher = await readFile(path.join(root, 'push-github.ps1'), 'utf8');
-  for (const file of ['interaction.js', 'workbench.js', 'magic-import.js', 'context-menu.js', 'slot-outline.js', 'scene-export.js', 'gif-export.js']) {
+  for (const file of ['interaction.js', 'workbench.js', 'magic-import.js', 'magic-detection.js', 'context-menu.js', 'slot-outline.js', 'scene-export.js', 'gif-export.js']) {
     assert(html.includes(`src="./${file}"`)); assert(build.includes(`'${file}'`)); assert(server.includes(`'${file}'`)); assert(publisher.includes(`'${file}'`));
   }
   assert(html.indexOf('src="./editor.js"') < html.indexOf('src="./interaction.js"') && html.indexOf('src="./context-menu.js"') < html.indexOf('src="./app.js"'));
   assert(html.indexOf('src="./slot-outline.js"') < html.indexOf('src="./exports.js"'));
   assert(html.indexOf('src="./magic-import.js"') > html.indexOf('src="./engine.js"') && html.indexOf('src="./magic-import.js"') < html.indexOf('src="./app.js"'));
+  assert(html.indexOf('src="./magic-detection.js"') > html.indexOf('src="./magic-import.js"') && html.indexOf('src="./magic-detection.js"') < html.indexOf('src="./app.js"'));
+  assert.match(await readFile(path.join(root, '_headers'), 'utf8'), /\/magic-detection\.js\r?\n\s+Cache-Control: no-cache/);
   const accept = html.match(/id="magic-image-file"[^>]*accept="([^"]+)"/)?.[1];
   assert.deepEqual(accept?.split(','), ['image/png', 'image/jpeg', 'image/webp', '.png', '.jpg', '.jpeg', '.webp']);
   for (const file of ['tests/interaction-cases.js', 'tests/workbench-cases.js', 'tests/magic-import-cases.js', 'tests/gif-decoder.js', 'tests/gif-cases.js']) {
     assert(server.includes(`'${file}'`)); assert(publisher.includes(`'${file}'`));
+  }
+  for (const file of ['tests/magic-detection.test.mjs', 'tests/context-menu.test.mjs']) {
+    assert(publisher.includes(`'${file}'`)); assert(!build.includes(`'${file}'`));
   }
 });

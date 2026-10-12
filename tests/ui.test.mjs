@@ -8,6 +8,7 @@ import '../editor.js';
 import '../interaction.js';
 import '../workbench.js';
 import '../magic-import.js';
+import '../magic-detection.js';
 import '../physics.js';
 import '../slot-outline.js';
 import '../scene-export.js';
@@ -59,7 +60,7 @@ function controller(width = 1440) {
     icon: () => '', escape: (value) => String(value), fmt: (value) => String(value), svgNS: 'http://www.w3.org/2000/svg',
     line: (a, b, attributes = '') => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${attributes}/>`,
     ib: (name, action, title, active = false, extra = '') => `<button data-action="${action}" ${extra}></button>`,
-    K, I, E, W: globalThis.KinmoWorkbench, M: { ...globalThis.KinmoMagicImport }, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo' }, typeIcons: { ground: 'ground' },
+    K, I, E, W: globalThis.KinmoWorkbench, M: { ...globalThis.KinmoMagicImport }, AD: { ...globalThis.KinmoDetection }, AbortController, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo' }, typeIcons: { ground: 'ground' },
     CAD: { ENDPOINT: 'http://127.0.0.1:8765' },
     renderTree() {}, renderInspector() {}, renderScene() {}, renderGraph() {}, fitView() {},
     onChange() {}, onSubmit() {}, onContextMenu() {}, updateHover() {}, updateMotion() {},
@@ -71,7 +72,7 @@ function controller(width = 1440) {
     setMotion: (motion) => { state.motion = motion; }, lastFrame: 1000, lastInspector: 0, requestAnimationFrame() {},
     parseReference: (value) => { const [elementId, point] = value.split('|'); return { elementId, point }; },
     updateToolbar: () => { context.updateInspectorVisibility(); context.updatePanelVisibility(); },
-    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) }, storageKey: 'qa', lastKey: 'qa.last', settingsKey: 'qa.settings', DD: { NAME: 'Zásuvka', KIND: 'double-drawer' },
+    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) }, storageKey: 'qa', lastKey: 'qa.last', settingsKey: 'qa.settings', DD: { NAME: 'Zásuvka', KIND: 'double-drawer' },
     collectionKeys: { assembly: 'qa.assemblies', revision: 'qa.revisions' },
     clearTimeout() {}, setTimeout: (callback) => { context.nextTimer = callback; return 1; }, autosaveTimer: null, latestSVG: '', updateHeader() {},
     URL: { revokeObjectURL: (url) => { (context.revokedURLs ||= []).push(url); } },
@@ -87,6 +88,9 @@ function controller(width = 1440) {
     vm.runInContext(definition, context);
   }
   vm.runInContext(source.match(/  const pathD = [^\n]+/)[0], context);
+  for (const name of ['magicScalePreview', 'applyMagicScale', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
+    vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  }
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -288,6 +292,7 @@ test('Active GIF blocks editor input, playback, imports and duplicate jobs but E
 test('Closing the GIF dialog cancels its job, and form submission shows errors as text', async () => {
   const fixture = gifController(), { context, state, element } = fixture; context.wireEvents();
   state.gifExport = { controller: new AbortController() };
+  element('#modal').open = false;
   element('#modal').listeners.get('close')(); assert(state.gifExport.controller.signal.aborted);
   state.gifExport = null; state.project.elements[0].drive = false;
   let prevented = false;
@@ -295,6 +300,17 @@ test('Closing the GIF dialog cancels its job, and form submission shows errors a
   assert(prevented); assert.match(element('#gif-error').textContent, /jeden nezávislý motor/);
   context.gifError(new Error('<img src=x onerror=alert(1)>'));
   assert.equal(element('#gif-error').innerHTML, ''); assert.equal(element('#gif-error').textContent, '<img src=x onerror=alert(1)>');
+});
+test('Clicking outside a numeric dialog does not discard it; explicit close clears only that draft', () => {
+  const { context, state, element } = controller(); context.wireEvents();
+  element('#modal').open = true;
+  state.pendingDeleteKeys = ['e:body']; state.pendingSnap = { target: 'draft' };
+  const before = JSON.stringify(state.project);
+  assert.equal(element('#modal').listeners.get('click'), undefined);
+  element('#modal').listeners.get('close')();
+  assert.deepEqual(state.pendingDeleteKeys, ['e:body']); assert(state.pendingSnap);
+  element('#modal').open = false; element('#modal').listeners.get('close')();
+  assert.equal(state.pendingDeleteKeys, null); assert.equal(state.pendingSnap, null); assert.equal(JSON.stringify(state.project), before);
 });
 
 test('The GIF editor lock permits its own blob download default action', () => {
@@ -392,6 +408,30 @@ test('Closing focused properties returns focus to the visible toggle', () => {
   context.setInspectorOpen(false);
   assert.equal(document.activeElement, element('[data-action="toggle-inspector"]'));
 });
+test('Analysis is a separate visible workspace with full sweep results, not a hidden properties tab', () => {
+  const { context, state, element } = controller();
+  state.samples = context.K.sample(state.project, 121, { collisions: false }); state.view = state.baseView = context.K.bounds(state.project, state.samples);
+  vm.runInContext(source.match(/  function updateToolbar\([^\n]*\) \{[\s\S]*?\n  \}/)[0], context);
+  const before = JSON.stringify(state.project);
+  context.setWorkspaceView(true);
+  assert.equal(state.inspectorOpen, false); assert(element('#canvas-area').hidden && !element('#analysis-workspace').hidden);
+  assert.match(element('#analysis-workspace').innerHTML, /Analýza celého pohybu/);
+  assert.match(element('#analysis-workspace').innerHTML, /Rozsah X \(mm\)/);
+  assert.match(element('#analysis-workspace').innerHTML, /Chýba pohon/);
+  context.selectTarget('e:body'); assert.equal(state.analysis, true);
+  context.setWorkspaceView(false); assert(!element('#canvas-area').hidden && element('#analysis-workspace').hidden);
+  assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
+});
+test('Fit view uses only framing corners while smart snap retains its central circle', () => {
+  const fit = source.match(/    fit: '([^']+)'/)[1], target = source.match(/    target: '([^']+)'/)[1];
+  assert(!fit.includes('circle')); assert(target.includes('circle')); assert(source.includes("ib('fit', 'fit'"));
+});
+test('Image export uses the visible analysis preview rather than the hidden editor canvas', () => {
+  const { context, state, element } = controller();
+  context.SC = { snapshot: (svg) => svg }; state.analysis = true;
+  assert.equal(context.sceneSVG(), element('#analysis-preview')); state.analysis = false;
+  assert.equal(context.sceneSVG(), element('#mechanism-canvas'));
+});
 
 for (const width of [393, 1440]) {
   test(`Profile and timeline hide independently and remain restorable at ${width}px`, () => {
@@ -438,6 +478,8 @@ test('Scheme labels have their own toggle, independent of dimensions and accessi
   assert.match(html, /data-action="labels"[^>]*aria-pressed="true"/);
   assert.match(html, /id="motion-profile-panel"/); assert.match(html, /id="playback-panel"/);
   assert(html.indexOf('data-action="timelineVisible"') < html.indexOf('id="playback-panel"'));
+  assert(html.indexOf('data-action="profileVisible"') < html.indexOf('class="stage-header"'));
+  assert.match(html, /id="motion-profile-panel"[^>]*hidden/); assert.match(html, /id="playback-panel"[^>]*hidden/);
   state.labels = false; context.updatePanelVisibility();
   assert(element('#mechanism-canvas').classList.contains('labels-hidden'));
   assert.match(element('[data-action="labels"]').title, /^Zobraziť texty/);
@@ -469,6 +511,16 @@ test('Selection styling covers the entire interface, with explicit editable-fiel
   assert.match(styles, /input, textarea,[^}]*user-select: text; -webkit-user-select: text;/);
   assert.match(styles, /\[contenteditable\] \* \{ user-select: inherit; -webkit-user-select: inherit;/);
   assert.match(styles, /\[contenteditable="false"\] \{ user-select: none; -webkit-user-select: none;/);
+});
+
+test('Canvas instructions let node clicks through while linking or picking dimensions', () => {
+  const rules = [...styles.matchAll(/\.canvas-instruction\s*\{([^}]*)\}/g)].map((match) => match[1]);
+  assert(rules.some((rule) => /pointer-events:\s*none\s*;/.test(rule)));
+  for (const rule of rules) {
+    const value = rule.match(/pointer-events:\s*([^;]+);/)?.[1];
+    if (value) assert.equal(value.trim(), 'none');
+  }
+  assert.match(source, /instruction\.textContent =/);
 });
 
 test('Text selection is allowed only for fields and actual editable content, including text nodes', () => {
@@ -748,6 +800,53 @@ test('The single project gateway exposes the custom library and named versions',
   assert.match(context.dialog.html, /data-action="assemblies"/); assert.match(context.dialog.html, /data-action="revisions"/);
   assert.equal((context.dialog.html.match(/data-action="load-double-drawer"/g) || []).length, 1);
 });
+test('Duplicating a project preserves current unsaved edits and opens an independent stored copy', () => {
+  const { context, state, storage } = controller(), original = state.project, old = context.K.copy(original);
+  storage.set('qa', JSON.stringify([old])); state.dirty = true; state.project.elements[0].length = 180;
+  const before = JSON.stringify(state.project);
+  context.duplicateProject(original.id);
+  const records = JSON.parse(storage.get('qa'));
+  assert.equal(records.length, 2); assert.notEqual(state.project.id, original.id); assert.match(state.project.name, /kópia/);
+  assert.equal(JSON.stringify(records.find((p) => p.id === original.id)), before);
+  assert.equal(state.project.elements[0].length, 180); assert.equal(state.saved, true); assert.equal(state.dirty, false);
+  state.project.elements[0].length = 200; assert.equal(original.elements[0].length, 180);
+});
+test('A full or malformed project store blocks duplication without evicting or overwriting user projects', () => {
+  for (const kind of ['full', 'invalid', 'unavailable']) {
+    const { context, state, storage } = controller(), original = state.project;
+    const records = Array.from({ length: 20 }, (_, i) => ({ ...context.K.copy(original), id: `project-${i}` }));
+    storage.set('qa', kind === 'invalid' ? 'user bytes, not JSON' : JSON.stringify(records));
+    if (kind === 'unavailable') context.localStorage.setItem = () => { throw new Error('quota'); };
+    const before = storage.get('qa');
+    context.duplicateProject();
+    assert.equal(storage.get('qa'), before); assert.equal(state.project, original); assert(context.lastToast);
+  }
+});
+test('Deleting a noncurrent project needs confirmation and leaves the active history and other records intact', () => {
+  const { context, state, storage } = controller(), current = context.K.copy(state.project), other = { ...context.K.copy(current), id: 'other-project', name: 'Iný' };
+  storage.set('qa', JSON.stringify([current, other])); state.history = [context.K.copy(current)];
+  const history = state.history, before = JSON.stringify(state.project);
+  context.deleteProjectModal(other.id);
+  assert.equal(JSON.parse(storage.get('qa')).length, 2); assert.match(context.dialog.html, /confirm-project-delete/);
+  context.confirmProjectDelete();
+  assert.deepEqual(JSON.parse(storage.get('qa')).map((p) => p.id), [current.id]);
+  assert.equal(JSON.stringify(state.project), before); assert.equal(state.history, history);
+});
+test('Deleting the active project stops its autosave and opens an unsaved blank canvas, not a resurrected record', () => {
+  const { context, state, storage } = controller(), id = state.project.id;
+  storage.set('qa', JSON.stringify([state.project])); storage.set('qa.last', id);
+  context.deleteProjectModal(id); context.confirmProjectDelete();
+  assert.equal(storage.get('qa'), '[]'); assert.equal(storage.get('qa.last'), undefined);
+  assert.notEqual(state.project.id, id); assert.equal(state.project.elements.length, 0); assert.equal(state.saved, false);
+  assert.equal(state.history.length, 0); assert.equal(state.dirty, false);
+});
+test('A failed delete write keeps both the active project and its stored record', () => {
+  const { context, state, storage } = controller(), before = JSON.stringify(state.project);
+  storage.set('qa', `[${before}]`); context.deleteProjectModal(state.project.id);
+  context.localStorage.setItem = () => { throw new Error('quota'); }; context.confirmProjectDelete();
+  assert.equal(JSON.stringify(state.project), before); assert.equal(storage.get('qa'), `[${before}]`);
+  context.deleteProjectModal('double-drawer-template'); assert.match(context.lastToast, /nemožno vymazať/);
+});
 
 test('Saving a selected assembly persists a validated copy without editing the project', () => {
   const { context, state, storage } = controller(); context.selectTarget('e:body');
@@ -899,9 +998,123 @@ test('Node, member and background menu items stay within narrow ownership', () =
   const { context, state } = controller(), I = globalThis.KinmoInteraction;
   const node = context.contextItems(I.target(state.project, 'n:body:a')), member = context.contextItems(I.target(state.project, 'e:body'));
   assert(node.some((i) => i.id === 'coordinates') && !node.some((i) => i.id === 'split'));
-  assert(member.some((i) => i.id === 'split') && member.some((i) => i.id === 'poi') && !member.some((i) => i.id === 'coordinates'));
+  assert(member.some((i) => i.id === 'split') && member.some((i) => i.id === 'poi') && member.some((i) => i.id === 'coordinates'));
+  assert(member.some((i) => i.id === 'disconnect-body') && member.some((i) => i.id === 'fix-body'));
   state.project = globalThis.Kinematics.preset('fourbar');
   assert(context.contextItems(I.target(state.project, 'n:input-1:a')).find((i) => i.id === 'fix').disabled);
+});
+test('A right click on a canvas overlay still picks the underlying member geometrically', () => {
+  const { context, state } = controller();
+  let prevented = false;
+  const event = { clientX: 55, clientY: 22, target: { closest: () => null }, preventDefault() { prevented = true; }, stopPropagation() {} };
+  context.onContextMenu(event);
+  assert(prevented); assert.equal(state.contextMenuState.targetId, 'e:body');
+  assert.equal(context.openedMenu.items.some((item) => item.id === 'disconnect-body'), true);
+});
+test('Coincident nodes, a joint and bodies remain individually accessible through the overlap chooser', () => {
+  const { context, state } = controller();
+  state.project.elements[1].y = 20;
+  state.project.connections.push({ id: 'joint-overlap', a: { elementId: 'body', point: 'a' }, b: { elementId: 'another-body', point: 'a' }, type: 'revolute' });
+  state.project = context.K.validateProject(state.project); state.result = context.E.design(state.project, 0);
+  const event = { clientX: 10, clientY: 20, target: { closest: () => null }, preventDefault() {}, stopPropagation() {} };
+  context.onContextMenu(event);
+  const chooser = context.openedMenu.items[0];
+  assert.match(chooser.label, /Vybrať entitu/); assert(chooser.items.some((item) => item.id === 'pick:j:joint-overlap'));
+  context.onContextAction('pick:j:joint-overlap');
+  assert.equal(state.contextMenuState.targetId, 'j:joint-overlap'); assert.equal(state.contextMenuState.targetType, 'joint');
+});
+test('Deleting a context joint removes only that joint even when several bodies are selected', () => {
+  const { context, state } = controller();
+  state.project.connections.push({ id: 'only-joint', a: { elementId: 'body', point: 'a' }, b: { elementId: 'another-body', point: 'a' }, type: 'revolute' });
+  state.project = context.K.validateProject(state.project); state.result = context.E.design(state.project, 0);
+  state.selectedElementIds = ['e:body', 'e:another-body', 'j:only-joint']; state.contextMenuState.targetId = 'j:only-joint';
+  context.onContextAction('delete');
+  assert.equal(state.project.connections.length, 0); assert.equal(state.project.elements.length, 2); assert.equal(state.history.length, 1);
+});
+test('Visible panels support geometric body selection and bound two-point dimension picking', () => {
+  const { context, state } = controller();
+  state.project.elements.push({ ...context.K.makeElement('panel', 250, -50), id: 'panel', angle: 30, length: 160, width: 80 });
+  state.project = context.K.validateProject(state.project); state.result = context.E.design(state.project, 0);
+  const before = JSON.stringify(state.project), pose = state.result.poses.panel;
+  const event = (point) => ({ button: 0, clientX: point.x, clientY: point.y, pointerId: 1, target: { closest: () => null }, preventDefault() {} });
+  const dx = pose.b.x - pose.a.x, dy = pose.b.y - pose.a.y, length = Math.hypot(dx, dy);
+  const inside = { x: (pose.a.x + pose.b.x) / 2 - dy * 20 / length, y: (pose.a.y + pose.b.y) / 2 + dx * 20 / length };
+  assert.equal(context.canvasHit(event(inside)), 'e:panel');
+  assert.equal(context.canvasHit(event(pose.a)), 'n:panel:a');
+  assert.equal(typeof context.panelPolygon(pose, 80), 'string');
+  context.setTool('measure'); context.onPointerDown(event(pose.a)); context.onPointerUp({ pointerId: 1 });
+  assert.equal(state.measure.referenceA.elementId, 'panel');
+  context.onPointerDown(event(pose.b));
+  assert.equal(state.dimensionPick, null);
+  assert.match(context.dialog.html, /value="panel\|a" selected/); assert.match(context.dialog.html, /value="panel\|b" selected/);
+  assert.equal(state.history.length, 0); assert.equal(JSON.stringify(state.project), before);
+});
+test('The measure tool picks two bound canvas nodes and opens a draft form without making an undo entry', () => {
+  const { context, state } = controller(), before = JSON.stringify(state.project);
+  const click = (x, y) => context.onPointerDown({ button: 0, clientX: x, clientY: y, pointerId: 1, target: { closest: () => null }, preventDefault() {} });
+  context.setTool('measure'); assert(state.dimensionPick); click(10, 20);
+  assert.equal(state.measure.referenceA.elementId, 'body'); assert.equal(state.history.length, 0);
+  context.onPointerUp({ pointerId: 1 });
+  context.onPointerMove({ clientX: 10, clientY: 60, pointerId: 1 }); assert.equal(state.measure.b.y, 60);
+  click(10, 60);
+  assert.equal(state.dimensionPick, null); assert.equal(state.tool, 'select'); assert.equal(state.measure, null);
+  assert.match(context.dialog.html, /value="body\|a" selected/); assert.match(context.dialog.html, /value="another-body\|a" selected/);
+  assert.equal(state.history.length, 0); assert.equal(JSON.stringify(state.project), before);
+});
+test('Point selection retains the pending expression and name; Escape cancels without modifying an existing dimension', () => {
+  const { context, state, element } = controller(), values = new Map([['name', 'Moja kóta'], ['type', 'distance'], ['offset', '2cm'], ['value', '300/2'], ['fixed-end', 'b'], ['driving', 'on']]);
+  context.FormData = class { constructor() {} get(key) { return values.get(key) ?? null; } has(key) { return values.has(key); } };
+  context.startDimensionPick({ dataset: { id: '' } });
+  context.pickDimensionPoint({ clientX: 10, clientY: 20 });
+  context.pickDimensionPoint({ clientX: 110, clientY: 20 });
+  assert.match(context.dialog.html, /value="Moja kóta"/); assert.match(context.dialog.html, /value="300\/2"/); assert.match(context.dialog.html, /value="b" selected/);
+  assert.equal(state.history.length, 0);
+  context.startDimensionPick(); context.pickDimensionPoint({ clientX: 10, clientY: 20 });
+  element('#modal').open = false;
+  context.onKeyboard({ key: 'Escape', code: 'Escape', target: { closest: () => null }, preventDefault() {} });
+  assert.equal(state.dimensionPick, null); assert.equal(state.measure, null); assert.equal(state.project.dimensions.length, 0);
+});
+test('Saving a typed driving dimension is one undo entry and keeps B in place; invalid input leaves the form and model unchanged', () => {
+  const { context, state, element } = controller(), form = { dataset: { id: '' } }, before = JSON.stringify(state.project);
+  const data = new Map([['name', 'Test'], ['type', 'distance'], ['a', 'body|a'], ['b', 'body|b'], ['offset', '2,5cm'], ['value', '300/2'], ['fixed-end', 'b'], ['driving', 'on']]);
+  element('#modal').open = true; data.set('value', '1/0');
+  assert.throws(() => context.submitDimension(form, data)); assert(element('#modal').open);
+  assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
+  data.set('value', '300/2'); context.submitDimension(form, data);
+  assert.equal(state.project.elements[0].length, 150); assert.equal(state.result.poses.body.b.x, 110);
+  assert.equal(state.project.dimensions[0].offset, 25); assert.equal(state.history.length, 1); assert(!element('#modal').open);
+  context.undo(); assert.equal(JSON.stringify(state.project), before);
+});
+test('A draft dimension supports a free canvas point without pretending it is a driving body reference', () => {
+  const { context, state } = controller(), before = JSON.stringify(state.project);
+  context.startDimensionPick(); context.pickDimensionPoint({ clientX: 10, clientY: 20 }); context.pickDimensionPoint({ clientX: 400, clientY: 300 });
+  assert.match(context.dialog.html, /data-world-b="\{"x":400,"y":300\}"/);
+  const form = { dataset: { worldB: '{"x":400,"y":300}' } }, data = new Map([['a', 'body|a'], ['b', 'world-b'], ['type', 'distance'], ['offset', '25']]);
+  data.set('driving', 'on'); data.set('value', '100');
+  assert.throws(() => context.submitDimension(form, data)); assert.equal(JSON.stringify(state.project), before);
+  data.delete('driving'); context.submitDimension(form, data);
+  assert.equal(state.project.dimensions[0].b.x, 400); assert.equal(state.project.elements[0].length, 100);
+});
+test('Property numbers and precise transforms accept units and preserve the motor B pivot', () => {
+  const { context, state } = controller();
+  state.project.elements[0].drive = true; state.project.elements[0].drivePivot = 'b'; state.selected = 'body';
+  state.project = context.K.validateProject(state.project); state.result = context.E.design(state.project, 0);
+  context.onPropertyChange({ dataset: { property: 'length', scope: 'element', quantity: 'mm' }, value: '20 cm', min: '.1', max: '5000', checkValidity: () => true });
+  assert.equal(state.project.elements[0].length, 200); assert.equal(state.result.poses.body.b.x, 110);
+  context.submitTransform({ dataset: { kind: 'move-x', keys: '["e:body"]' } }, new Map([['dx', '2,5cm']]));
+  assert.equal(state.result.poses.body.b.x, 135);
+  const before = JSON.stringify(state.project), history = state.history.length;
+  context.onPropertyChange({ dataset: { property: 'length', scope: 'element', quantity: 'mm' }, value: '6m', min: '.1', max: '5000', checkValidity: () => true });
+  assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, history);
+});
+test('The dimension context menu deletes only its dimension and owned constraint, not selected bodies', () => {
+  const { context, state } = controller();
+  state.project = context.W.applyDimension(state.project, state.result, { a: { elementId: 'body', point: 'a' }, b: { elementId: 'another-body', point: 'a' }, driving: true, value: '40mm' });
+  const d = state.project.dimensions[0]; state.result = context.E.design(state.project, 0);
+  state.contextMenuState.targetId = `d:${d.id}`; state.selectedElementIds = ['e:body', `d:${d.id}`];
+  assert.equal(context.contextItems(context.I.target(state.project, `d:${d.id}`))[1].id, 'delete-dimension');
+  context.onContextAction('delete-dimension');
+  assert.equal(state.project.elements.length, 2); assert.equal(state.project.dimensions.length, 0); assert.equal(state.project.connections.length, 0);
 });
 
 test('Menu positioning clamps both axes inside desktop and mobile viewports', () => {
@@ -982,11 +1195,13 @@ const tracingWizard = (ui = controller()) => {
   return ui;
 };
 
-test('Magic import has one accessible header entry and an initially hidden wizard', () => {
+test('Magic import lives only in Mechanisms and projects, with an initially hidden wizard', () => {
   const { context, element } = controller(); context.buildShell();
   const html = element('#app').innerHTML;
-  assert.equal((html.match(/data-action="magic-import"/g) || []).length, 1);
-  assert.match(html, /data-action="magic-import"[^>]*aria-controls="magic-wizard"[^>]*aria-expanded="false"/);
+  assert.equal((html.match(/data-action="magic-import"/g) || []).length, 0);
+  context.projectsModal();
+  assert.equal((context.dialog.html.match(/data-action="magic-import"/g) || []).length, 1);
+  assert.match(context.dialog.html, /data-action="magic-import"[^>]*aria-controls="magic-wizard"[^>]*aria-expanded="false"/);
   assert.match(html, /id="magic-wizard"[^>]*hidden/);
   assert.match(styles, /\.magic-heading \{[^}]*position: sticky/);
   assert.match(styles, /#app\.magic-active \{ min-height: 700px/);
@@ -1011,7 +1226,7 @@ test('Starting Magic import creates an isolated blank draft without saving or op
   assert.equal(state.project.kind, 'custom'); assert.equal(state.project.elements.length, 0); assert.notEqual(state.project.id, original.id);
   assert.equal(state.history.length, 0); assert.equal(state.inspectorOpen, false); assert.equal(state.smartSnap, false);
   assert.equal(state.magic.step, 1); assert.equal(storage.size, 0); assert.equal(JSON.stringify(original), before);
-  assert.match(element('#magic-wizard').innerHTML, /nie automatické rozpoznávanie/);
+  assert.match(element('#magic-wizard').innerHTML, /zostáva lokálne/);
 });
 test('Drafts cannot be saved, autosaved, replaced or switched to another project', () => {
   const { context, state, storage } = tracingWizard(), draft = state.project;
@@ -1079,15 +1294,85 @@ test('A rejected crossing frame preserves its preview for correction and does no
   assert.throws(() => context.commitMagicDrawing());
   assert.equal(state.magic.drawing.length, 4); assert.equal(state.history.length, 0); assert.equal(state.project.elements.length, 0);
 });
-test('Scale remains locked after drawing, including after Undo removes every element', () => {
+test('A new scale after tracing requires confirmation and undo restores geometry and calibration together', () => {
   const { context, state, element } = tracingWizard();
-  context.magicPointer({ x: 0, y: 0 }); context.magicPointer({ x: 100, y: 0 }); context.undo();
-  assert.equal(state.project.elements.length, 0); assert(state.magic.geometryStarted);
+  context.magicPointer({ x: 0, y: 0 }); context.magicPointer({ x: 100, y: 0 });
+  const before = JSON.stringify(state.project), scale = state.magic.scale;
   context.setMagicStep(2); context.renderMagicImport();
-  assert.match(element('#magic-wizard').innerHTML, /name="distance"[^>]*disabled/);
-  const scale = state.magic.scale;
-  context.submitMagicScale(new Map(Object.entries({ ax: '0', ay: '0', bx: '100', by: '0', distance: '1000' })));
+  assert.doesNotMatch(element('#magic-wizard').innerHTML, /name="distance"[^>]*disabled/);
+  context.submitMagicScale(new Map(Object.entries({ ax: '100', ay: '80', bx: '500', by: '80', distance: '300' })));
   assert.equal(state.magic.scale, scale);
+  assert.equal(JSON.stringify(state.project), before); assert.match(context.dialog.html, /magic-confirm-scale/);
+  context.applyMagicScale();
+  assert.equal(state.project.elements[0].length, 150); assert.equal(state.magic.scale.mmPerPixel, .75);
+  context.undo(); assert.equal(state.project.elements[0].length, 100); assert.equal(state.magic.scale.mmPerPixel, .5);
+  context.undo(true); assert.equal(state.project.elements[0].length, 150); assert.equal(state.magic.scale.mmPerPixel, .75);
+});
+test('One horizontal millimeter value recalculates the whole image height without changing aspect ratio', () => {
+  const { context, state } = controller(); context.startMagicImport();
+  state.magic.image = { width: 800, height: 600 }; state.magic.step = 2;
+  const data = new Map(Object.entries({ ax: '100', ay: '80', bx: '500', by: '180', distance: '300', axis: 'horizontal' }));
+  assert.match(context.magicScalePreview(data), /X = 300 mm · Y = 75 mm/);
+  assert.match(context.magicScalePreview(data), /600 × 450 mm/);
+  context.submitMagicScale(data);
+  assert.equal(state.magic.scale.mmPerPixel, .75); assert.equal(state.magic.scale.axis, 'horizontal');
+});
+test('Toggling autodetection retains the live scale form and incomplete calibration input', () => {
+  const { context, state } = controller(); context.startMagicImport();
+  state.magic.image = { width: 800, height: 600 }; state.magic.step = 2;
+  const select = context.$, before = JSON.stringify(state.project);
+  for (const checked of [true, false]) {
+    const form = { values: { ax: '0', ay: checked ? '0' : '', bx: '799', by: '0' }, details: { open: true } };
+    const placeholder = { replaceWith(node) { this.restored = node; } };
+    let queries = 0;
+    context.$ = (selector) => selector === '#magic-scale-form' ? (queries++ ? placeholder : form) : select(selector);
+    context.onMagicSetting({ dataset: { magicSetting: 'auto-detect' }, checked });
+    assert.equal(placeholder.restored, form);
+    assert.equal(state.magic.detectEnabled, checked);
+    assert.equal(form.details.open, true);
+    assert.equal(form.values.ay, checked ? '0' : '');
+    assert.equal(state.magic.points.length, 0); assert.equal(state.magic.scale, null);
+    assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
+  }
+});
+test('Optional step 2.5 needs opt-in and a calibrated image, not an integer-only step check', () => {
+  const { context, state, element } = tracingWizard();
+  context.setMagicStep(2.5); assert.equal(state.magic.step, 3);
+  state.magic.detectEnabled = true; context.setMagicStep(2.5);
+  assert.equal(state.magic.step, 2.5); context.renderMagicImport();
+  assert.match(element('#magic-wizard').innerHTML, /data-step="2.5"/);
+  assert.match(element('#magic-wizard').innerHTML, /data-action="magic-detect"/);
+  assert.equal(context.magicWorking(), false);
+  const before = JSON.stringify(state.project);
+  assert(context.magicPointer({ x: 10, y: 10 })); assert.equal(JSON.stringify(state.project), before);
+});
+test('Detection preview leaves the draft unchanged; applying it is one undoable insertion', async () => {
+  const { context, state } = tracingWizard(), before = JSON.stringify(state.project);
+  state.magic.detectEnabled = true; context.setMagicStep(2.5);
+  context.AD.detectImage = async () => ({ candidates: [{ id: 'detect-1', type: 'link', selected: true, points: [{ x: 100, y: 80 }, { x: 500, y: 80 }], width: 10, radius: 5, confidence: .83 }], note: 'Overiť.' });
+  await context.runMagicDetection();
+  assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
+  assert.match(context.magicDetectionSVG(1), /magic-detection/);
+  context.applyMagicDetection();
+  assert.equal(state.magic.step, 3); assert.equal(state.project.elements.length, 1);
+  assert.equal(state.project.elements[0].length, 200); assert(!state.project.elements[0].drive);
+  assert.equal(state.history.length, 1);
+  context.setMagicStep(2.5); context.applyMagicDetection(); assert.equal(state.project.elements.length, 1);
+  context.setMagicStep(3); context.undo(); assert.equal(state.project.elements.length, 0);
+});
+test('Cancelling a detection or its wizard prevents a late result from changing either project', async () => {
+  for (const cancelWizard of [false, true]) {
+    const { context, state } = tracingWizard(), original = state.magic.original.project;
+    state.magic.detectEnabled = true; context.setMagicStep(2.5);
+    let finish;
+    context.AD.detectImage = (image, { signal }) => new Promise((resolve) => { finish = resolve; context.detectorSignal = signal; });
+    const pending = context.runMagicDetection();
+    if (cancelWizard) context.cancelMagicImport(true); else state.magic.detectController.abort();
+    assert(context.detectorSignal.aborted);
+    finish({ candidates: [{ selected: true }], note: 'Stale' }); await pending;
+    if (cancelWizard) assert.equal(state.project, original);
+    else { assert.equal(state.project.elements.length, 0); assert.equal(state.magic.detectCandidates, undefined); assert.equal(state.magic.busy, false); }
+  }
 });
 test('Fixed point drawing and click-then-place members preserve the ordinary manual properties policy', () => {
   const { context, state } = tracingWizard(); context.selectMagicTool('fixed-point'); context.magicPointer({ x: 10, y: 20 });

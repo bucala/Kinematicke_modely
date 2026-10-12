@@ -1,8 +1,61 @@
 # Stav overenia
 
-Aktualizované 11. 10. 2026 pre verziu 2.0.0.
+Rozšírenie nad `6554b75`, verzia 2.0.0. Nižšie uvedené staršie dátumy a počty sú historické výsledky, nie opätovné overenie aktuálneho rozhrania.
 
-## Lokálne kontroly
+## Aktuálne rozšírenie: všetkých osem požiadaviek
+
+- `npm run check`: prešlo, vrátane nového detektora a kontextových regresií.
+- `npm test`: **542 JavaScriptových testov, 0 zlyhaní**. Zdieľané modely, VM funkcie skutočného kontroléra, lokálny dekóder, detektor, podponuky, CAD/export integrácie, PDF bajty, SVG snímky a GIF.
+- Izolovaný Fusion Python (`python -B tests/test_fusion.py`): **23 testov, 0 zlyhaní**, bez pripojenia k živému Fusion dokumentu. Výsledok je zo skoršieho behu tohto rozšírenia; po posledných CSS/UI opravách sa Python sada nezopakovala.
+- `npm run build`: prešlo, `dist/` obsahuje aj `magic-detection.js`.
+- `tests/browser.html`: **338 / 338** zdieľaných prípadov cez izolované HTTP aj sieťovo vypnuté `file://` v Chrome 155.
+
+### Nové regresie
+
+- Jedna mierka podľa X/Y/A–B, jednotný prepočet oboch smerov, rodičovské súradnice, konce/obrysy/dráhy, lineárne limity a rýchlosti. Potvrdenie a Späť/znova obnovujú kalibráciu spolu s geometriou.
+- Lokálna segmentácia syntetických rasterov, rovné/zakrivené/kruhové kandidáty, limity 768² pixelov / 60 kandidátov / 4 000 komponentov, lokálny Blob dekóder, zrušenie a uvoľnenie. Náhľad nemení projekt; vloženie je atómové.
+- Klik mimo dialógu ho nezavrie; oneskorené `close` nevyčistí znovu otvorený formulár.
+- Skryté predvolené panely a dostupné prepínače, validované úložisko, samostatné ID kópie, zachovanie neuloženého originálu, potvrdené mazanie, zastavenie autosave a nedotknuté bajty pri chybe zápisu.
+- Analýza celého vzorkovaného rozsahu, oddelené mm/° rezíduá, blokované intervaly, statická geometria bez pohonu a plná otáčka cez ±180°.
+- Geometrický výber cez prekrytie, vyplnené obrysy, zoznam prekrývajúcich sa entít, podponuky mimo posuvného koreňa, myš/klávesnica a vlastný klik mimo. Odpojenie/fixácia telesa, mazanie iba zvoleného kĺbu alebo kóty.
+- Parser bez `eval`, výrazy, čiarka, jednotky, zátvorky, hranice a odmietnutie delenia nulou, kódu či nesprávnej rozmerovej jednotky. Dva body na plátne, zachovanie návrhu formulára, zrušenie, voľný merací bod, A/B/stred aj rodičovské súradnice, pevný B a motor B, projekčné kóty, riadiace väzby a jeden krok Späť.
+- Dve doplnené sondy najskôr odhalili chybu zachovania bodu pri úprave kóty počas simulácie. Oprava spätne odpočíta zobrazený účinok pohonu pri zápise návrhových súradníc. Finálne regresie zachovávajú A/B/stred pri otočnom pivote A/B/C, lineárnom posuve aj v otočenom rodičovi; nezapočítajú pohon dvakrát.
+- Natívne QA odhalilo ešte tri opravené chyby: návod zachytával klik na uzol, panelový hit-testing volal `.map` na SVG reťazci a prepnutie autodetekcie vymazalo nepotvrdené pixelové súradnice. Každá má regresiu, ktorá najskôr zlyhala a po oprave prešla.
+- Presná zhoda **25 statických assetov** so zdrojmi a deterministický Fusion ZIP prešli; verejný inventár má 26 súborov bez súkromných príloh. Zdrojový server servuje detektor a odmieta súkromné cesty. Päť návodov má 78 platných relatívnych odkazov, 27 jedinečných explicitných kotiev a 32 párovaných rozbaľovacích návodov. PowerShell parser publikačného skriptu, kontrola bežných formátov tajomstiev a `git diff --check` prešli; publikačný skript sa nespustil.
+
+VM a zjednodušený DOM neoverujú natívne gestá, rasterovanie ani rozloženie. Aktuálne prehliadačové akceptačné výsledky sú nižšie; pôvodné štyri dočasné snímky už v prostredí nie sú dostupné. Živý Fusion import, vzdialené CI a produkčné nasadenie sa týmito kontrolami neoverili. Používateľ dodatočne autorizoval commit a push do existujúceho `main`; manuálny deploy nie.
+
+### Predpublikačná kontrola, 12. 10. 2026
+
+Po výslovnej požiadavke na commit/push sa README a changelog doplnili pre celý rozsah ôsmich úprav a zosúladili sa publikačné poznámky. Znovu prešli `npm run check`, **542 JS testov**, `npm run build`, 78 relatívnych dokumentačných odkazov a kontrola bežných formátov tajomstiev.
+
+Výsledky **338 / 338** v prehliadači, snímky a **23 Python testov** pochádzajú z predchádzajúcich kontrol tohto rozšírenia; pri poslednom doplnení dokumentácie sa neopakovali. Runtime kód sa pri tejto publikačnej príprave nemenil. Používa sa existujúca Git identita, spoluautorský trailer a štandardný push do `main`, bez prepisu histórie alebo prepínania druhého pracovného checkoutu.
+
+### Finálne prehliadačové overenie tohto rozšírenia
+
+Izolovaný `agent-browser` 0.39.0 s Chrome 155 na Windows, bez používateľského profilu alebo prihlásení. QA nástroj nie je závislosť aplikácie. Zdroj sa otvoril cez vlastný loopback server, mobilné rozloženie cez finálne `dist/index.html`.
+
+| Prostredie | Viewport | Overenie |
+|---|---|---|
+| Zdroj cez HTTP | 1 440 × 900 | Projekty, skryté/nezávislé panely, kontextové podponuky, úzke mazanie, výber panelu, viazané/voľné kóty a Analýza |
+| Zostavený `file://`, sieť vypnutá | 393 × 852 | Projekty, panely, číselný dialóg, viazané body, uhlové meranie, portálová podponuka, Analýza a lokálna detekcia |
+| Zdieľané modelové testy | obe rozloženia | 338 / 338 cez HTTP aj sieťovo vypnuté `file://` |
+
+- Natívny pravý klik odstránil pri trojpoložkovom výbere iba vybraný kĺb: 4 → 3 kĺby, všetky 4 telesá zostali; Späť obnovilo 4/4. **Iba vytvorenie multivýberu** použilo syntetické Ctrl pointer udalosti. Model ani pointer capture sa nenahradili.
+- Natívna ponuka sprístupnila prekryté vstupné rameno; vyplnený vnútorný bod vybral panel. Dva kliky na jeho A/B otvorili viazanú kótu. Dva voľné body boli iba meracie; uloženie a Späť ponechali existujúce kóty.
+- Desktopové uhlové meranie ukázalo 90° a zakázané riadenie. Mobilný dialóg zachoval `300/2` po kliknutí mimo; potvrdenie nastavilo 150 mm a ponechalo B na (190, −240). Viazaný picker ukázal 150 mm; uhlové meranie sa uložilo bez riadenia.
+- Portálové podponuky sú priamo v `BODY`, bez orezania. Mobilná podponuka aj číselné dialógy sa zmestili do viewportu. Panely sa prepínali nezávisle a rozloženie nepretieklo vodorovne.
+- Analýza na desktope aj mobile ukázala 121 / 121 polôh, 0 mm / 0° a správne tri voľné súradnice pridaného nepripojeného panelu; Vlastnosti zostali skryté.
+- Finálny offline sprievodca dekódoval skutočný pribalený PNG. Vstup X = 300 mm pre úsek 907 px dal jednotnú mierku 0,330761 mm/px. Zapnutie autodetekcie zachovalo všetky štyri súradnice aj otvorenú časť formulára. Náhľad mal 60 návrhov a 0 telies; potvrdenie vložilo 60 telies, jedno natívne Ctrl+Z odstránilo celú dávku. Zrušenie obnovilo pôvodných 5 telies. Detekcia neurčuje funkciu mechanizmu.
+- Skoršie funkčné sondy zostaveného rozhrania navyše overili duplikovanie/mazanie projektu, odmietnutie `1/0`, problémovú Analýzu (68 priechodných / 53 problémových polôh, 42,3 mm) a prepočet mierky 300 → 600 s potvrdením, Späť a zrušením. Celá táto skoršia sekvencia sa po posledných UI opravách natívne neopakovala.
+
+Snímky boli zachytené a vizuálne prezreté v ignorovanom `.analysis/qa-oct12/`, vrátane editorov, projektov, podponúk, kót, Analýzy, detekcie a oboch finálnych zdieľaných sád. Po opravách zaznamenané aplikačné `error` udalosti zostali prázdne. Staršie no-op HTTP kliknutia a timeouty snímok sa v obnovenom izolovanom prostredí nezopakovali. QA reload sprievodcu vyžadoval prijatie jeho očakávaného natívneho `beforeunload` potvrdenia.
+
+Vypnutie siete bolo overené `navigator.onLine === false` aj zlyhaním kontrolného HTTP fetchu. Po obnovení siete kontrolný fetch prešiel s HTTP 200; dočasné pozorovacie listenery/globálne premenné boli odstránené. **Úplné natívne ťahanie, prirodzené časovanie animácie, skutočné dotykové gestá, nový živý Fusion import a vzdialené CI/deploy zostávajú mimo tohto overenia.** Mobilný výsledok označuje úzky viewport, nie test na fyzickom telefóne.
+
+Vlastná QA relácia prehliadača a loopback server sa ukončili po kontrole identity procesov; port 5189 je voľný. Zdrojové zmeny, zostavenie a ignorované dôkazy zostali zachované. Tieto prehliadačové kontroly sa vykonali pred autorizovaným publikovaním zdrojov; nepotvrdzujú vzdialené CI ani deploy.
+
+## Historické lokálne kontroly, 11. 10. 2026
 
 Prostredie má funkčný PowerShell, Node.js 24.15.0 a Python dodaný s lokálne nainštalovaným Fusion. Pôvodné analytické šablóny a samostatný projekt „Dvojite sklopeny suflik“ zostávajú zachované. Voľná editácia vytvára nezávislé kópie.
 

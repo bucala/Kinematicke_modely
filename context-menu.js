@@ -38,20 +38,24 @@
         }
         if (item.items) {
           button.setAttribute('aria-haspopup', 'menu'); button.setAttribute('aria-expanded', 'false');
-          button.addEventListener('click', () => {
+          const openSubmenu = (focus) => {
+            if (submenuOwner === button && submenu) { if (focus) buttons(submenu)[0]?.focus(); return; }
             closeSubmenu(); submenuOwner = button;
             submenu = doc.createElement('div'); submenu.className = 'canvas-context-menu context-submenu'; submenu.setAttribute('role', 'menu'); submenu.setAttribute('aria-label', item.label);
-            el.append(submenu); fill(submenu, item.items); button.setAttribute('aria-expanded', 'true');
+            doc.body.append(submenu); submenu.addEventListener('keydown', keyboard); submenu.addEventListener('contextmenu', (event) => event.preventDefault());
+            fill(submenu, item.items); button.setAttribute('aria-expanded', 'true');
             const r = button.getBoundingClientRect(), { width } = viewport(), w = submenu.getBoundingClientRect().width;
             place(submenu, r.right + w + 8 > width ? r.left - w : r.right, r.top);
-            buttons(submenu)[0]?.focus();
-          });
+            if (focus) buttons(submenu)[0]?.focus();
+          };
+          button.addEventListener('click', () => openSubmenu(true));
+          button.addEventListener('pointerenter', (event) => { if (event.pointerType !== 'touch' && !button.disabled) openSubmenu(false); });
         } else button.addEventListener('click', () => { close(true); onAction?.(item.id); });
         menu.append(button);
       }
     };
     el.addEventListener('contextmenu', (event) => event.preventDefault());
-    el.addEventListener('keydown', (event) => {
+    const keyboard = (event) => {
       event.stopPropagation();
       const menu = submenu?.contains(event.target) ? submenu : el, all = buttons(menu), index = all.indexOf(doc.activeElement);
       if (event.key === 'Escape') { event.preventDefault(); close(true); }
@@ -62,8 +66,9 @@
         all[next]?.focus();
       } else if (event.key === 'ArrowRight' && doc.activeElement?.getAttribute('aria-haspopup') === 'menu') { event.preventDefault(); doc.activeElement.click(); }
       else if (event.key === 'ArrowLeft' && submenu) { event.preventDefault(); const owner = submenuOwner; closeSubmenu(); owner.focus(); }
-    });
-    const outside = (event) => { if (!el.contains(event.target)) close(); };
+    };
+    el.addEventListener('keydown', keyboard);
+    const outside = (event) => { if (!el.contains(event.target) && !submenu?.contains(event.target)) close(); };
     doc.addEventListener('pointerdown', outside, true);
     return Object.freeze({
       element: el, close,

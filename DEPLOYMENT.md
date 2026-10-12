@@ -23,7 +23,9 @@ Git, Node.js aj PowerShell sú dostupné. Lokálne kontroly, testy a build sú z
 
 Magic import používa iba klientsky raster a existujúce povolenie `img-src blob:`; nepridáva serverový upload, sieťový endpoint ani nový binding. Preneste spolu modul, vstupné HTML, štýly, editor a aktualizované testy. Manuálny deploy cez Wrangler nie je súčasťou tohto publikovania; push môže spustiť existujúcu Git-integráciu Workers Builds. Jej úspech treba overiť samostatne.
 
-Magic import a rozšírenie editora sú publikované v `dc24ef2`. Následné prepínače panelov/popisu, skutočná schéma v PDF a GIF export sú zatiaľ **lokálne nezverejnené úpravy**, nie nový schválený push alebo deploy. `scene-export.js` a `gif-export.js` treba pri ďalšom autorizovanom publikovaní preniesť spolu s aplikáciou a testami. Používajú existujúce Blob obrázky a Canvas, bez uploadového endpointu či nového bindingu; pravidlá Workeru a pripnuté PDF fonty sa nemenia.
+Magic import a rozšírenie editora sú publikované v `dc24ef2`. Následné prepínače panelov/popisu, skutočná schéma v PDF a GIF export sú už zaznamenané v Gite v `6554b75`; stav produkcie sa z toho neodvodzuje. `scene-export.js` a `gif-export.js` používajú existujúce Blob obrázky a Canvas, bez uploadového endpointu či nového bindingu.
+
+Dňa 12. 10. 2026 používateľ výslovne autorizoval **commit a push do existujúceho `main`** pre rozšírenie nad `6554b75`: jedna mierka X/Y/A–B, voliteľná detekcia 2.5, stabilné dialógy, projekty, Analýza, kontextové úpravy a inteligentné kóty. Prenášajú sa aj `magic-detection.js`, nové regresie, aplikácia/štýly, README/changelog a explicitné allowlisty. Detekcia funguje lokálne, nepridáva endpoint, externý model ani nový binding. Pravidlá Workeru a pripnuté PDF fonty sa nemenia. Manuálny deploy sa nespúšťa; push môže spustiť existujúce CI a Workers Builds, ktorých výsledok treba overiť samostatne.
 
 Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolovať diff. Pri commite sa použije už nakonfigurovaná Git identita. Ak chýba, publikovanie sa musí zastaviť, nie vymyslieť autora. Tokeny sa nevkladajú do repozitára, príkazovej histórie ani odpovede.
 
@@ -40,6 +42,7 @@ Pred ďalším publikovaním treba overiť GitHub autentifikáciu a skontrolova�
 - `dist/cad/KinmoFusion.zip`: vytvorený balík štyroch verejných súborov doplnku. Build nekopíruje testy, pracovné analýzy ani vzorové reporty.
 - `workbench.js` a `slot-outline.js`: nové klasické offline-kompatibilné moduly. Build, serverové a publikačné allowlisty ich zahŕňajú; spoločné regresie knižnice a verzií sú v `tests/workbench-cases.js`.
 - `magic-import.js`: lokálna kalibrácia a obkresľovanie; zdieľané regresie sú v `tests/magic-import-cases.js` a izolované testy načítania rastra v `tests/magic-import.test.mjs`. Modul je v produkčnom builde, testy iba v zdrojoch.
+- `magic-detection.js`: ohraničené offline geometrické návrhy pre voliteľný krok 2.5. Modul patrí do buildu, serverového/cache/publikačného zoznamu; `tests/magic-detection.test.mjs` a `tests/context-menu.test.mjs` zostávajú iba zdrojové testy.
 - `scene-export.js` a `gif-export.js`: lokálny štýlovaný snímok a animovaný GIF. Oba sú v build/server/cache/publikačných zoznamoch. Nezávislý `tests/gif-decoder.js` a ostatné testy nie sú produkčné assety.
 - `CHANGELOG.md`, root README a história zmien v pribalenom Fusion návode: dokumentácia celého rozšírenia. Root changelog je súčasť zdrojového publikačného zoznamu, nie runtime asset aplikácie.
 

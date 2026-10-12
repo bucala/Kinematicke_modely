@@ -2,9 +2,26 @@
 
 Zmeny Kinematika Studio sú zoradené od najnovších. Dátum a Git commit označujú zmeny zdrojov, nie potvrdenie produkčného nasadenia. Návody sú v [README.md](README.md), rozsah kontrol v [VALIDATION.md](VALIDATION.md).
 
-## Nezverejnené: panely, skutočná schéma v PDF a animovaný GIF
+## 2026-10-12: mierka, detekcia, projekty, analýza a kóty
 
-Lokálne úpravy nad publikovaným `dc24ef2`. Nový commit, push ani deploy nie sú súčasťou tejto požiadavky.
+Rozšírenie nad `6554b75` pre existujúcu vetvu `main`. Commit a push sú výslovne autorizované; manuálny deploy sa nespúšťa. Úspech vzdialeného CI a Workers Builds sa z lokálnych výsledkov neodvodzuje.
+
+- **Jedna mierka X/Y/A–B:** jeden známy rozmer prepočíta celý obrázok bez zmeny pomeru strán. Neskoršia zmena vyžaduje potvrdenie prepočtu geometrie a lineárnych parametrov; Späť/znova obnovia mierku aj geometriu spolu.
+- **Voliteľný krok 2.5:** lokálna detekcia hrubých geometrických návrhov, náhľad, výber a oprava typov pred atómovým vložením. Raster do 768 × 768 px, najviac 60 kandidátov, zrušenie a uvoľnenie dekódera/plátna. Žiadny upload ani automatický pohon.
+- **Stabilné dialógy:** kliknutie mimo neukončí číselný formulár a nestratí vstup. Oneskorená udalosť zatvorenia nevyčistí už znovu otvorený dialóg.
+- **Profil a časová os:** predvolene skryté; prepínače pri diagnostike zostávajú dostupné.
+- **Mechanizmy a projekty:** Magic import v spoločnej ponuke, nezávislé duplikovanie aj neuloženého stavu a potvrdené mazanie. Mazanie aktívneho projektu zastaví staré autosave. Plné alebo poškodené úložisko nikdy nevymaže starší projekt.
+- **Samostatná Analýza:** priechodnosť celého vzorkovaného rozsahu, kritické intervaly a polohy, oddelené mm/° chyby, pohyby členov, voľnosť a odhad síl/momentu. Fit View má ikonu bez stredového kruhu.
+- **Výber a pravé menu:** hit-testing bodov, čiar aj vyplnených obrysov, výber prekrývajúcich sa entít a podponuky mimo posuvného koreňa. Teleso možno odpojiť, fixovať alebo priradiť pohon jeho koncu. Mazanie kĺbu či kóty sa týka iba danej entity.
+- **Inteligentné kóty:** bezpečný ohraničený parser bez `eval`, čiarka, výrazy, mm/cm/m a uhlové vstupy v °/deg/rad. Dva kliky na plátne vyberú A/B a otvoria nezapísaný návrh. Riadenie jednoduchého člena zachová A, B alebo stred; vodorovná/zvislá kóta správne mení projekciu. Úprava počas simulácie spätne odpočíta otočný/lineárny pohon, zachová zobrazený bod a nezapočíta motor dvakrát, ani v otočenom rodičovi. Neplatný vstup nemení projekt ani históriu.
+- **Opravy z natívneho QA:** návod na plátne neblokuje kliknutia, hit-testing panelu používa body namiesto SVG textu a zapnutie autodetekcie nestratí rozpísané kalibračné súradnice.
+- **Overenie:** syntax, 542 JS testov a build prešli; skorší izolovaný Python beh mal 23 úspešných testov. Zdieľané prípady prešli 338 / 338 cez HTTP aj so sieťovo vypnutým `file://`. Natívne desktopové/mobilné kontroly a ich hranice sú v [VALIDATION.md](VALIDATION.md).
+
+Detekcia nezaručuje správne členy ani funkciu mechanizmu. Jedna mierka neopravuje perspektívu. Analýza vzorkuje polohy, nie všetky možné stavy medzi nimi. Geometrické úpravy nenahrádzajú overenie vonkajších väzieb v simulácii.
+
+## Commit `6554b75`: panely, skutočná schéma v PDF a animovaný GIF
+
+Zmeny nad `dc24ef2` sú už zaznamenané v Gite v `6554b75`. Existencia commitu sama osebe nepotvrdzuje produkčné nasadenie.
 
 ### Pridané a zlepšené
 

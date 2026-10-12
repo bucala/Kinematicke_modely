@@ -89,11 +89,12 @@
   add('Viditeľnosť grafu, časovej osi a popisov je nezávislá a prenosná v .kinmo.', () => {
     const keys = ['profileVisible', 'timelineVisible', 'labels'];
     for (const key of keys) {
-      const workspace = X.preferences({ [key]: false }), restored = X.parseNative(X.nativeFile(K.preset('drawer'), { workspace })).workspace;
+      const workspace = X.preferences({ profileVisible: true, timelineVisible: true, labels: true, [key]: false }), restored = X.parseNative(X.nativeFile(K.preset('drawer'), { workspace })).workspace;
       assert(restored[key] === false && keys.filter((v) => v !== key).every((v) => restored[v] === true));
       assert(restored.dimensions && restored.grid);
     }
-    for (const key of keys) assert(X.preferences({ [key]: 'false' })[key] === true);
+    assert(!X.preferences().profileVisible && !X.preferences().timelineVisible && X.preferences().labels);
+    for (const key of ['profileVisible', 'timelineVisible']) assert(X.preferences({ [key]: 'false' })[key] === false);
   });
   add('Obrázok plátna zachová pomer strán a ohraničí vysoký pohľad na 4 000 px.', () => {
     let size = SC.size({ width: 1600, height: 900 }); assert(size.width === 2000 && size.height === 1125);

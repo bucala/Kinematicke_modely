@@ -15,9 +15,15 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 
 > Kinematika a odhadová dynamika jedného pohonu, nie pevnostný výpočet ani výrobný výkres. Pred použitím návrhu si prečítajte [hranice simulácie](#limits).
 
-## Nové lokálne úpravy: panely, schéma a animovaný export
+## Novinky z 12. 10. 2026: mierka, detekcia, projekty a inteligentné kóty
 
-Pracovná verzia nad `dc24ef2` pridáva **[nezávislé skrytie profilového grafu, prehrávania a popisov](#view-controls)**, ostrú PDF schému podľa aktuálneho plátna a **[lokálny animovaný GIF](#gif-export)**. Tieto zmeny ešte nie sú novým publikovaným commitom ani potvrdeným nasadením.
+Rozšírenie nad `6554b75` pridáva **mierku obrázka z jedného rozmeru X/Y/A–B**, voliteľné lokálne geometrické návrhy v kroku **2.5**, bezpečné číselné dialógy, duplikovanie a potvrdené mazanie projektov, samostatnú analýzu celého pohybu a spoľahlivejší výber/pravé menu.
+
+**[Kóty a presné vstupy](#handles)** prijímajú výrazy a jednotky, dva body možno vybrať na plátne a zmenou dĺžky zachovať A, B alebo stred, aj pri zobrazenom pohone. **[Profil a prehrávanie](#view-controls)** začínajú skryté; ich prepínače sú pri diagnostike.
+
+Klik mimo číselného dialógu nestratí rozpísaný vstup. Pravá ponuka sprístupní aj prekryté prvky a vymazanie konkrétneho kĺbu alebo kóty ponechá označené telesá. Zapnutie autodetekcie zachová rozpracovanú kalibráciu; návrhy vložíte až po kontrole, jedným krokom Späť.
+
+Predchádzajúci commit `6554b75` obsahuje prepínače popisov/panelov, skutočnú schému plátna v PDF a **[lokálny animovaný GIF](#gif-export)**. Git commit alebo push nepotvrdzuje úspešné produkčné nasadenie; stav CI a Workers Builds treba overiť samostatne.
 
 ## Novinky z 11. 10. 2026
 
@@ -47,7 +53,9 @@ Podrobný záznam noviniek, opráv a hraníc je v **[CHANGELOG.md](CHANGELOG.md)
 
 Kliknutím na názov rozbaľovacieho návodu ho otvoríte. Navigácia a návody fungujú priamo na GitHube, bez JavaScriptu.
 
-Pri prvom otvorení začína editor prázdny. Uložený projekt sa obnoví bez zmeny. Jedinú ponuku projektov a šablón otvoríte kliknutím na **názov projektu so šípkou v hlavičke**. Obsahuje všeobecné šablóny, samostatný projekt **Dvojite sklopeny suflik**, uložené projekty, import, premenovanie, vlastné podzostavy a pomenované verzie.
+Pri prvom otvorení začína editor prázdny. Uložený projekt sa obnoví bez zmeny. Jedinú ponuku **Mechanizmy a projekty** otvoríte kliknutím na **názov projektu so šípkou v hlavičke**. Obsahuje všeobecné šablóny, samostatný projekt **Dvojite sklopeny suflik**, uložené projekty, **Magic import**, import, premenovanie, vlastné podzostavy a pomenované verzie.
+
+Každý projekt možno **duplikovať** alebo **vymazať po potvrdení**. Kópia dostane nové ID a zachová aktuálne neuložené úpravy. Zmazanie otvoreného projektu otvorí prázdny neuložený editor a zastaví staré automatické ukladanie. Pred zmazaním si dôležitý projekt exportujte. Limit 20 projektov ani poškodené úložisko nespôsobia automatické vymazanie starších záznamov.
 
 <a id="start"></a>
 
@@ -134,7 +142,7 @@ Toto je kinematický príklad. Nový bod má predvolene nulovú hmotnosť; samot
 - Knižnica prvkov: samostatný bod, pevný rám, lineárne vedenie, tiahlo, kulisa, ložisko, čelo, tlačná/ťažná pružina a tlačný/ťažný piest.
 - Click+Select bodov, koncov členov, väzieb a telies; Shift/Ctrl multiselect, skupinový posun a kontextové menu.
 - Pridávanie kliknutím alebo drag & drop, prichytávanie na mriežku, zarovnanie, zoom a meranie.
-- **Magic import**: lokálny obrázok, mierka z dvoch bodov, ručne obkreslený rám, členy a väzby, samostatný projekt cez Finish.
+- **Magic import**: lokálny obrázok, jednotná mierka z jednej známej hodnoty X/Y/A–B, voliteľné geometrické návrhy, ručne opravený rám, členy a väzby, samostatný projekt cez Finish.
 - Priame úchyty X/Y, otočenie okolo zvoleného bodu, dĺžka jednoduchého člena a presné číselné zadanie bez otvárania Vlastností.
 - Samostatná diagnostika konkrétnych väzieb, oddelené chyby v mm/°, zostávajúca voľnosť a upozornenia na opakované alebo konfliktné požiadavky.
 - Inteligentné prichytávanie bodov, stredov, vedení a osí, **iba po zapnutí tlačidlom**. Nový spoj vyžaduje ďalšie potvrdenie.
@@ -169,22 +177,25 @@ Toto je kinematický príklad. Nový bod má predvolene nulovú hmotnosť; samot
 
 ## Magic import: od ručného náčrtu k mechanizmu
 
-**Magic import** v hlavičke otvorí päťkrokového sprievodcu. Ide o **ručné obkreslenie**, nie automatické rozpoznávanie členov z obrázka. Vytvára samostatný vlastný projekt a funguje aj offline cez `file://`.
+**Názov projektu → Mechanizmy a projekty → Magic import** otvorí päťkrokového sprievodcu s voliteľným medzikrokom **2.5**. Ručné obkreslenie možno doplniť lokálnou detekciou jednoduchých geometrických kandidátov. **Nejde o zaručené rozpoznanie funkcie mechanizmu.** Vytvára samostatný vlastný projekt a funguje aj offline cez `file://`.
 
 <details>
 <summary><strong>Nahrať náčrt, určiť mierku a zostaviť schému</strong></summary>
 
 1. **Obrázok:** nahrajte PNG, JPG alebo neanimovaný WebP, prípadne ho pustite na sprievodcu či plátno. Limit je 10 MB, 8 192 px na stranu a 16 miliónov pixelov. SVG, GIF a HEIC najskôr preveďte na podporovaný raster.
-2. **Mierka:** kliknite na body **A a B** známeho rozmeru a zadajte ich skutočnú vzdialenosť v **mm**. Súradnice možno zadať aj číselne. Bod A bude začiatkom; X rastie doprava a Y nadol. Kliknite na **Ďalej**.
+2. **Mierka:** kliknite na body **A a B** a vyberte, či poznáte celú dĺžku **A–B**, vodorovný rozmer **X** alebo zvislý rozmer **Y**. Zadajte iba túto jednu hodnotu v **mm**. Druhý smer a celá šírka/výška obrázka sa prepočítajú rovnakou mierkou, bez zmeny pomeru strán. Súradnice možno zadať aj číselne. Bod A bude začiatkom; X rastie doprava a Y nadol.
+   - **Voliteľný krok 2.5:** zapnite automatický návrh, spustite detekciu a skontrolujte náhľad. Prepnutie zachová aj rozpísané kalibračné súradnice. Vyberte iba vhodných kandidátov a opravte ich typy. Až tlačidlo na vloženie zmení geometriu jedným krokom Späť. Voliteľne spojte blízke konce; pohon sa nikdy nepriradí automaticky. Krok možno preskočiť.
 3. **Pevné časti:** dvoma kliknutiami vytvorte pevnú úsečku/podlahu. **Obrys rámu** kreslite po vrcholoch a uzavrite Enter, tlačidlom alebo kliknutím pri prvom bode. **Pevný bod** vytvorí nepohyblivý uzol. Obrys má najviac 64 vrcholov; ďalšie vrcholy ponúknu uzly na pripojenie členov.
 4. **Členy a väzby:** na desktope pretiahnite prvok z knižnice. Na dotykovom zariadení otvorte knižnicu, vyberte typ a kliknite na bod vloženia. Rameno, čelo alebo priame vedenie môžete aj obkresliť dvoma koncami. Upravte voľné členy úchytmi alebo číselným dialógom; **Spojiť uzly (J)** prepojí dva body a **Typ / nová väzba…** nastaví požadovaný typ. **Pohon…** upraví jeden vybraný vstup.
 5. **Dokončenie:** zadajte názov, prezrite počty a upozornenia a kliknite na **Finish**. Schéma ostane v editore ako samostatný projekt. Potom prepnite na simuláciu a overte funkciu väzieb.
 
-Pri prekrývajúcich sa uzloch vyberte prvý bod a kliknite znova na rovnaké miesto: druhý bod musí patriť inému členu. Na nastavenie pohonu vyberte telo člena mimo spoločného uzla, potom **Pohon…**.
+Pri prekrývajúcich sa uzloch vyberte prvý bod a kliknite znova na rovnaké miesto: druhý bod spojenia musí patriť inému členu. Pravé menu ponúkne aj **Vybrať entitu pod kurzorom**. Na nastavenie pohonu vyberte telo člena mimo spoločného uzla, potom jeho koniec v podponuke **Priradiť pohon**.
 
 Vlastnosti sa samy neotvoria. Inteligentné prichytávanie začína vypnuté a zapína sa iba tlačidlom. Pri kreslení Ctrl/Cmd+Z alebo Backspace odoberie posledný rozkreslený vrchol; Escape zruší náhľad. Dokončené časti používajú bežné Späť/znova.
 
 Vyberte dlhý známy úsek, aspoň 2 pixely. Známy rozmer musí byť 0,1–5 000 mm a celý kalibrovaný podklad sa musí zmestiť do rozsahu ±5 000 mm. Jedna mierka **neopravuje perspektívu, natočenie roviny ani skreslenie objektívu**. Kalibrácia neotáča obrázok. Fotografia šikmo odfotenej zostavy nie je presný technický výkres.
+
+Detekcia používa zmenšený raster do 768 × 768 px a najviac 60 kandidátov. V textoch, legendách, prekrytých čiarach a neostrých fotografiách môže navrhnúť nesprávne alebo chýbajúce prvky. Typ, konce, pevné časti a väzby musí skontrolovať používateľ; ručné nástroje ostávajú dostupné.
 
 </details>
 
@@ -195,7 +206,7 @@ Vyberte dlhý známy úsek, aspoň 2 pixely. Známy rozmer musí byť 0,1–5 00
 - **Zrušiť** po kreslení vyžaduje potvrdenie a obnoví pôvodný projekt, výber a celú históriu. Rozpracovaná schéma sa zahodí; ak bol pôvodný projekt neuložený, pokračuje jeho bežné ukladanie.
 - **Finish** uloží nový aj potrebný pôvodný projekt oddelene. Pri plnom alebo poškodenom úložisku nevymazáva staršie záznamy. Ak pôvodný stav ešte nie je zachovaný, najskôr ponúkne jeho export a vyžiada potvrdenie zálohy. Dokončenie bez dostupného úložiska ostane iba v pamäti: nový projekt exportujte.
 - Obrázok zostáva lokálne ako dočasný podklad. **Neposiela sa na server ani sa neukladá do projektu, CAD či obrazových exportov.** Po Finish alebo zrušení sa uvoľní; projekt uchová len geometriu a poznámku o kalibrácii.
-- Po začatí kreslenia je mierka zamknutá aj po Späť, aby sa nerozišli rozmery a väzby. Pre inú mierku sa vráťte na **Obrázok**, vyberte nový podklad a potvrďte čistú schému. Existujúca geometria sa vymaže až po úspešnom načítaní nového obrázka.
+- Mierku možno upraviť aj po kreslení. Náhľad ukáže pomer starej/novej mierky a zmena vyžaduje potvrdenie prepočtu všetkej geometrie a lineárnych parametrov. Uhly, hmotnosti a sily sa nemenia. **Späť/znova** obnovia mierku aj geometriu spolu. Výmena samotného obrázka naďalej vyžaduje potvrdenie čistej schémy; existujúca geometria sa vymaže až po úspešnom načítaní nového podkladu.
 - Finish dokončuje geometriu, **nezaručuje správny pohyb ani určitý model**. Upozornenia na chýbajúci pohon, voľné členy alebo konfliktné väzby možno riešiť aj po dokončení.
 
 </details>
@@ -276,7 +287,7 @@ V inšpektore upravíte obrys, vrcholy krivky, nosné teleso, kóty a uložené 
 
 ## Skrytie panelov a popisov schémy
 
-Tlačidlá nad plátnom ovládajú **pohybový profil**, **prehrávanie časovej osi** a **texty/názvy/uhly schémy**. Ich popis sa mení na Skryť alebo Zobraziť. Profil a prehrávanie môžete skryť samostatne alebo spolu; tlačidlá na obnovenie zostanú dostupné.
+Prepínače **pohybového profilu** a **prehrávania časovej osi** sú v hornej kontextovej lište pri **Diagnostike väzieb**. Oba panely sú predvolene skryté, pokiaľ ich používateľ výslovne nezapol v uložených nastaveniach. Popis tlačidiel sa mení na Skryť alebo Zobraziť; zostávajú dostupné aj po skrytí oboch panelov. Prepínač **textov/názvov/uhlov schémy** ostáva v nástrojoch plátna.
 
 Skrytie panelu rozšíri plátno okolo rovnakého stredu a zachová priblíženie. Nemení polohu, výber, históriu ani bežiace prehrávanie. Skrytie popisov odstráni iba vizuálne anotácie vrátane uhlových oblúkov. **Kóty majú vlastný prepínač**; uzly zostávajú klikateľné a prístupné klávesnicou. Číselné uhly, limity a väzby modelu sa nemažú.
 
@@ -290,10 +301,13 @@ Všetky tri voľby si pamätajú nastavenia pracovného priestoru aj `.kinmo`. P
 
 **Pravé tlačidlo** otvorí vlastnú ponuku, nie ponuku prehliadača. Pravý klik na už vybraný objekt zachová skupinu. Ponuka sa zmestí do viewportu a zavrie sa kliknutím mimo nej, Escape, posunom alebo priblížením plátna. Klávesnica podporuje Shift+F10, šípky, Home/End, Enter a Escape. Výber ani kontextové formuláre automaticky neotvárajú Vlastnosti.
 
+Výber používa aj geometriu, takže nemusíte trafiť presný SVG element a prekrývajúca vrstva neodstráni dostupnosť člena. **Vybrať entitu pod kurzorom** rozlíši prekrývajúce sa uzly, kĺby a telesá. Podponuky sa otvoria kurzorom alebo pravou šípkou a neoreže ich posuvná hlavná ponuka. **Klik mimo číselného dialógu ho nezatvorí**, dialóg sa potvrdzuje alebo ruší výslovne.
+
 | Cieľ ponuky | Operácie |
 |---|---|
 | Bod / kĺb | Otočný alebo posuvný kĺb, odpojenie, fixácia, pohon, limity, absolútne XYZ, mriežka 5 mm, zarovnanie, trajektória a odstránenie |
-| Telo jednoduchého ramena | Rozdelenie v strede na dva členy s otočným uzlom, pripojený POI s trajektóriou, dĺžka, referenčná tuhosť, farba a odstránenie |
+| Telo jednoduchého ramena | Zoznam väzieb, odpojenie všetkých väzieb, fixácia celého telesa, pohon vybraného konca, XYZ, rozdelenie v strede, pripojený POI, vlastnosti a odstránenie |
+| Rozmerová kóta | Úprava a odstránenie iba tejto kóty a jej vlastnej riadiacej väzby, nie vybraných členov |
 | Prázdne plátno | Samostatný bod, pevný Ground bod, priame vedenie, štvorkĺbová alebo kľuková podzostava a prispôsobenie pohľadu |
 
 <details>
@@ -325,12 +339,26 @@ Editor zostáva **2D, Z = 0**. Referenčná tuhosť tuhého ramena sa ukladá ak
 1. Prepnite na **Úpravu geometrie**, nástroj **Výber** a vyberte odomknutý člen alebo skupinu vo vlastnom modeli.
 2. Potiahnite úchyt **X** alebo **Y**. Druhá súradnica zostáva nezmenená. Kliknutie na úchyt, Enter alebo medzerník otvorí presné číselné zadanie.
 3. Cez **Bod otáčania** vyberte skutočný uzol A/B/C alebo vlastné X/Y. Otočný úchyt a tlačidlo **Uhol** použijú tento bod.
-4. Na jednom jednoduchom ramene, čele, ráme alebo vedení použite **Dĺžka**. Zvoľte, či zostane na mieste koniec A alebo B.
+4. Na jednom jednoduchom ramene, čele, ráme alebo vedení použite **Dĺžka**. Zvoľte, či zostane na mieste koniec A, B alebo stred A–B.
 5. Potvrdená zmena tvorí jeden krok **Späť**. Escape alebo zrušenie ťahania obnoví geometriu aj predchádzajúcu históriu.
 
 X/Y zadáva **relatívny posun**, nie absolútnu polohu; absolútne súradnice zostávajú v kontextovej ponuke uzla. Y rastie nadol, kladný uhol otáča proti hodinovým ručičkám. Výber konca ramena úchytom stále upravuje celé tuhé teleso. Nesený potomok sa pri skupinovej zmene nepohne dvakrát.
 
 Úchyty nemenia chránené originály, zamknuté alebo pružné členy. Na rám s polygonálnym obrysom sa jednoduchý dĺžkový úchyt nevzťahuje. Úpravy neotvárajú Vlastnosti.
+
+</details>
+
+<details>
+<summary><strong>Inteligentné kóty: výrazy, jednotky a výber bodov na plátne</strong></summary>
+
+1. Použite **Meranie (M)** a kliknite najskôr na A, potom na B. Uzlové body sa prepoja s telesami; klik do pozadia vytvorí voľný merací bod. Po druhom kliknutí sa otvorí formulár, projekt sa ešte nezmení. Escape zruší rozpracovaný výber.
+2. Alebo v **Vlastnostiach → Kóty** otvorte formulár zo zoznamu. Tlačidlo **Vybrať body A a B na plátne** zachová už zadaný názov, výraz a nastavenia.
+3. Voľte dĺžku, vodorovnú/zvislú vzdialenosť alebo uhol spojnice. Náhľad ukáže aktuálnu hodnotu. Bez zaškrtnutia **Riadiaca kóta** ide iba o meranie.
+4. Dĺžkové polia prijímajú `300/2`, `12,5 cm`, `(20+5)*2 mm`, `0.25 m` aj kombináciu `10cm+2mm`. Jedna jednotka na konci patrí celému výrazu: `300/2 cm` je 1 500 mm. Bez jednotky platia mm; uhlové vstupy podporujú °, `deg` a `rad`. Nepodporujú funkcie ani spúšťanie kódu, delenie nulou, plochu alebo neplatné jednotky.
+5. Riadiaca kóta A–B na jednoduchom odomknutom člene zmení dĺžku. **Automaticky** zachová pevný koniec alebo pivot pohonu; môžete zvoliť A, B alebo stred. Vodorovná/zvislá kóta zmení projekciu pri zachovaní uhla, nie nesprávne celú dĺžku.
+6. Medzi rôznymi telesami riadenie pridá vzdialenostnú väzbu, ktorá sa vynucuje až v simulácii. Voľné body a uhlové kóty sú iba meracie. Zamknuté, pružné, obrysové či chránené členy vyžadujú inú úpravu alebo voľnú kópiu.
+
+Neplatný vstup nechá dialóg otvorený a nezmení model ani históriu. Potvrdená kóta je jeden krok Späť. Vonkajšie pevné body sa pri zmene rozmeru nepremiestňujú, preto po úprave overte väzby v simulácii.
 
 </details>
 
@@ -351,6 +379,8 @@ Tlačidlom **Diagnostika väzieb** na plátne otvorte samostatný panel. Každý
 Odchýlky mm/° zostávajú oddelené aj v analýze, kinematickom CSV a PDF/HTML reportoch. Uhlové väzby porovnávajú orientáciu modulo 360°; úplné otáčky nevytvárajú fiktívnu odchýlku. Diagnostika nie je všeobecným dôkazom riešiteľnosti všetkých väzieb ani kontrolou výroby.
 
 </details>
+
+**Analýza** v hlavnej navigácii je samostatný pracovný priestor, nie iba prepínač skrytého inšpektora. Zobrazí priechodnosť všetkých vzorkovaných polôh, maximálne polohové/uhlové chyby, intervaly blokovania, kritické polohy, zostávajúcu voľnosť a rozsahy X/Y/uhla či dráhu bodov jednotlivých členov. Kritický bod možno otvoriť v editore. Odhad síl/momentu sa spúšťa samostatne. Bez pohonu ide o statickú geometriu; vzorkovanie môže minúť problém medzi polohami.
 
 <a id="snapping"></a>
 
@@ -582,7 +612,7 @@ Exporty neopúšťajú zariadenie. Pri explicitnom CAD odoslaní ide geometria d
 <details>
 <summary><strong>Prečo je plátno prázdne a kde sú projekty?</strong></summary>
 
-Prvé otvorenie je zámerne prázdne. Kliknite na **názov projektu so šípkou v hlavičke**. Je to jediný vstup k šablónam, samostatnej zásuvke, uloženým projektom a importu `.kinmo`. Náčrt otvoríte samostatným tlačidlom **Magic import**. Existujúci uložený projekt sa obnoví automaticky.
+Prvé otvorenie je zámerne prázdne. Kliknite na **názov projektu so šípkou v hlavičke**. Je to jediný vstup k šablónam, samostatnej zásuvke, uloženým projektom, **Magic import** a importu `.kinmo`. Existujúci uložený projekt sa obnoví automaticky.
 
 </details>
 
@@ -681,13 +711,13 @@ Bez Node.js môžete otvoriť `tests/browser.html`. Spúšťa spoločné výpoč
 
 | Posledné zaznamenané lokálne overenie | Výsledok |
 |---|---|
-| Syntax, JavaScript testy a build | 428 JS testov, bez zlyhania |
-| Izolovaný Python / Fusion | 23 testov, bez zlyhania |
-| Spoločné prehliadačové testy | 299 / 299 cez HTTP aj offline `file://` |
-| Magic import | 57 / 57 desktop, 57 / 57 offline mobil |
-| Click+Select a nové ovládanie | 90 / 90 desktop, 90 / 90 offline mobil |
+| Syntax, JavaScript testy a build | 542 JS testov, bez zlyhania |
+| Izolovaný Python / Fusion | 23 testov, bez zlyhania (skorší beh tohto rozšírenia) |
+| Spoločné prehliadačové testy | 338 / 338 cez HTTP aj sieťovo vypnuté `file://` |
+| Aktuálne rozhranie | Natívne kliknutia a snímky desktop/mobil; presný rozsah v `VALIDATION.md` |
+| Historické UI overenie pred týmto rozšírením | 147 / 147 desktop a offline mobil |
 
-Rozsah a dátumy sú v **[VALIDATION.md](VALIDATION.md)**. Pri Magic import sa znovu vykonalo aj všetkých 44 kontrol nového ovládania a 46 regresií Click+Select, spolu 147 kontrol v každom rozložení. Prehliadačové gestá boli syntetické; nenahrádzajú úplné natívne ťahanie. Skorší offline PDF report bol otvorený parserom a vizuálne prezretý, oddelene ukazuje mm/°; pri Magic import sa nový PDF report nevytváral. Plynulosť prirodzenej animácie, kompletné snímky rozhrania a živý Fusion import zostávajú manuálnymi akceptačnými kontrolami. Lokálne výsledky nie sú potvrdením vzdialeného CI alebo nasadenia.
+Rozsah, aktuálne prehliadačové výsledky a historické kontroly sú oddelené v **[VALIDATION.md](VALIDATION.md)**. VM UI testy nenahrádzajú natívne gestá. Živý Fusion import, vzdialené CI a produkčné nasadenie sa pri tomto rozšírení nevykonali; lokálne výsledky ich nepotvrdzujú.
 
 Pri oprave chyby pridajte regresiu do príslušnej sady v [`tests/`](tests/). Zachovajte fungovanie cez HTTP aj `file://`, ochranu originálov a pripnuté bajty PDF distribúcií.
 
@@ -742,8 +772,9 @@ engine.js              Geometria, kinematické solvery a validácia
 double-drawer.js       Samostatný odhadový dvojkulisový projekt
 editor.js              Návrhové polohy, voľné kópie, kóty a analýza voľnosti
 interaction.js         Výberové identity, hit-testing a atómové modelové operácie
-workbench.js           Úchyty, diagnostika, opt-in snap, podzostavy a verzie
+workbench.js           Výrazy, kóty, úchyty, celá analýza, snap, podzostavy a verzie
 magic-import.js        Lokálny raster, kalibrácia, obkreslenie a Finish
+magic-detection.js     Ohraničené lokálne geometrické návrhy z obrázka
 context-menu.js        Samostatná klávesnicová a responzívna kontextová ponuka
 physics.js             Osové sily a odhadová dynamika jedného pohonu
 slot-outline.js        Uzavreté polygonálne referenčné odsadenia drážok
@@ -764,6 +795,8 @@ tests/interaction-cases.js  Modelové regresie výberu a kontextových operáci�
 tests/workbench-cases.js  Úchyty, snap, diagnostika, knižnica a verzie
 tests/magic-import-cases.js  Mierka, obrázkové hlavičky, členy a Finish
 tests/magic-import.test.mjs  Izolované načítanie, chyby a uvoľnenie obrázka
+tests/magic-detection.test.mjs  Detekcia, limity, dekódovanie a zrušenie
+tests/context-menu.test.mjs  Samostatné podponuky, klávesnica a kliknutie mimo
 tests/export-cases.js  Prenosné súbory, obrysy drážok a reporty
 tests/scene-export.test.mjs  Štýly snímku, limity, zrušenie a Blob URL
 tests/gif-cases.js     GIF časovanie, paleta, kompresia a obmedzenia

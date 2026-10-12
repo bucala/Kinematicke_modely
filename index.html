@@ -14,6 +14,7 @@
     <script defer src="./interaction.js"></script>
     <script defer src="./workbench.js"></script>
     <script defer src="./magic-import.js"></script>
+    <script defer src="./magic-detection.js"></script>
     <script defer src="./context-menu.js"></script>
     <script defer src="./physics.js"></script>
     <script defer src="./slot-outline.js"></script>
@@ -28,7 +29,7 @@
     <div id="app">
       <div class="boot-screen"><span class="boot-mark">k.</span><p>Pripravujeme pracovnú plochu…</p></div>
     </div>
-    <dialog id="modal" aria-labelledby="modal-title"></dialog>
+    <dialog id="modal" aria-labelledby="modal-title" closedby="closerequest"></dialog>
     <div id="toast" role="status" aria-live="polite"></div>
     <input id="import-file" type="file" accept=".kinmo,.json,application/json" hidden />
     <input id="workbench-import-file" type="file" accept=".kinmolib,.kinmoversions,.json,application/json" hidden />

@@ -8,6 +8,105 @@
   const custom = (...elements) => K.validateProject({ ...K.preset('custom'), elements });
   const ref = (e, point = 'a') => ({ elementId: e.id, point });
   const joint = (a, b, type = 'revolute', value = 0) => ({ id: K.uid(), a, b, type, value, name: 'Skúšobná väzba' });
+  add('Číselné výrazy podporujú desatinnú čiarku, zátvorky a jednotky bez eval.', () => {
+    near(W.parseNumber('300/2'), 150); near(W.parseNumber('12,5 cm'), 125); near(W.parseNumber('(20+5)*2 mm'), 50);
+    near(W.parseNumber('2 * (5cm + 2mm)'), 104); near(W.parseNumber('−(5+5) cm ÷ 2'), -50);
+    near(W.parseNumber('.25 m + 50'), 300); near(W.parseNumber('2e-3 m'), 2);
+    near(W.parseNumber(`${Math.PI} rad`, '°'), 180); near(W.parseNumber('360/2 °', '°'), 180);
+    near(W.parseNumber('2 × 3', ''), 6);
+    for (const value of ['', '   ', '1/0', '1e400', '1,2,3', '3 +', '(3+2', '4in', '2cm * 3cm', '100mm/2mm', 'globalThis.alert(1)', '1;throw 2', 'constructor.constructor("return 1")()', '('.repeat(13) + '1' + ')'.repeat(13), '1'.repeat(129)]) throws(() => W.parseNumber(value));
+    throws(() => W.parseNumber('2 cm', '°')); throws(() => W.parseNumber('2 mm', ''));
+  });
+  add('Riadiaca kóta vyhodnotí výraz a zachová zvolený koniec B jedným atómovým krokom.', () => {
+    const e = { ...K.makeElement('link', 10, 20), length: 100 }, p = custom(e), before = JSON.stringify(p), result = E.design(p, 0);
+    const next = W.applyDimension(p, result, { a: ref(e), b: ref(e, 'b'), driving: true, value: '20 cm', fixedEnd: 'b', offset: '5/2 cm' });
+    near(next.elements[0].length, 200); near(next.dimensions[0].offset, 25); assert(next.dimensions[0].control.property === 'length');
+    const pose = E.design(next, 0).poses[e.id]; near(pose.b.x, result.poses[e.id].b.x); near(pose.b.y, result.poses[e.id].b.y); near(pose.a.x, -90);
+    assert(JSON.stringify(p) === before);
+  });
+  add('Automatický zachovaný bod kóty rešpektuje pevný koniec B aj pivot pohonu B.', () => {
+    const e = { ...K.makeElement('link', 0, 0), length: 100 };
+    for (const p of [I.toggleFixed(custom(e), [ref(e, 'b')]), custom({ ...e, drive: true, drivePivot: 'b' })]) {
+      const result = E.design(p, 0), next = W.applyDimension(p, result, { a: ref(e), b: ref(e, 'b'), driving: true, value: '300/2', fixedEnd: 'auto' });
+      near(E.design(next, 0).poses[e.id].b.x, result.poses[e.id].b.x); assert(W.preferredEnd(p, e.id) === 'b');
+    }
+  });
+  add('Riadiaca kóta počas simulácie zachová zvolený bod aj pri otočnom pivote A/B/C.', () => {
+    const at = (pose, end) => end === 'center' ? { x: (pose.a.x + pose.b.x) / 2, y: (pose.a.y + pose.b.y) / 2 } : pose[end];
+    for (const drivePivot of ['a', 'b', 'c']) {
+      const e = { ...K.makeElement(drivePivot === 'c' ? 'panel' : 'link', 0, 0), length: 100, drive: true, drivePivot }, p = custom(e), result = K.solve(p, 45);
+      for (const fixedEnd of ['a', 'b', 'center']) {
+        const next = W.applyDimension(p, result, { a: ref(e), b: ref(e, 'b'), driving: true, value: '20 cm', fixedEnd }), pose = K.solve(next, 45).poses[e.id];
+        near(at(pose, fixedEnd).x, at(result.poses[e.id], fixedEnd).x); near(at(pose, fixedEnd).y, at(result.poses[e.id], fixedEnd).y);
+        near(pose.angle, result.poses[e.id].angle);
+      }
+    }
+  });
+  add('Riadiaca kóta počas lineárnej simulácie nepridá posuv pohonu druhýkrát.', () => {
+    const e = { ...K.makeElement('link', 10, 20), angle: 30, length: 100, drive: true, driveMode: 'linear', driveAngle: 45 }, p = custom(e), range = K.driveRange(p), motion = (range.min + range.max) / 2, result = K.solve(p, motion);
+    const next = W.applyDimension(p, result, { a: ref(e), b: ref(e, 'b'), driving: true, value: '150mm', fixedEnd: 'b' }), pose = K.solve(next, motion).poses[e.id];
+    near(pose.b.x, result.poses[e.id].b.x); near(pose.b.y, result.poses[e.id].b.y); near(pose.angle, 30);
+  });
+  add('Riadiaca kóta zachová poháňaný B aj v otočenej sústave rodiča.', () => {
+    const parent = { ...K.makeElement('link', 100, 50), angle: 45 }, e = { ...K.makeElement('link', 20, 10), parentId: parent.id, angle: 15, length: 100, drive: true, drivePivot: 'b' }, p = custom(parent, e), result = K.solve(p, 45);
+    const next = W.applyDimension(p, result, { a: ref(e), b: ref(e, 'b'), driving: true, value: '150mm', fixedEnd: 'b' }), pose = K.solve(next, 45).poses[e.id];
+    near(pose.b.x, result.poses[e.id].b.x); near(pose.b.y, result.poses[e.id].b.y); near(pose.angle, result.poses[e.id].angle);
+  });
+  add('Stred a koniec B zostanú pri zmene dĺžky na mieste aj v súradniciach rodiča.', () => {
+    const parent = { ...K.makeElement('link', 100, 50), angle: 45 }, child = { ...K.makeElement('link', 20, 10), parentId: parent.id, angle: 30, length: 100 }, p = custom(parent, child), result = E.design(p, 0);
+    const b = W.setLength(p, child.id, 150, 'b', result), pose = E.design(b, 0).poses[child.id];
+    near(pose.b.x, result.poses[child.id].b.x); near(pose.b.y, result.poses[child.id].b.y);
+    const center = W.setLength(p, child.id, 200, 'center', result), c = E.design(center, 0).poses[child.id], old = result.poses[child.id];
+    near((c.a.x + c.b.x) / 2, (old.a.x + old.b.x) / 2); near((c.a.y + c.b.y) / 2, (old.a.y + old.b.y) / 2);
+  });
+  add('Vodorovná riadiaca kóta jednoduchého člena mení projekciu, nie nesprávne celú dĺžku.', () => {
+    const e = { ...K.makeElement('link', 0, 0), angle: 60, length: 100 }, p = custom(e), result = E.design(p, 0);
+    const next = W.applyDimension(p, result, { a: ref(e), b: ref(e, 'b'), type: 'horizontal', driving: true, value: '10cm' });
+    near(next.elements[0].length, 200); near(E.dimensionValue(E.design(next, 0), next.dimensions[0]), 100); near(next.elements[0].angle, 60);
+    const vertical = custom({ ...e, angle: 90 });
+    throws(() => W.applyDimension(vertical, E.design(vertical, 0), { a: ref(e), b: ref(e, 'b'), type: 'horizontal', driving: true, value: '10cm' }));
+  });
+  add('Opakovaná úprava riadiacej väzby zachová jej ID a vypnutie riadenia odstráni iba vlastnú väzbu.', () => {
+    const e = K.makeElement('node', 0, 0), f = K.makeElement('node', 100, 0), p = custom(e, f);
+    const first = W.applyDimension(p, E.design(p, 0), { a: ref(e), b: ref(f), driving: true, value: '80mm' }), d = first.dimensions[0];
+    const second = W.applyDimension(first, E.design(first, 0), { id: d.id, a: ref(e), b: ref(f), driving: true, value: '120/2' });
+    assert(second.connections.length === 1 && second.connections[0].id === d.constraintId); near(second.connections[0].value, 60);
+    const third = W.applyDimension(second, E.design(second, 0), { id: d.id, a: ref(e), b: ref(f), driving: false });
+    assert(third.connections.length === 0 && third.dimensions.length === 1 && !third.dimensions[0].constraintId);
+    assert(I.deleteSelection(second, [I.dimensionKey(d.id)]).elements.length === 2);
+    assert(I.deleteSelection(second, [I.dimensionKey(d.id)]).connections.length === 0);
+    const shared = K.validateProject({ ...second, dimensions: [...second.dimensions, { ...second.dimensions[0], id: K.uid() }] });
+    const onlyOneRemoved = I.deleteSelection(shared, [I.dimensionKey(d.id)]);
+    assert(onlyOneRemoved.dimensions.length === 1 && onlyOneRemoved.connections.length === 1);
+  });
+  add('Neplatná inteligentná kóta neprepíše geometriu, ani väzbu pri zmene uzlov.', () => {
+    const e = K.makeElement('link', 0, 0), f = K.makeElement('node', 300, 0), p = custom(e, f), result = E.design(p, 0), before = JSON.stringify(p);
+    for (const options of [{ value: '1/0' }, { value: '-20' }, { value: '6m' }, { value: '100', offset: '60cm' }, { value: '100', type: 'angle' }, { value: '100', fixedEnd: 'invalid' }]) {
+      throws(() => W.applyDimension(p, result, { a: ref(e), b: ref(e, 'b'), driving: true, ...options }));
+      assert(JSON.stringify(p) === before);
+    }
+    const cross = W.applyDimension(p, result, { a: ref(e), b: ref(f), driving: true, value: '100' }), d = cross.dimensions[0];
+    const own = W.applyDimension(cross, E.design(cross, 0), { id: d.id, a: ref(e), b: ref(e, 'b'), driving: true, value: '200', fixedEnd: 'b' });
+    assert(own.connections.length === 0 && own.dimensions[0].control.elementId === e.id);
+  });
+  add('Analýza celého zdvihu odlíši statický projekt, polohovú chybu a uhlovú chybu.', () => {
+    const p = custom(K.makeElement('link', 0, 0)), samples = K.sample(p, 121, { collisions: false }), report = W.analyzeSweep(p, samples);
+    assert(!report.hasDrive && report.count === 121 && report.blocked === 0);
+    near(report.bodies[0].spanX, 0); near(report.bodies[0].path, 0); near(report.positionResidual, 0); near(report.angularResidual, 0);
+    throws(() => W.analyzeSweep(p, [])); throws(() => W.analyzeSweep(p, [{ motion: NaN, poses: {} }, samples[0]]));
+  });
+  add('Analýza neprehltne plnú otáčku pri prechode cez ±180 stupňov.', () => {
+    const e = { ...K.makeElement('link', 0, 0), drive: true, length: 100 }, p = custom(e), report = W.analyzeSweep(p, K.sample(p, 121, { collisions: false }));
+    near(report.bodies[0].angleMax - report.bodies[0].angleMin, 360);
+    near(report.bodies[0].spanX, 200); near(report.bodies[0].spanY, 200);
+    near(report.bodies[0].path, 2 * Math.PI * 100, .1); assert(report.hasDrive);
+  });
+  add('Analýza zoskupí kritické polohy nepriechodného mechanizmu bez úprav geometrie.', () => {
+    const p = K.preset('fourbar'); p.parameters.groundLength = 1000; p.parameters.crankLength = 30; p.parameters.couplerLength = 10; p.parameters.rockerLength = 40;
+    const before = JSON.stringify(p), report = W.analyzeSweep(p, K.sample(p, 121, { collisions: false }));
+    assert(report.blocked === 121 && report.blocks.length === 1); near(report.blocks[0].start, 0); near(report.blocks[0].end, 360);
+    assert(JSON.stringify(p) === before);
+  });
 
   add('Úchyt X/Y presúva celý člen aj pri výbere jeho koncového bodu.', () => {
     const e = K.makeElement('link', 10, 20), original = custom(e), next = W.transform(original, [I.nodeKey(ref(e, 'b'))], { dx: 25, dy: -8 });

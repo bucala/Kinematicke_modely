@@ -3,6 +3,62 @@
   'use strict';
   const K = global.Kinematics, E = global.KinmoEditor, I = global.KinmoInteraction;
   const angle = (value) => ((value + 180) % 360 + 360) % 360 - 180;
+  function parseNumber(input, unit = 'mm') {
+    if (typeof input === 'number') { if (Number.isFinite(input)) return input; throw new Error('Zadajte konečné číslo.'); }
+    if (typeof input !== 'string' || !input.trim() || input.length > 128) throw new Error('Zadajte číslo alebo krátky výraz, napríklad 300/2 alebo 12,5 cm.');
+    const text = input.toLowerCase().replace(/,/g, '.').replace(/−/g, '-').replace(/×/g, '*').replace(/÷/g, '/'), tokens = [];
+    const token = /\s*(?:(\d+(?:\.\d*)?|\.\d+)(?:e([+-]?\d+))?|(mm|cm|deg|rad|m|°)|([()+*/-]))/gy;
+    let offset = 0, match;
+    while (offset < text.trimEnd().length) {
+      token.lastIndex = offset; match = token.exec(text);
+      if (!match || tokens.length >= 64) throw new Error('Použite iba čísla, +, −, ×, /, zátvorky a podporované jednotky.');
+      offset = token.lastIndex;
+      tokens.push(match[1] ? { number: Number(match[1] + (match[2] ? `e${match[2]}` : '')) } : match[3] ? { unit: match[3] } : { operator: match[4] });
+    }
+    const factors = unit === 'mm' ? { mm: 1, cm: 10, m: 1000 } : ['°', 'deg'].includes(unit) ? { '°': 1, deg: 1, rad: 180 / Math.PI } : {};
+    // A single trailing unit belongs to the whole expression: "300/2 cm".
+    const finalUnit = tokens.at(-1)?.unit && tokens.filter((t) => t.unit).length === 1 ? tokens.pop().unit : null;
+    let index = 0;
+    const finite = (value) => { if (!Number.isFinite(value.value)) throw new Error('Výraz je mimo rozsahu alebo obsahuje delenie nulou.'); return value; };
+    const primary = (depth) => {
+      if (depth > 12) throw new Error('Výraz má príliš veľa vnorených zátvoriek.');
+      const current = tokens[index++]; let value;
+      if (current?.operator === '+' || current?.operator === '-') { value = primary(depth + 1); if (current.operator === '-') value.value = -value.value; }
+      else if (current?.operator === '(') {
+        value = expression(depth + 1);
+        if (tokens[index++]?.operator !== ')') throw new Error('Uzavrite zátvorky vo výraze.');
+      } else if (current && 'number' in current) value = { value: current.number, dimension: 0, explicit: false };
+      else throw new Error('Vo výraze chýba číslo.');
+      if (tokens[index]?.unit) {
+        const symbol = tokens[index++].unit, factor = factors[symbol];
+        if (factor == null || value.dimension !== 0 || value.explicit) throw new Error('Jednotka nezodpovedá zadávanému rozmeru.');
+        value = { value: value.value * factor, dimension: 1, explicit: true };
+      }
+      return finite(value);
+    };
+    const term = (depth) => {
+      let a = primary(depth);
+      while (['*', '/'].includes(tokens[index]?.operator)) {
+        const operator = tokens[index++].operator, b = primary(depth);
+        if (operator === '/' && b.value === 0) throw new Error('Delenie nulou nie je dovolené.');
+        a = finite({ value: operator === '*' ? a.value * b.value : a.value / b.value, dimension: operator === '*' ? a.dimension + b.dimension : a.dimension - b.dimension, explicit: a.explicit || b.explicit });
+      }
+      return a;
+    };
+    const expression = (depth) => {
+      let a = term(depth);
+      while (['+', '-'].includes(tokens[index]?.operator)) {
+        const operator = tokens[index++].operator, b = term(depth);
+        if (a.explicit && b.explicit && a.dimension !== b.dimension) throw new Error('Sčítavajte iba rovnaké jednotky.');
+        a = finite({ value: operator === '+' ? a.value + b.value : a.value - b.value, dimension: a.explicit ? a.dimension : b.dimension, explicit: a.explicit || b.explicit });
+      }
+      return a;
+    };
+    const result = expression(0);
+    if (index !== tokens.length || result.explicit && result.dimension !== 1) throw new Error('Výraz musí určovať jednu dĺžku alebo jeden uhol, nie plochu ani pomer jednotiek.');
+    if (finalUnit && factors[finalUnit] == null) throw new Error('Jednotka nezodpovedá zadávanému rozmeru.');
+    return finite({ ...result, value: result.value * (finalUnit ? factors[finalUnit] : 1) }).value;
+  }
   const design = (project) => E.design(project, K.driveRange(project).min);
   const bodies = (project, keys) => [...new Set(I.validSelection(project, keys).map((key) => I.target(project, key)?.elementId).filter(Boolean))];
   const descendants = (project, ids) => {
@@ -58,15 +114,66 @@
   function setLength(project, id, value, fixedEnd = 'a', result = design(project)) {
     const p = K.copy(project), e = p.elements.find((v) => v.id === id), pose = result.poses[id];
     if (!e || e.primary || e.locked || !['link', 'panel', 'ground', 'rail'].includes(e.type) || e.outline.length) throw new Error('Dĺžku úchytom možno meniť na odomknutom jednoduchom člene vo voľnej kópii.');
-    if (!Number.isFinite(value) || value < .1 || value > 5000 || !['a', 'b'].includes(fixedEnd)) throw new Error('Dĺžka musí byť 0,1 až 5000 mm; zachovaný koniec musí byť A alebo B.');
-    if (fixedEnd === 'b') {
-      const world = K.along(pose.b, -value, pose.angle), parent = result.poses[e.parentId], origin = parent?.[e.parentPoint] || parent?.a;
-      const local = parent ? K.rotate({ x: world.x - origin.x, y: world.y - origin.y }, -parent.angle) : world;
-      e.x = local.x; e.y = local.y;
+    if (!Number.isFinite(value) || value < .1 || value > 5000 || !['a', 'b', 'center'].includes(fixedEnd)) throw new Error('Dĺžka musí byť 0,1 až 5000 mm; zachovaný bod musí byť A, B alebo stred.');
+    const parent = result.poses[e.parentId], origin = parent?.[e.parentPoint] || parent?.a;
+    const anchor = fixedEnd === 'b' ? pose.b : fixedEnd === 'center' ? { x: (pose.a.x + pose.b.x) / 2, y: (pose.a.y + pose.b.y) / 2 } : pose.a;
+    const world = K.along(anchor, -value * (fixedEnd === 'b' ? 1 : fixedEnd === 'center' ? .5 : 0), pose.angle);
+    // Store design coordinates, not a second application of the displayed drive.
+    if (e.drive && e.driveMode !== 'linear') {
+      const pivot = e.drivePivot === 'b' ? { x: value, y: 0 } : e.drivePivot === 'c' ? e.localC || { x: e.bearingOffset, y: 0 } : { x: 0, y: 0 };
+      const before = K.rotate(pivot, e.angle + (parent?.angle || 0)), after = K.rotate(pivot, pose.angle);
+      world.x += after.x - before.x; world.y += after.y - before.y;
+    } else if (e.drive) {
+      const base = parent ? K.rotate({ x: e.x, y: e.y }, parent.angle) : { x: e.x, y: e.y };
+      world.x -= pose.a.x - base.x - (origin?.x || 0); world.y -= pose.a.y - base.y - (origin?.y || 0);
+    } else {
+      const difference = angle(pose.angle - (parent?.angle || 0) - e.angle);
+      if (Math.abs(difference) > K.EPS) e.angle = angle(e.angle + difference);
     }
+    const local = parent ? K.rotate({ x: world.x - origin.x, y: world.y - origin.y }, -parent.angle) : world;
+    e.x = local.x; e.y = local.y;
     e.length = value;
     updateAnchors(p, descendants(p, [id]));
     return K.validateProject(p);
+  }
+  function preferredEnd(project, id) {
+    const e = project.elements.find((e) => e.id === id);
+    return e?.drive && e.drivePivot === 'b' || I.fixed(project, { elementId: id, point: 'b' }) && !I.fixed(project, { elementId: id, point: 'a' }) ? 'b' : 'a';
+  }
+  function applyDimension(project, result, options) {
+    let next = K.copy(K.validateProject(project));
+    const previousIndex = next.dimensions.findIndex((d) => d.id === options.id), previous = next.dimensions[previousIndex], a = options.a, b = options.b, type = options.type || 'distance';
+    const record = { ...E.makeDimension(result, a, b, type, parseNumber(options.offset ?? 25)), id: previous?.id || K.uid(), name: String(options.name || '').trim(), control: null };
+    if (previous?.constraintId && !next.dimensions.some((d) => d.id !== previous.id && d.constraintId === previous.constraintId)) next.connections = next.connections.filter((j) => j.id !== previous.constraintId);
+    if (previous) next.dimensions.splice(previousIndex, 1);
+    if (options.driving) {
+      if (!a?.elementId || !b?.elementId || type === 'angle') throw new Error('Riadiaca dĺžka potrebuje dva uzly telies. Uhlová kóta je iba meracia.');
+      const value = parseNumber(options.value);
+      if (value < .1 || value > 5000) throw new Error('Predpísaný rozmer musí byť 0,1 až 5000 mm.');
+      if (a.elementId === b.elementId) {
+        const e = next.elements.find((v) => v.id === a.elementId), end = a.point === 'a' ? b.point : a.point;
+        if (!e || e.primary || K.isElastic(e) || ![a.point, b.point].includes('a')) throw new Error('Tento rozmer sa nedá riadiť priamo. Vytvorte voľnú kópiu alebo upravte geometriu prvku.');
+        const property = end === 'c' && e.type === 'rail' ? 'stroke' : end === 'b' && e.type !== 'slot' ? 'length' : null;
+        if (!property) throw new Error('Podporovaná je dĺžka A–B alebo zdvih vedenia A–C.');
+        const pa = E.resolvePoint(result, a), pb = E.resolvePoint(result, b), total = K.distance(pa, pb);
+        const projection = type === 'horizontal' ? Math.abs(pb.x - pa.x) / total : type === 'vertical' ? Math.abs(pb.y - pa.y) / total : 1;
+        if (projection < .00001) throw new Error('Pri tomto uhle je zvolená zložka nulová. Najskôr otočte člen alebo použite dĺžkovú kótu.');
+        const length = value / projection;
+        const fixedEnd = !options.fixedEnd || options.fixedEnd === 'auto' ? preferredEnd(next, e.id) : options.fixedEnd;
+        if (!['a', 'b', 'center'].includes(fixedEnd)) throw new Error('Vyberte zachovaný bod A, B alebo stred.');
+        if (property === 'length') { if (Math.abs(length - e.length) > K.EPS) next = setLength(next, e.id, length, fixedEnd, result); }
+        else next.elements.find((v) => v.id === e.id).stroke = length;
+        record.control = { elementId: e.id, property };
+      } else {
+        if (type !== 'distance') throw new Error('Medzi rôznymi telesami použite riadiacu dĺžku A–B. Vodorovná a zvislá kóta sú tu iba meracie.');
+        if (next.kind !== 'custom' && [a, b].every((r) => next.elements.find((e) => e.id === r.elementId)?.primary)) throw new Error('Na riadenie dvoch parametrických prvkov vytvorte voľnú kópiu.');
+        record.constraintId = previous?.constraintId && !next.connections.some((j) => j.id === previous.constraintId) ? previous.constraintId : K.uid();
+        next.connections.push({ id: record.constraintId, name: record.name || 'Riadiaca kóta', a, b, type: 'distance', value, builtin: false });
+      }
+    }
+    if (previous) next.dimensions.splice(previousIndex, 0, record);
+    else next.dimensions.push(record);
+    return K.validateProject(next);
   }
   function constraints(project, result) {
     const elements = new Map(project.elements.map((e) => [e.id, e])), rows = [];
@@ -136,6 +243,49 @@
     if (rows.some((r) => r.status === 'missing')) hints.push('Niektorá väzba nemá dostupný uzol alebo vodiacu krivku.');
     if (rows.some((r) => r.prescribed)) hints.push('Bodové väzby chránenej šablóny riadi parametrický zákon. Ich samostatné rezíduá sa neodhadujú zo symbolických dvojíc bodov.');
     return { rows, freedom, hints, duplicates, conflicts };
+  }
+  function analyzeSweep(project, samples) {
+    const p = K.validateProject(project);
+    if (!Array.isArray(samples) || samples.length < 2 || samples.length > 501 || samples.some((s) => !Number.isFinite(s?.motion) || !s.poses)) throw new Error('Analýza potrebuje 2 až 501 platných vzoriek pohybu.');
+    const blocks = [], jointRows = new Map();
+    let active = null;
+    for (const sample of samples) {
+      if (sample.blocked) {
+        if (!active) { active = { start: sample.motion, end: sample.motion, issue: sample.issues?.[0] || 'Nesplnená väzba alebo kolízia.' }; blocks.push(active); }
+        else active.end = sample.motion;
+      } else active = null;
+      for (const row of constraints(p, sample)) {
+        const previous = jointRows.get(row.id);
+        if (!previous) jointRows.set(row.id, { ...row, mmAt: sample.motion, degreesAt: sample.motion });
+        else {
+          if (row.mm != null && (previous.mm == null || row.mm > previous.mm)) { previous.mm = row.mm; previous.mmAt = sample.motion; }
+          if (row.degrees != null && (previous.degrees == null || row.degrees > previous.degrees)) { previous.degrees = row.degrees; previous.degreesAt = sample.motion; }
+          if (row.status === 'error' || row.status === 'missing') previous.status = row.status;
+        }
+      }
+    }
+    const bodyRows = p.elements.filter((e) => e.visible && e.role !== 'canvas-anchor').map((e) => {
+      const reference = ['node', 'bearing'].includes(e.type) ? 'a' : e.type === 'rail' ? 'c' : 'b';
+      const poses = samples.map((s) => s.poses[e.id]), points = poses.map((pose) => pose?.[reference]).filter((v) => v && Number.isFinite(v.x) && Number.isFinite(v.y));
+      let previous = null, unwrapped = 0;
+      const angles = poses.flatMap((pose) => {
+        if (!Number.isFinite(pose?.angle)) return [];
+        unwrapped = previous == null ? pose.angle : unwrapped + angle(pose.angle - previous);
+        previous = pose.angle; return [unwrapped];
+      });
+      const span = (key) => points.length ? Math.max(...points.map((v) => v[key])) - Math.min(...points.map((v) => v[key])) : null;
+      const path = points.reduce((total, at, i) => total + (i ? K.distance(at, points[i - 1]) : 0), 0);
+      return { id: e.id, name: e.name, reference, spanX: span('x'), spanY: span('y'), path, angleMin: angles.length ? Math.min(...angles) : null, angleMax: angles.length ? Math.max(...angles) : null, complete: points.length === samples.length };
+    });
+    const maximum = (key) => {
+      const values = samples.filter((s) => Number.isFinite(s[key]));
+      return values.length ? Math.max(...values.map((s) => s[key])) : null;
+    };
+    return {
+      count: samples.length, blocked: samples.filter((s) => s.blocked).length, blocks, bodies: bodyRows, joints: [...jointRows.values()],
+      positionResidual: maximum('positionResidual'), angularResidual: maximum('angularResidual'),
+      freedom: E.freedom(p, samples[0]), hints: diagnose(p, samples[0]).hints, hasDrive: p.kind !== 'custom' || p.elements.some((e) => e.drive),
+    };
   }
   function snapPoints(project, e, result, midpoint = true) {
     const pose = result.poses[e.id];
@@ -376,7 +526,7 @@
     });
   }
   global.KinmoWorkbench = Object.freeze({
-    bodies, descendants, pivot, transform, setLength, constraints, diagnose, findSnap, connectSnap,
+    parseNumber, applyDimension, preferredEnd, bodies, descendants, pivot, transform, setLength, constraints, diagnose, analyzeSweep, findSnap, connectSnap,
     collectionLimits, normalizeRecord, normalizeCollection, serializeCollection, mergeCollection,
     captureAssembly, insertAssembly, createRevision, restoreRevision, compareDimensions,
   });

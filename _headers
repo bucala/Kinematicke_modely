@@ -25,6 +25,9 @@
 /magic-import.js
   Cache-Control: no-cache
 
+/magic-detection.js
+  Cache-Control: no-cache
+
 /physics.js
   Cache-Control: no-cache
 

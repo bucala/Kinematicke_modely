@@ -87,15 +87,45 @@
       image.src = ''; global.URL.revokeObjectURL(url); throw error;
     }
   }
-  function calibration(image, a, b, distance) {
+  function calibration(image, a, b, distance, axis = 'distance') {
     size(image?.width, image?.height);
     if (![a, b].every((p) => point(p) && p.x >= 0 && p.y >= 0 && p.x <= image.width && p.y <= image.height)) throw new Error('Vyberte dva body priamo na obrázku.');
-    const pixels = K.distance(a, b);
+    if (!['distance', 'horizontal', 'vertical'].includes(axis)) throw new Error('Vyberte dĺžku A–B, rozmer X alebo rozmer Y.');
+    const pixels = axis === 'horizontal' ? Math.abs(b.x - a.x) : axis === 'vertical' ? Math.abs(b.y - a.y) : K.distance(a, b);
     if (pixels < 2) throw new Error('Kalibračné body musia byť od seba aspoň 2 pixely. Vyberte čo najdlhší známy rozmer.');
     if (!Number.isFinite(distance) || distance < .1 || distance > 5000) throw new Error('Známa vzdialenosť musí byť 0,1 až 5000 mm.');
-    const result = { a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, distance, pixels, mmPerPixel: distance / pixels }, rect = imageRect(image, result);
+    const result = { a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, distance, axis, pixels, mmPerPixel: distance / pixels }, rect = imageRect(image, result);
     if (rect.x < -5000 || rect.y < -5000 || rect.x + rect.width > 5000 || rect.y + rect.height > 5000) throw new Error('Podklad po kalibrácii presahuje rozsah editora ±5000 mm. Skontrolujte rozmer, zvoľte dlhší úsek alebo obrázok orežte.');
     return result;
+  }
+  function rescale(project, from, to) {
+    const p = K.copy(K.validateProject(project));
+    if (p.kind !== 'custom' || !point(from?.a) || !point(to?.a) || ![from?.mmPerPixel, to?.mmPerPixel].every((v) => Number.isFinite(v) && v > 0)) throw new Error('Prepočet vyžaduje vlastnú schému a dve platné mierky.');
+    const ratio = to.mmPerPixel / from.mmPerPixel;
+    const local = (v) => ({ x: v.x * ratio, y: v.y * ratio });
+    const world = (v) => ({ x: v.x * ratio + (from.a.x - to.a.x) * to.mmPerPixel, y: v.y * ratio + (from.a.y - to.a.y) * to.mmPerPixel });
+    for (const e of p.elements) {
+      Object.assign(e, e.parentId ? local(e) : world(e));
+      for (const key of ['length', 'width', 'radius', 'stroke', 'carriageOffset', 'slotWidth', 'bearingOffset', 'curveRadius']) e[key] *= ratio;
+      if (K.isElastic(e)) for (const key of ['restLength', 'minLength', 'maxLength', 'diameter', 'rodDiameter', 'wireDiameter']) e[key] *= ratio;
+      e.controls = e.controls.map(local); e.outline = e.outline.map(local);
+      if (e.localC) e.localC = local(e.localC);
+      if (e.com) e.com = local(e.com);
+      if (e.driveMode === 'linear' && e.driveSpeed != null) e.driveSpeed *= ratio;
+    }
+    for (const j of p.connections) {
+      if (j.type === 'distance') j.value *= ratio;
+      if (j.type === 'prismatic' && j.limitMin != null) { j.limitMin *= ratio; j.limitMax *= ratio; }
+    }
+    for (const d of p.dimensions) {
+      if (!d.a.elementId) d.a = world(d.a);
+      if (!d.b.elementId) d.b = world(d.b);
+      d.offset *= ratio;
+    }
+    p.parameters.travelMin *= ratio; p.parameters.travelMax *= ratio;
+    if (p.controls) p.controls = p.controls.map(world);
+    if (p.elements.some((e) => e.drive && e.driveMode === 'linear')) p.simulation.initialVelocity *= ratio;
+    return K.validateProject(p);
   }
   function worldFromPixel(p, scale) {
     if (!point(p) || !point(scale?.a) || !Number.isFinite(scale.mmPerPixel) || scale.mmPerPixel <= 0) throw new Error('Obrázok ešte nemá platnú mierku.');
@@ -155,15 +185,57 @@
     p.elements.push(e);
     return K.validateProject(p);
   }
+  function applyDetected(project, image, scale, candidates, options = {}) {
+    let p = K.copy(K.validateProject(project));
+    const checked = calibration(image, scale?.a, scale?.b, scale?.distance, scale?.axis), added = [];
+    if (p.kind !== 'custom' || Math.abs(checked.mmPerPixel - scale.mmPerPixel) > 1e-9 || !Array.isArray(candidates) || candidates.length > 60) throw new Error('Detekcia vyžaduje kalibrovanú vlastnú schému a najviac 60 návrhov.');
+    const selected = candidates.filter((c) => c.selected);
+    if (!selected.length) throw new Error('Vyberte aspoň jeden rozpoznaný prvok alebo preskočte detekciu.');
+    for (const c of selected) {
+      if (!['ground', 'link', 'panel', 'rail', 'slot', 'bearing', 'node'].includes(c.type) || !Array.isArray(c.points) || c.points.length < (['bearing', 'node'].includes(c.type) ? 1 : 2) || c.points.length > 64 || c.points.some((v) => !point(v) || v.x < 0 || v.y < 0 || v.x > image.width || v.y > image.height) || !Number.isFinite(c.width) || c.width <= 0 || c.width > Math.max(image.width, image.height) || !Number.isFinite(c.radius) || c.radius <= 0) throw new Error('Rozpoznaný prvok má neplatné body alebo rozmery.');
+      const points = c.points.map((v) => worldFromPixel(v, scale)), parameters = K.copy(p.parameters);
+      let e;
+      if (['bearing', 'node', 'slot'].includes(c.type)) {
+        e = K.makeElement(c.type, points[0].x, points[0].y);
+        if (c.type === 'slot') {
+          e.curveKind = 'polyline'; e.controls = points.map((v) => ({ x: v.x - e.x, y: v.y - e.y }));
+          e.slotWidth = Math.max(.1, c.width * scale.mmPerPixel);
+        } else {
+          e.radius = Math.max(.1, c.radius * scale.mmPerPixel); e.length = 1;
+        }
+        p.elements.push(e);
+      } else {
+        p = traceBody(p, c.type, [points[0], points.at(-1)], Math.max(.1, c.width * scale.mmPerPixel));
+        e = p.elements.at(-1);
+      }
+      e.drive = false; e.locked = c.type === 'ground'; e.color = /^#[0-9a-fA-F]{6}$/.test(c.color || '') ? c.color : '';
+      e.name = `Detekcia · ${K.makeElement(c.type).name} ${added.length + 1}`;
+      p.parameters = parameters; added.push(e.id);
+    }
+    if (options.connections === true) {
+      const tolerance = options.tolerance ?? 4;
+      if (!Number.isFinite(tolerance) || tolerance <= 0 || tolerance > 25) throw new Error('Tolerancia detekcie uzlov musí byť 0 až 25 px.');
+      const result = K.solve(K.validateProject(p), K.driveRange(p).min, { design: true, collisions: false }), groups = [];
+      const elements = p.elements.filter((e) => added.includes(e.id)).sort((a, b) => Number(b.locked) - Number(a.locked));
+      for (const e of elements) for (const key of ['bearing', 'node'].includes(e.type) ? ['a'] : e.type === 'slot' ? [] : ['a', 'b']) {
+        const at = result.poses[e.id][key], r = { elementId: e.id, point: key };
+        const group = groups.find((g) => K.distance(g.at, at) <= tolerance * scale.mmPerPixel);
+        if (!group) { groups.push({ at, r, fixed: e.locked }); continue; }
+        if (group.r.elementId === e.id || group.fixed && e.locked) continue;
+        p.connections.push({ id: K.uid(), name: 'Detegovaný otočný spoj · overiť', type: 'revolute', a: group.r, b: r, value: 0, builtin: false });
+      }
+    }
+    return { project: K.validateProject(p), added };
+  }
   function finish(project, image, scale, name) {
     const p = K.copy(K.validateProject(project));
     if (p.kind !== 'custom' || !p.elements.length) throw new Error('Najskôr vytvorte aspoň jeden člen alebo pevný bod.');
-    const checked = calibration(image, scale?.a, scale?.b, scale?.distance);
+    const checked = calibration(image, scale?.a, scale?.b, scale?.distance, scale?.axis);
     if (!Number.isFinite(scale.mmPerPixel) || Math.abs(scale.mmPerPixel - checked.mmPerPixel) > 1e-9) throw new Error('Mierka obrázka sa zmenila. Potvrďte kalibráciu pred dokončením.');
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('Zadajte názov projektu s 1 až 80 znakmi.');
     p.name = name.trim();
-    p.source = { kind: 'custom', name: 'Magic import', motion: 0, note: `Ručne obkreslená schéma z lokálneho obrázka. Kalibrácia: ${checked.distance} mm / ${Number(checked.pixels.toFixed(3))} px. Fotografia sa neukladá; jedna mierka neodstraňuje perspektívu ani skreslenie objektívu.` };
+    p.source = { kind: 'custom', name: 'Magic import', motion: 0, note: `Schéma z lokálneho obrázka, obkreslená alebo navrhnutá lokálnou detekciou. Geometriu a väzby treba overiť. Kalibrácia: ${checked.distance} mm / ${Number(checked.pixels.toFixed(3))} px. Fotografia sa neukladá; jedna mierka neodstraňuje perspektívu ani skreslenie objektívu.` };
     return K.validateProject(p);
   }
-  global.KinmoMagicImport = Object.freeze({ limits, steps, validateFile, imageMetadata, loadImage, calibration, worldFromPixel, pixelFromWorld, imageRect, traceBody, placeElement, finish });
+  global.KinmoMagicImport = Object.freeze({ limits, steps, validateFile, imageMetadata, loadImage, calibration, rescale, worldFromPixel, pixelFromWorld, imageRect, traceBody, placeElement, applyDetected, finish });
 })(globalThis);

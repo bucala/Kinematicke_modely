@@ -5,6 +5,7 @@ import '../editor.js';
 import '../interaction.js';
 import '../workbench.js';
 import '../magic-import.js';
+import '../magic-detection.js';
 import '../physics.js';
 import '../slot-outline.js';
 import '../scene-export.js';

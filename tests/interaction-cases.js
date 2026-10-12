@@ -264,6 +264,33 @@
     const next = I.toggleFixed(p, [ref(e)], K.solve(p, 45));
     assert(!next.elements[0].drive); near(next.elements[0].angle, 45);
   });
+  add('Geometrický výber nájde hrubý člen aj vyplnený obrys bez cieľového SVG elementu.', () => {
+    const candidates = [
+      { type: 'body', key: 'e:link', path: [{ x: 0, y: 0 }, { x: 100, y: 0 }], radius: 10 },
+      { type: 'body', key: 'e:panel', polygon: [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 80 }, { x: 20, y: 80 }] },
+    ];
+    assert(I.hitTest(candidates, { x: 50, y: 8 }) === 'e:link');
+    assert(I.hitTest(candidates, { x: 70, y: 50 }) === 'e:panel');
+    assert(I.hitTest(candidates, { x: 170, y: 100 }) === null);
+    const overlapping = [...candidates, { type: 'node', key: 'n:p:a', at: { x: 50, y: 0 } }, { type: 'joint', key: 'j:k', a: { x: 50, y: 0 }, b: { x: 50, y: 0 }, marker: { x: 50, y: 0 } }];
+    assert(I.hitTargets(overlapping, { x: 50, y: 0 }).join(',') === 'n:p:a,j:k,e:link');
+  });
+  add('Odpojenie člena odstráni aj väzby jeho nesených bodov, nie cudzie telesá.', () => {
+    const e = link(), child = { ...K.makeElement('node', 40, 0), parentId: e.id }, ground = { ...K.makeElement('node', 0, 0), locked: true };
+    let p = custom(e, child, ground);
+    p.connections.push({ id: 'body-joint', a: ref(e), b: ref(ground), type: 'revolute' }, { id: 'child-joint', a: ref(child), b: ref(ground), type: 'revolute' });
+    p = K.validateProject(p); const before = JSON.stringify(p), next = I.disconnectBody(p, e.id);
+    assert(next.connections.length === 0 && next.elements.length === 3 && next.elements[1].parentId === e.id);
+    assert(JSON.stringify(p) === before);
+    throws(() => I.disconnectBody(K.preset('fourbar'), 'input-1'));
+  });
+  add('Fixácia celého telesa zmrazí aktuálnu polohu a uvoľnenie nemení ostatné členy.', () => {
+    const e = { ...link(), drive: true }, p = custom(e), result = K.solve(p, 45);
+    const fixed = I.toggleBodyFixed(p, e.id, result), pose = K.solve(fixed, 0).poses[e.id];
+    assert(fixed.elements[0].locked && !fixed.elements[0].drive); near(pose.angle, 45); near(pose.b.x, result.poses[e.id].b.x);
+    const free = I.toggleBodyFixed(fixed, e.id); assert(!free.elements[0].locked);
+    near(free.elements[0].angle, 45); assert(p.elements[0].drive);
+  });
   add('Pevné a pohyblivé uzly analytických šablón majú správny vizuálny stav.', () => {
     const p = K.preset('double-drawer'), samples = K.sample(p, 3);
     assert(I.status(p, { elementId: 'slot-1', point: 'a' }, samples) === 'free');
