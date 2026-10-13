@@ -333,6 +333,25 @@
     const first = K.solve(joined, 0, { collisions: false }), last = K.solve(joined, 300, { collisions: false });
     assert(!first.blocked && !last.blocked); near(K.distance(first.poses[node.id].a, last.poses[node.id].a), rail.stroke);
   });
+  add('Vozík sa prichytí k rámu a potvrdené pevné spojenie funguje s pohyblivým vedením.', () => {
+    for (const atMotion of [0, 150]) {
+    const rail = { ...K.makeElement('rail', 30, 80), angle: 30, carriageOffset: 20 }, ground = K.makeElement('ground', 120, 150), p = custom(rail, ground), before = JSON.stringify(p);
+    const result = E.design(p, atMotion), from = result.poses[rail.id].ct, target = result.poses[ground.id].a;
+    const keys = [I.nodeKey(ref(rail, 'ct'))], snap = W.findSnap(p, keys, result, { x: target.x - from.x + .5, y: target.y - from.y + .5 }, { enabled: true, tolerance: 2 });
+    assert(snap?.source.ref.point === 'ct' && snap.target.ref.point === 'a');
+    const moved = I.translate(p, keys, snap.delta, result), pose = E.design(moved, atMotion);
+    near(K.distance(pose.poses[rail.id].ct, target), 0);
+    const connected = W.connectSnap(moved, snap, 'fixed'), reverse = I.setRailMotion(connected, rail.id, true, pose);
+    assert(connected.connections[0].type === 'fixed');
+    const displayed = E.design(reverse, atMotion), movedRail = W.transform(reverse, [I.elementKey(rail.id)], { dx: 12, dy: 7 }, displayed), afterMove = E.design(movedRail, atMotion);
+    near(afterMove.poses[rail.id].a.x, displayed.poses[rail.id].a.x + 12); near(afterMove.poses[rail.id].a.y, displayed.poses[rail.id].a.y + 7);
+    for (const motion of [0, 150, 300]) {
+      const sample = K.solve(reverse, motion, { collisions: false }); assert(!sample.blocked);
+      near(K.distance(sample.poses[rail.id].ct, target), 0);
+    }
+    assert(JSON.stringify(p) === before);
+    }
+  });
   add('Viditeľná trajektória je geometrický cieľ, nie automatická kinematická väzba.', () => {
     const node = K.makeElement('node', 0, 0), p = custom(node);
     const snap = W.findSnap(p, [I.nodeKey(ref(node))], E.design(p, 0), { x: 38, y: 41 }, { enabled: true, tolerance: 3, paths: [{ id: 'trace', points: [{ x: 20, y: 40 }, { x: 90, y: 40 }] }] });
@@ -543,6 +562,43 @@
     const rows = W.compareDimensions(before, after).filter((r) => r.key.startsWith('element:'));
     assert(rows.some((r) => r.status === 'added') && rows.some((r) => r.status === 'removed'));
     assert(rows.every((r) => r.delta === null));
+  });
+  add('Vloženie zvoleným montážnym bodom nemení rozmery ani pôvodný projekt.', () => {
+    const p = custom(), before = JSON.stringify(p), at = { x: 237, y: 119 };
+    for (const type of ['link', 'panel', 'rail', 'cam', 'slot', 'node']) {
+      for (const mount of I.pointKeys(K.makeElement(type))) {
+        const e = W.placement(p, type, at, mount), pose = E.design(custom(e), 0);
+        const point = K.point(pose, ref(e, mount)); near(point.x, at.x); near(point.y, at.y);
+        near(e.length, K.makeElement(type).length);
+      }
+    }
+    assert(JSON.stringify(p) === before); throws(() => W.placement(p, 'link', at, 'ct'));
+  });
+  add('Snap drží pôvodný bod do 1,5 násobku tolerancie a potom prejde na bližší.', () => {
+    const a = K.makeElement('node', 0, 0), b = K.makeElement('node', 100, 30), c = K.makeElement('node', 116, 30), p = custom(a, b, c), result = E.design(p, 0), keys = [I.elementKey(a.id)], options = { enabled: true, tolerance: 8 };
+    const first = W.findSnap(p, keys, result, { x: 99, y: 30 }, options); assert(first.target.elementId === b.id);
+    const held = W.findSnap(p, keys, result, { x: 110, y: 30 }, { ...options, previous: first }); assert(held.target.elementId === b.id);
+    const released = W.findSnap(p, keys, result, { x: 114, y: 30 }, { ...options, previous: held }); assert(released.target.elementId === c.id);
+    const disabled = W.findSnap(p, keys, result, { x: 110, y: 30 }, { ...options, enabled: false, previous: held }); assert(disabled === null);
+  });
+  add('Náhľad vloženia drží cieľ aj pri novej identite a prichytáva iba vybraný koniec.', () => {
+    const target = K.makeElement('node', 200, 100), p = custom(target), at = { x: 199, y: 101 };
+    const first = W.findPlacementSnap(p, W.placement(p, 'link', at, 'b'), { enabled: true, tolerance: 8, sourcePoint: 'b' });
+    assert(first.source.ref.point === 'b' && first.target.elementId === target.id);
+    const next = W.findPlacementSnap(p, W.placement(p, 'link', { x: 210, y: 100 }, 'b'), { enabled: true, tolerance: 8, sourcePoint: 'b', previous: first });
+    assert(next.target.elementId === target.id && next.source.elementId !== first.source.elementId);
+    near(next.delta.x, -10);
+  });
+  add('Diagnostické odporúčania obsahujú identity prvkov aj konfliktných kĺbov.', () => {
+    const a = K.makeElement('link', 0, 0), b = K.makeElement('ground', 0, 0), p = custom(a, b);
+    let checks = W.diagnose(p, E.design(p, 0)).checks;
+    assert(checks.some((c) => c.key === I.elementKey(a.id) && c.action === 'motor'));
+    assert(checks.some((c) => c.key === I.elementKey(a.id) && c.action === 'connect'));
+    p.connections = [joint(ref(a), ref(b))];
+    checks = W.diagnose(p, E.design(p, 0)).checks; assert(checks.some((c) => c.action === 'support'));
+    p.connections = [joint(ref(a), ref(b), 'distance', 20), joint(ref(a), ref(b), 'distance', 40)];
+    checks = W.diagnose(p, E.design(p, 0)).checks;
+    assert(checks.some((c) => c.key === I.jointKey(p.connections[0].id) && c.otherKey === I.jointKey(p.connections[1].id)));
   });
   global.KinematicsTestCases = [...(global.KinematicsTestCases || []), ...cases];
 })(globalThis);

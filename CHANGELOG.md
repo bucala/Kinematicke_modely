@@ -1,5 +1,39 @@
 # História zmien
 
+## 2026-10-13: viac polôh, predloha a pracovné postupy
+
+- Magic import porovná prvý obrázok a ďalšie tri polohy po zarovnaní rovnakým pevným úsekom. Zhodu a odhad pevnej/posuvnej/otočnej časti oddelí od skóre geometrie; nejednoznačné zhody nepotvrdí automaticky.
+- Návrhy možno opraviť ťahaním koncov, vrcholov a čapov, doplniť čap, rozlíšiť otvor/samostatný čap, spojiť fragmenty, rozdeliť teleso alebo dokresliť obrys. Opravy majú oddelené Späť/Znova. Opakovaná detekcia potvrdzuje nahradenie opráv.
+- Finish archivuje zmenšenú kalibrovanú predlohu prvého obrázka v projekte, `.kinmo` aj JSON. Tlačidlo Predloha je dostupné pre Magic projekty; upraví viditeľnosť, priehľadnosť a zarovnanie. Starší projekt môže doplniť pôvodný obrázok bez zmeny existujúcej geometrie.
+- Voľnosť zobrazuje lokálne možné smery vybraného telesa. Skúšobný pohyb prechádza medzipolohy a vzorky analýzy, označí blokovanie a zachová poslednú funkčnú polohu; ukončenie obnoví režim/polohu bez zmeny modelu.
+- Štyri pripravené mechanické zostavy majú nastaviteľné rozmery, montážne body, skutočné väzby a voliteľný jediný pohon. Vloženie je atómové.
+- Úpravy uloženia s naviazanými závislosťami, odpojenie a mazanie ponúkajú konkrétne dôsledky a zachovanie zobrazeného východiska. Zrušenie model nemení.
+- Až 12 pomenovaných nadväzujúcich fáz jedného pohonu: dorazy, trvanie, plynulý/lineárny priebeh, zotrvanie, spätný smer a zachytenie konca na plátne. Plán a predloha sa validujú a prenášajú natívnym súborom; podzostavy nekopírujú celý projektový podklad/plán.
+
+
+## 2026-10-13: jednoduchšie vkladanie a väzby
+
+- Vloženie kliknutím alebo drag & drop ukazuje tvar prvku a umožňuje zvoliť montážny bod A/B/C/CT/CB. Tab a Shift+Tab prepínajú bod, Zrušiť/Escape ukončí náhľad bez zásahu do modelu.
+- Kruhový montážny bod presúva celé tuhé teleso bez deformácie. Rozmery sa menia samostatnými úchytmi. Alt dočasne obíde bodové, sieťové a uhlové prichytávanie.
+- Stabilné prichytenie používa vstupnú toleranciu 8 px a uvoľnenie pri 12 px. Popis určuje cieľový prvok a bod. Pri bode je malá ponuka kompatibilných spojov; vloženie/posun a potvrdený spoj majú spoločný krok Späť.
+- Panel Spojenia/Uloženie/Pohon rozlišuje bodovú fixáciu a uloženie telesa. Pri vedení ponúka pohyblivý vozík alebo vedenie. Klikateľné odporúčania vyberú a vycentrujú prvok či konfliktné kĺby a otvoria príslušnú úpravu.
+
+
+## 2026-10-13: pevný vozík, pohyblivé vedenie a uhlové kroky
+
+- Samostatné vlastné vedenie podporuje režim pevného vozíka a lineárne poháňanej koľajnice. Kontextová ponuka alebo F na pôvodne pevnom A/B prepne uloženie celej zostavy; spätné prepnutie, história a natívny export/import zachovajú režim a zobrazenú polohu.
+- Prichytávanie C/CT/CB umožňuje upraviť pozdĺžnu polohu vozíka aj priečnu polohu vedenia. Potvrdenie ponúka pevné spojenie a používa aktuálny zdvih. Žiadny spoj nevzniká bez potvrdenia.
+- Tlačidlo 10° je samostatné od siete 5 mm a smart snap. Otáčanie/ťahanie smeru používa absolútny uhol po 10°, číselné vstupy sú presné. Preferencie a export si voľbu pamätajú.
+
+
+## 2026-10-13: Magic import, oblasti a montážne body
+
+- Výber jednej oblasti dvoma rohmi v kroku 2.5, bez zmeny kalibrácie; celý obrázok a Escape obnovia spracovanie celého podkladu.
+- Oblasti oddelené hranami, úzke biele vnútorné pásy a malé kruhové otvory dopĺňajú pôvodné obrysové návrhy. Rozlíšenie duplicitných telies používa obrys, nie iba vzdialenosť koncov hrubého člena.
+- Montážne body vo vnútri ramena/čela sú nesené uzly. Voliteľné otočné spoje používajú ich polohy. Body sú viditeľné pred vložením, pri každom telese sa dajú vypnúť; rám ich vyžaduje výslovne zapnúť. Vloženie aj s bodmi zostáva jedným krokom Späť.
+- Testy pokrývajú prekrývajúce sa obrysové dosky, čiernobiely variant, vnútorné čapy, prenos mierky a súradníc výrezu, import/export, históriu a odmietnutie chybných bodov. Opravené zastavenie na kroku 2.5: návrh nemôže mať body mimo obrázka ani prekročiť limity importu; chyby označia konkrétny riadok a po odznačení možno pokračovať. Následný test na skutočnom JPG Kinka doplnil regresný raster a opravil zámeny širokého zakriveného člena za kulisu aj jednopixelové JPEG návrhy. Úplné obrysy oboch modrých členov a mechanická topológia zostávajú neoverené.
+
+
 Zmeny Kinematika Studio sú zoradené od najnovších. Dátum a Git commit označujú zmeny zdrojov, nie potvrdenie produkčného nasadenia. Návody sú v [README.md](README.md), rozsah kontrol v [VALIDATION.md](VALIDATION.md).
 
 ## 2026-10-13: prichytávanie, vačka, obrysy a krivkové časti

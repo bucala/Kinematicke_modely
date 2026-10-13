@@ -1,5 +1,56 @@
 # Stav overenia
 
+Publikačná kontrola zdrojov nad `aa8e933`: znovu prešli kontrola syntaxe, **640 JavaScriptových testov**, statický build a kontrola whitespace. Výsledky prehliadačových postupov nižšie pochádzajú z funkčného overenia pred commitom; pri publikačnej kontrole sa neopakovali. Push zdrojov do `main` nie je potvrdenie produkčného nasadenia.
+
+## Predloha a rozšírené pracovné postupy · 13. 10. 2026 (lokálne overenie)
+
+- `npm run check`, **640 JavaScriptových testov / 0 zlyhaní**, `npm run build` a `git diff --check` prešli. Nový `tests/workflow.test.mjs` má 23 modelových regresií; ďalšie UI regresie vykonávajú skutočné funkcie a obsluhu odoslania formulára.
+- Modelové kontroly: kalibrovaný prenos obrázka do `.kinmo`, limity a odmietnutie neplatných predlôh, zarovnanie mierky/rotácie/posunu, rozlíšenie pohybov a nejednoznačných zhôd, spájanie/rezanie obrysov a prenos čapov, štyri zostavy so skutočnými väzbami, jeden pohon, lokálne smery voľnosti, priechod medzipolohami, zastavenie pred blokovaním aj pri úzkej známej vzorke, náhľad závislostí a zachovanie zobrazeného východiska. Fázy: časovanie, zotrvanie, spätný smer, plynulý priebeh, nadväznosť, limity, natívny prenos a odstránenie fáz po zmazaní pohonu.
+- Skutočný Chromium/CDP pri 1440 × 960: pripravená zostava, voľnosť, natívne potiahnutie vozíka v skúšobnom režime a presné obnovenie pôvodného modelu; fázy a výber konca na plátne zachovali rozpísaný horný doraz. Pri prirodzenom prehrávaní sa poloha po 300 ms zmenila. Náhľad uloženia sa dal zrušiť bez zmeny modelu, potvrdenie aj Späť prešli.
+- Magic import dekódoval skutočný dodaný JPG Kinka. Druhý obrázok bol **ten istý JPG**, zarovnaný pevným úsekom: overuje načítanie/zarovnanie/porovnávací postup, nie presnosť rozpoznania pohybujúceho sa mechanizmu. Odlišné pohybové polohy pokrývajú syntetické modelové prípady. Natívne presunutie skutočného vrcholu návrhu a vrátenie opravy prešli. Finish, prepnutie predlohy, uloženie a obnovenie stránky zachovali obraz. Celá mechanická rekonštrukcia Kinka tým nie je potvrdená.
+- Skutočne dekódovaný lokálny PNG a natívne kliknutia na plátno overili dokreslenie obrysu, doplnenie čapu, spojenie fragmentov, rozdelenie, oddelené Späť/Znova, hromadné vloženie a obnovenie pôvodného projektu po zrušení.
+- Starší Magic projekt bez obrázka prijal skutočný Kinka JPG. Zarovnanie na X = −10, Y = −20, šírka = 600 mm zachovalo presne pôvodné telesá a väzby. Táto kontrola nepoužila pôvodnú neznámu kalibráciu používateľovho staršieho projektu.
+- Pri 393 × 852 boli nastavenia predlohy, editor fáz a zostavy bez vodorovného pretekania. Snímky desktopového editora, zachovanej predlohy a úzkeho formulára boli vizuálne prezreté. Zopakované skoršie natívne vloženie B/CT, spoločné Undo/Redo, HTML5 drag/drop a Alt bez deformácie tiež prešli.
+- Zostavené `dist/` prešlo samostatnou HTTP kontrolou nového modulu, vloženia/uloženia skutočnej zostavy a editora fáz bez JS výnimiek. Dočasné skripty a snímky sú v ignorovanom `.analysis/drag-qa/`. Fyzický telefón, živý Fusion, vzdialené CI a produkčný deploy sa v tomto kole neoverovali. Nové offline `file://` overenie sa nevykonalo; predchádzajúci pokus v tomto prostredí blokovala politika Chromium.
+
+
+## Jednoduchšie vkladanie a väzby · 13. 10. 2026 (lokálne overenie)
+
+- `npm run check`, **613 JavaScriptových testov / 0 zlyhaní**, `npm run build` a `git diff --check` prešli.
+- Nové modelové regresie kontrolujú vloženie za montážne body všetkých hlavných typov, nemennosť rozmerov/pôvodného projektu, zadržanie a uvoľnenie snap cieľa, novú identitu náhľadu a konkrétne identity diagnostických odporúčaní.
+- UI regresie overujú posun celého ramena cez kruhový bod bez zmeny dĺžky, Alt bez bodových/sieťových krokov vrátane rozmerového úchytu, výber montážneho bodu, spoločnú históriu posunu a spoja, odmietnutie zastaraného potvrdenia a klikateľnú diagnostiku s vycentrovaním.
+- Skutočný lokálny Chromium cez CDP pri 1440 × 960: kliknutie/vloženie za B, prepnutie Tab, vloženie vedenia cez CT a prepnutie na pohyblivé vedenie; malá ponuka otočného spoja a jedno Ctrl+Z/Ctrl+Y vracajú/obnovujú celé vloženie so spojom. HTML5 drag začal natívnymi myšacími udalosťami; zachytené DragData sa použili na protokolové dragEnter/dragOver/drop. Náhľad aj vložený prvok zostali dostupné. Natívne ťahanie konca B s Alt presunulo celý 120 mm člen o (17, 13) mm bez zmeny dĺžky. Žiadne aplikačné JS výnimky.
+- Pri 393 × 852 sa panel montážnych bodov zmestil do viewportu, neprekrýval sa panelom vybraného prvku a dal sa zrušiť. Klikateľné odporúčania fungovali bez vodorovného pretekania. Desktopový náhľad a ponuka spoja aj úzke vkladanie boli vizuálne prezreté. Snímky a dočasné kontrolné skripty sú v ignorovanom `.analysis/drag-qa/`.
+- Zostavené `dist/` prešlo samostatnou HTTP kontrolou vloženia/zrušenia bez JS výnimiek. Pokus o `file://` sa skončil organizačnou blokáciou Chromium ešte pred načítaním aplikácie; offline spustenie sa preto v tomto kole nepotvrdzuje. Fyzický dotykový telefón, vzdialené CI a produkčný deploy sa neoverovali.
+
+
+## Pevný vozík a uhlové kroky · 13. 10. 2026 (lokálne overenie)
+
+- Syntax, všetkých **603 JavaScriptových testov** a statický build prešli.
+- Nové modelové regresie: vedenie v uhloch 0/30/90°, C/CT/CB a nesené body zostávajú pevné, A/B a ich nesené body vykonajú opačný zdvih. Prepnutie pri zobrazenom zdvihu a spätné prepnutie zachovávajú geometriu; `.kinmo` zachová režim. Režim vyžaduje jediný lineárny pohon a nepodporuje samostatne voľne plávajúcu koľajnicu bez pohonu.
+- Prichytenie CT k rámu pri zdvihu 0 aj 150, potvrdené pevné spojenie a nasledujúca simulácia cez celý rozsah nemajú zablokovanie. Posun vedenia v editore nepoužije zdvih dvakrát.
+- UI regresie: kontextová ponuka prepne režim a Späť ho obnoví; samostatné tlačidlo 10° nemodifikuje sieť ani smart snap, ukladá sa do `.kinmo` a otáčanie zo 17° o 14° končí pri 30° so zapnutím a 31° bez zapnutia. História obnoví pôvodný uhol.
+- UI výsledky sú z existujúcich VM testov. Natívne gestá, vzdialené CI a produkčné nasadenie sa v tomto kole neoverovali.
+
+
+## Kinka: test dodaného JPG · 13. 10. 2026 (lokálne overenie)
+
+- `Kinka.zip` obsahuje skutočný JPG 2752 × 1536 px. Pillow 12.3.0 ho dekódoval a zmenšil na 768 × 429 px; detekcia pri citlivosti 50 beží nad týmito pixelmi. Regresný raster a pôvod sú v `tests/fixtures/kinka.md`. Nejde o test browserového JPEG dekódovania.
+- Pôvodný detektor z HEAD: 30 návrhov, 1 predvybraný. Pred poslednou opravou: 49 návrhov, vrátane širokých modrých profilov omylom navrhnutých ako kulisy. Po oprave: **34 návrhov**, 1 predvybraný; 13 ramien, 12 panelov, 5 kruhových návrhov, 2 vedenia, 1 rám a 1 kulisa. Počet návrhov nie je počet skutočných súčiastok.
+- Široký modrý obrys s ľavým a stredným pravým otvorom je návrh panelu s montážnymi bodmi. **Štyri z piatich viditeľných kruhových miest sa zhodujú** s detekciou: spoločné ľavé, stredné pravé, spodné pravé a biele v čiernej časti. Malý otvor vľavo dole chýba; ďalší nález pri červenom doraze je pravdepodobne falošný. Modré profily sa vplyvom prekrytia a hrán podkladu stále delia na čiastočné obrysy. Úplná rekonštrukcia ani fyzikálne správne väzby nie sú potvrdené.
+- Pridanie všetkých návrhov do nového vlastného projektu, Finish a export/import `.kinmo` prešli: **42 prvkov vrátane montážnych bodov, 19 navrhnutých väzieb, 0 pohonov**. Je to overenie prenosu návrhov, nie ich mechanickej správnosti. Testovacia kalibrácia 500 mm cez šírku obrázka nie je nameraný rozmer. Predvolený výber vloží iba 1 prvok bez väzieb.
+- Zastavenie na kroku 2.5 bolo reprodukované: pôvodný prvý návrh čiernej základne mal x = −0,0043527 px mimo rastra (ďalší veľký panel x = −0,8554 px). Import preto odmietol dávku ešte pred prechodom na krok 3. Generované body sa teraz ohraničujú rastrom, rozmery aj počet bodov majú limity importu. Chybová správa identifikuje konkrétny návrh; UI regresia potvrdzuje zachovanie schémy pri chybe a úspešný prechod po odznačení chybného návrhu.
+- Syntax, **599 JavaScriptových testov** a statický build prešli. Nová regresia kontroluje skutočné pixely Kinka, široké členy, kruhové miesta, odstránenie sekundárnych jednopixelových hrán a vloženie/export návrhov. Vizuálny prehľad je lokálne v `.analysis/magic-detection-review/Kinka-kontrola.html`; natívne gestá, vzdialené CI a produkčné nasadenie sa neoverovali.
+
+
+## Magic import: oblasti a montážne body · 13. 10. 2026 (lokálne overenie)
+
+- Syntax, všetkých **597 JavaScriptových testov** a statický build prešli. Nové prípady overujú obrysové dosky inšpirované náhľadom Kinka (syntetický raster, nie jeho JPG), kruhové montážne body, nesenie bodov pri rotácii, otočné spoje, natívny export/import, vypínanie bodov, Späť, výber oblasti a odmietnutie neplatného výrezu.
+- Skutočný pribalený PNG bol dekódovaný pomocou Pillow 12.3 a spracovaný cez `detectPixels` pri citlivosti 50. Celý raster 681 × 768 px: pôvodne 10 návrhov (6 predvybraných, žiadna dráha); po úprave 33 návrhov (6 predvybraných, 3 návrhy zakrivených dráh). Väčší počet návrhov sám osebe nedokazuje vyššiu presnosť; nové návrhy vyžadujú kontrolu.
+- Výrez prvej polohy v pôvodných pixeloch x=55, y=28, šírka=720, výška=300: pôvodne 7 návrhov; po úprave 21. Zistili sa ďalšie dve malé kruhové oblasti. Priradenie bodov k rámu je predvolene vypnuté; samotná poloha v jeho obryse nepreukazuje fixáciu. Obe úplné kulisy ani správna mechanická topológia nie sú týmto meraním potvrdené.
+- V tomto prvom kole presný súbor `Kinka.jpg` ešte nebol dostupný; následný test dodaného ZIP je zaznamenaný vyššie. Natívne prehliadačové QA nebolo dokončené (headless Chromium nevydal výsledok); výsledky UI sú z existujúcich VM testov. Vzdialené CI, živý Fusion a nasadenie sa pri tejto úprave nevykonali.
+
+
 Rozšírenie nad `5e9798b`, verzia 2.0.0. Funkčné overenie pochádza z 12. 10. 2026; predpublikačná kontrola z 13. 10. je zaznamenaná samostatne. Staršie dátumy a počty sú historické výsledky, nie opätovné overenie aktuálneho rozhrania.
 
 ## Rozšírenie: snap, vačka, obrysy a krivkové časti

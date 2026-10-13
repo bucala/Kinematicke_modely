@@ -374,6 +374,33 @@
     const moving = I.toggleFixed(next, [r]); assert(moving.elements[0].drive && !I.fixed(moving, r));
     near(K.solve(moving, 0).poses[rail.id].c.x, at.x);
   });
+  add('Pevný vozík a pohyblivé vedenie: uvoľnenie A zachová montáž a koľajnica vykoná opačný zdvih.', () => {
+    for (const angle of [0, 30, 90]) {
+      const rail = { ...K.makeElement('rail', 40, 60), angle, carriageOffset: 35 };
+      const marker = { ...K.makeElement('node', 4, 2), parentId: rail.id, parentPoint: 'c' }, endMarker = { ...K.makeElement('node', 4, 2), parentId: rail.id, parentPoint: 'a' };
+      const p = custom(rail, marker, endMarker), range = K.driveRange(p);
+      const initial = K.solve(p, range.min + (range.max - range.min) / 2, { collisions: false });
+      const fixed = I.toggleFixed(p, [ref(rail, 'ct')], initial), parked = K.solve(fixed, range.min, { collisions: false });
+      const before = JSON.stringify(fixed), next = I.toggleFixed(fixed, [ref(rail, 'a')], parked);
+      assert(next.elements.find((e) => e.id === rail.id).movingRail && next.elements.find((e) => e.id === rail.id).drive);
+      assert(!I.fixed(next, ref(rail, 'a')) && !I.fixed(next, ref(rail, 'b')) && I.fixed(next, ref(rail, 'ct')));
+      const start = K.solve(next, range.min, { collisions: false }), finish = K.solve(next, range.max, { collisions: false });
+      assert(!start.blocked && !finish.blocked);
+      for (const key of ['c', 'ct', 'cb']) near(K.distance(start.poses[rail.id][key], finish.poses[rail.id][key]), 0);
+      near(K.distance(parked.poses[rail.id].a, start.poses[rail.id].a), 0);
+      near(K.distance(start.poses[marker.id].a, finish.poses[marker.id].a), 0);
+      near(K.distance(start.poses[endMarker.id].a, finish.poses[endMarker.id].a), rail.stroke);
+      assert(I.status(next, ref(marker)) === 'fixed' && I.status(next, ref(endMarker)) === 'driven');
+      const expected = K.along(start.poses[rail.id].a, -rail.stroke, angle);
+      near(finish.poses[rail.id].a.x, expected.x); near(finish.poses[rail.id].a.y, expected.y);
+      const loaded = global.KinmoExport.parseNative(global.KinmoExport.serializeNative(next)).project;
+      assert(loaded.elements.find((e) => e.id === rail.id).movingRail);
+      const restored = I.toggleFixed(next, [ref(rail, 'ct')], finish), shown = K.solve(restored, range.max, { collisions: false });
+      assert(!restored.elements.find((e) => e.id === rail.id).movingRail && !I.fixed(restored, ref(rail, 'ct')));
+      near(K.distance(shown.poses[rail.id].a, finish.poses[rail.id].a), 0); near(K.distance(shown.poses[rail.id].c, finish.poses[rail.id].c), 0);
+      assert(JSON.stringify(fixed) === before);
+    }
+  });
   add('Bod na pohyblivom vozíku sa nepovažuje za pevný bod vedenia.', () => {
     const rail = K.makeElement('rail'), marker = K.makeElement('node', 0, 0);
     marker.parentId = rail.id; marker.parentPoint = 'c'; const p = custom(rail, marker);

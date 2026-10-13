@@ -58,7 +58,7 @@
       speed: [0.25, 0.5, 1, 1.5, 2].includes(input.speed) ? input.speed : 1,
     };
     for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'labels', 'collisions', 'snap', 'forceArrows']) result[key] = input[key] !== false;
-    for (const key of ['profileVisible', 'timelineVisible']) result[key] = input[key] === true;
+    for (const key of ['profileVisible', 'timelineVisible', 'angleSnap']) result[key] = input[key] === true;
     return result;
   }
 

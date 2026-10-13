@@ -149,6 +149,7 @@
   }
 
   function projectPhases(project) {
+    if (project.motionPlan?.phases.length) return [{ motion: project.motionPlan.phases[0].from, name: 'Začiatok' }, ...project.motionPlan.phases.map((p) => ({ motion: p.to, name: p.name }))];
     if (projects.has(project.kind)) return projects.get(project.kind).phases(project);
     const range = driveRange(project);
     const names = range.unit === 'mm' ? ['Zatvorené', 'Medzipoloha', 'Otvorené'] : ['Začiatok', 'Pol cyklu', 'Celý cyklus'];
@@ -349,8 +350,13 @@
     if (element.type === 'rail') {
       const range = driveRange(project);
       const t = (motion - range.min) / Math.max(EPS, range.max - range.min);
-      pose.c = along(a, (element.carriageOffset || 0) + (element.drive ? t : 0) * element.stroke, element.angle);
-      pose.path = [a, b];
+      const travel = (element.drive ? t : 0) * element.stroke;
+      if (element.movingRail) {
+        pose.a = along(a, -travel, element.angle); pose.b = along(pose.a, element.length, element.angle); pose.controlOrigin = pose.a;
+        pose.c = along(a, element.carriageOffset || 0, element.angle);
+        if (element.outline?.length) pose.outline = element.outline.map((v) => worldPoint(pose, v));
+      } else pose.c = along(a, (element.carriageOffset || 0) + travel, element.angle);
+      pose.path = [pose.a, pose.b];
       Object.assign(pose, carriageGeometry(element, pose));
     }
     if (element.type === 'slot') { pose.path = cachedPath || genericPath(element); pose.a = pose.path[0]; pose.b = pose.path[pose.path.length - 1]; }
@@ -772,7 +778,8 @@
       const base = makeElement(e.type);
       const normalized = { ...base, id: e.id, type: e.type, name: text(e.name, base.name), role: text(e.role, ''), primary: input.kind !== 'custom' && !!e.primary, locked: !!e.locked, drive: !!e.drive, visible: e.visible !== false, slotId: text(e.slotId, '', 100) };
       for (const key of ['x', 'y', 'angle', 'length', 'width', 'radius', 'stroke', 'slotWidth', 'bearingOffset', 'curveRadius']) normalized[key] = number(e[key], base[key]);
-      normalized.carriageOffset = number(e.carriageOffset, 0, 0, 5000);
+      normalized.carriageOffset = number(e.carriageOffset, 0, -5000, 5000);
+      normalized.movingRail = e.type === 'rail' && !normalized.primary && !!e.movingRail;
       normalized.carriageWidth = number(e.carriageWidth, 24, .1, 5000);
       normalized.carriageHeight = number(e.carriageHeight, 30, .1, 5000);
       normalized.camLift = number(e.camLift, base.camLift, 0, 5000);
@@ -910,11 +917,29 @@
     }
     const source = input.source && KINDS.includes(input.source.kind)
       ? { kind: input.source.kind, name: text(input.source.name, ''), motion: number(input.source.motion, 0), note: text(input.source.note, '', 500) } : null;
+    let importReference = null, motionPlan = null;
+    if (input.importReference != null) {
+      const r = input.importReference;
+      if (r.kind !== 'magic' || !Array.isArray(r.frames) || !r.frames.length || r.frames.length > 4) throw new Error('Neplatná predloha Magic importu.');
+      const frames = r.frames.map((f) => {
+        if (typeof f.dataURL !== 'string' || f.dataURL.length > 350000 || !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(f.dataURL)) throw new Error('Predloha musí byť lokálny raster do 350 kB.');
+        return { name: text(f.name, 'Predloha', 120), dataURL: f.dataURL, rect: { x: number(f.rect?.x, 0), y: number(f.rect?.y, 0), width: number(f.rect?.width, 0, .01, 20000), height: number(f.rect?.height, 0, .01, 20000) } };
+      });
+      importReference = { kind: 'magic', frames, visible: r.visible !== false, opacity: number(r.opacity, .35, .05, 1), active: number(r.active, 0, 0, frames.length - 1) };
+      if (!Number.isInteger(importReference.active)) throw new Error('Neplatná poloha predlohy.');
+    }
+    if (input.motionPlan != null) {
+      const plan = input.motionPlan, range = driveRange({ kind: input.kind, elements, parameters: p });
+      if (!Array.isArray(plan.phases) || plan.phases.length > 12 || !['mm', '°'].includes(plan.unit) || plan.unit !== range.unit) throw new Error('Fázy potrebujú jednotku aktuálneho pohonu a najviac 12 krokov.');
+      const phases = plan.phases.map((v, i) => ({ name: text(v.name, `Fáza ${i + 1}`, 60), from: number(v.from, range.min, range.min, range.max), to: number(v.to, range.max, range.min, range.max), duration: number(v.duration, 1, .1, 120), easing: v.easing === 'smooth' ? 'smooth' : 'linear' }));
+      if (phases.some((v, i) => i && Math.abs(v.from - phases[i - 1].to) > .00001)) throw new Error('Koniec fázy musí nadväzovať na začiatok ďalšej.');
+      motionPlan = { unit: plan.unit, phases };
+    }
     const provenance = definition?.provenance || (source?.kind === 'double-drawer' ? projects.get('double-drawer')?.provenance : null);
     return {
       version: 1, id: text(input.id, uid(), 100), name: text(input.name, 'Importovaný mechanizmus'), kind: input.kind,
       parameters: p, controls: input.controls ? controls(input.controls, p.curveKind) : null, elements, connections, dimensions, trajectories, simulation,
-      ...(source ? { source } : {}), ...(provenance ? { provenance: copy(provenance) } : {}),
+      ...(source ? { source } : {}), ...(importReference ? { importReference } : {}), ...(motionPlan ? { motionPlan } : {}), ...(provenance ? { provenance: copy(provenance) } : {}),
     };
   }
 

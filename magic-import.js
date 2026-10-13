@@ -82,10 +82,20 @@
         };
         image.src = url;
       });
-      return { url, width: image.naturalWidth, height: image.naturalHeight, type: metadata.type, name: String(file.name || 'Obrázok').slice(0, 120) };
+      const portable = global.document?.createElement ? portableRaster(image) : null;
+      return { ...(portable ? { dataURL: portable } : {}), url, width: image.naturalWidth, height: image.naturalHeight, type: metadata.type, name: String(file.name || 'Obrázok').slice(0, 120) };
     } catch (error) {
       image.src = ''; global.URL.revokeObjectURL(url); throw error;
     }
+  }
+  function portableRaster(image) {
+    const canvas = global.document.createElement('canvas');
+    let ratio = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+    try { for (let i = 0; i < 8; i++) {
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio)); canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
+      const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const data = canvas.toDataURL('image/jpeg', .78); if (data.length <= 350000) return data; ratio *= .75;
+    } throw new Error('Predlohu sa nepodarilo zmenšiť na veľkosť projektu.'); } finally { canvas.width = canvas.height = 0; }
   }
   function calibration(image, a, b, distance, axis = 'distance') {
     size(image?.width, image?.height);
@@ -125,6 +135,8 @@
     p.parameters.travelMin *= ratio; p.parameters.travelMax *= ratio;
     if (p.controls) p.controls = p.controls.map(world);
     if (p.elements.some((e) => e.drive && e.driveMode === 'linear')) p.simulation.initialVelocity *= ratio;
+    if (p.importReference) for (const frame of p.importReference.frames) { const at = world(frame.rect); frame.rect = { ...at, width: frame.rect.width * ratio, height: frame.rect.height * ratio }; }
+    if (p.motionPlan?.unit === 'mm') for (const phase of p.motionPlan.phases) { phase.from *= ratio; phase.to *= ratio; }
     return K.validateProject(p);
   }
   function worldFromPixel(p, scale) {
@@ -179,13 +191,15 @@
   }
   function applyDetected(project, image, scale, candidates, options = {}) {
     let p = K.copy(K.validateProject(project));
-    const checked = calibration(image, scale?.a, scale?.b, scale?.distance, scale?.axis), added = [];
+    const checked = calibration(image, scale?.a, scale?.b, scale?.distance, scale?.axis), added = [], mounting = new Map();
     if (p.kind !== 'custom' || Math.abs(checked.mmPerPixel - scale.mmPerPixel) > 1e-9 || !Array.isArray(candidates) || candidates.length > 60) throw new Error('Detekcia vyžaduje kalibrovanú vlastnú schému a najviac 60 návrhov.');
     const selected = candidates.filter((c) => c.selected);
     if (!selected.length) throw new Error('Vyberte aspoň jeden rozpoznaný prvok alebo preskočte detekciu.');
     for (const c of selected) {
-      if (!['ground', 'link', 'panel', 'rail', 'slot', 'bearing', 'node'].includes(c.type) || !Array.isArray(c.points) || c.points.length < (['bearing', 'node'].includes(c.type) ? 1 : 2) || c.points.length > 64 || c.points.some((v) => !point(v) || v.x < 0 || v.y < 0 || v.x > image.width || v.y > image.height) || !Number.isFinite(c.width) || c.width <= 0 || c.width > Math.max(image.width, image.height) || !Number.isFinite(c.radius) || c.radius <= 0) throw new Error('Rozpoznaný prvok má neplatné body alebo rozmery.');
-      if (c.outline != null && (!Array.isArray(c.outline) || c.outline.length > 64 || c.outline.length && c.outline.length < 3 || c.outline.some((v) => !point(v) || v.x < 0 || v.y < 0 || v.x > image.width || v.y > image.height))) throw new Error('Rozpoznaný obrys má neplatné vrcholy.');
+      const invalid = (detail) => new Error(`Návrh ${candidates.indexOf(c) + 1}: ${detail} Odznačte ho alebo zopakujte detekciu.`);
+      if (!['ground', 'link', 'panel', 'rail', 'slot', 'bearing', 'node'].includes(c.type) || !Array.isArray(c.points) || c.points.length < (['bearing', 'node'].includes(c.type) ? 1 : 2) || c.points.length > 64 || c.points.some((v) => !point(v) || v.x < 0 || v.y < 0 || v.x > image.width || v.y > image.height) || !Number.isFinite(c.width) || c.width <= 0 || c.width > Math.max(image.width, image.height) || !Number.isFinite(c.radius) || c.radius <= 0) throw invalid('Neplatné body alebo rozmery; body musia ležať na obrázku.');
+      if (c.outline != null && (!Array.isArray(c.outline) || c.outline.length > 64 || c.outline.length && c.outline.length < 3 || c.outline.some((v) => !point(v) || v.x < 0 || v.y < 0 || v.x > image.width || v.y > image.height))) throw invalid('Obrys má neplatné vrcholy.');
+      if (c.anchors != null && (!Array.isArray(c.anchors) || c.anchors.length > 60 || c.anchors.some((v) => !point(v) || v.x < 0 || v.y < 0 || v.x > image.width || v.y > image.height || !Number.isFinite(v.radius) || v.radius <= 0 || v.radius > Math.max(image.width, image.height)))) throw invalid('Montážne body sú neplatné.');
       const points = c.points.map((v) => worldFromPixel(v, scale)), parameters = K.copy(p.parameters);
       let e;
       if (['bearing', 'node', 'slot'].includes(c.type)) {
@@ -209,18 +223,32 @@
       e.drive = false; e.locked = c.type === 'ground'; e.color = /^#[0-9a-fA-F]{6}$/.test(c.color || '') ? c.color : '';
       e.name = `Detekcia · ${K.makeElement(c.type).name} ${added.length + 1}`;
       p.parameters = parameters; added.push(e.id);
+      if (['ground', 'link', 'panel'].includes(c.type) && c.useAnchors !== false && c.anchors?.length) {
+        const references = [];
+        for (const anchor of c.anchors) {
+          const at = worldFromPixel(anchor, scale), local = K.rotate({ x: at.x - e.x, y: at.y - e.y }, -e.angle);
+          const node = { ...K.makeElement('node', local.x, local.y), parentId: e.id, parentPoint: 'a', role: 'poi', mass: 0, drive: false, radius: Math.max(.1, anchor.radius * scale.mmPerPixel), name: `Detekcia · montážny bod ${references.length + 1}` };
+          if (p.elements.length >= 120) throw new Error('Návrh s montážnymi bodmi prekračuje limit 120 prvkov. Vyberte menej telies.');
+          p.elements.push(node); added.push(node.id); references.push({ elementId: node.id, point: 'a' });
+        }
+        mounting.set(e.id, references);
+      }
     }
     if (options.connections === true) {
       const tolerance = options.tolerance ?? 4;
       if (!Number.isFinite(tolerance) || tolerance <= 0 || tolerance > 25) throw new Error('Tolerancia detekcie uzlov musí byť 0 až 25 px.');
       const result = K.solve(K.validateProject(p), K.driveRange(p).min, { design: true, collisions: false }), groups = [];
       const elements = p.elements.filter((e) => added.includes(e.id)).sort((a, b) => Number(b.locked) - Number(a.locked));
-      for (const e of elements) for (const key of ['bearing', 'node'].includes(e.type) ? ['a'] : e.type === 'slot' ? [] : ['a', 'b']) {
-        const at = result.poses[e.id][key], r = { elementId: e.id, point: key };
-        const group = groups.find((g) => K.distance(g.at, at) <= tolerance * scale.mmPerPixel);
-        if (!group) { groups.push({ at, r, fixed: e.locked }); continue; }
-        if (group.r.elementId === e.id || group.fixed && e.locked) continue;
-        p.connections.push({ id: K.uid(), name: 'Detegovaný otočný spoj · overiť', type: 'revolute', a: group.r, b: r, value: 0, builtin: false });
+      for (const e of elements) {
+        if (e.parentId) continue;
+        const references = mounting.get(e.id) || (['bearing', 'node'].includes(e.type) ? ['a'] : e.type === 'slot' ? [] : ['a', 'b']).map((key) => ({ elementId: e.id, point: key }));
+        for (const r of references) {
+          const at = result.poses[r.elementId][r.point];
+          const group = groups.find((g) => K.distance(g.at, at) <= tolerance * scale.mmPerPixel);
+          if (!group) { groups.push({ at, r, fixed: e.locked, bodyId: e.id }); continue; }
+          if (group.bodyId === e.id || group.fixed && e.locked) continue;
+          p.connections.push({ id: K.uid(), name: 'Detegovaný otočný spoj · overiť', type: 'revolute', a: group.r, b: r, value: 0, builtin: false });
+        }
       }
     }
     return { project: K.validateProject(p), added };
@@ -232,8 +260,12 @@
     if (!Number.isFinite(scale.mmPerPixel) || Math.abs(scale.mmPerPixel - checked.mmPerPixel) > 1e-9) throw new Error('Mierka obrázka sa zmenila. Potvrďte kalibráciu pred dokončením.');
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 80 || /[\x00-\x1f\x7f]/.test(name)) throw new Error('Zadajte názov projektu s 1 až 80 znakmi.');
     p.name = name.trim();
-    p.source = { kind: 'custom', name: 'Magic import', motion: 0, note: `Schéma z lokálneho obrázka, obkreslená alebo navrhnutá lokálnou detekciou. Geometriu a väzby treba overiť. Kalibrácia: ${checked.distance} mm / ${Number(checked.pixels.toFixed(3))} px. Fotografia sa neukladá; jedna mierka neodstraňuje perspektívu ani skreslenie objektívu.` };
+    if (image.dataURL) {
+      const frames = [{ name: image.name, dataURL: image.dataURL, rect: imageRect(image, checked) }];
+      p.importReference = { kind: 'magic', frames, visible: true, opacity: .35, active: 0 };
+    }
+    p.source = { kind: 'custom', name: 'Magic import', motion: 0, note: `Schéma z lokálneho obrázka, obkreslená alebo navrhnutá lokálnou detekciou. Geometriu a väzby treba overiť. Kalibrácia: ${checked.distance} mm / ${Number(checked.pixels.toFixed(3))} px. Zmenšená predloha sa ukladá do projektu; jedna mierka neodstraňuje perspektívu ani skreslenie objektívu.` };
     return K.validateProject(p);
   }
-  global.KinmoMagicImport = Object.freeze({ limits, steps, validateFile, imageMetadata, loadImage, calibration, rescale, worldFromPixel, pixelFromWorld, imageRect, traceBody, placeElement, applyDetected, finish });
+  global.KinmoMagicImport = Object.freeze({ limits, steps, validateFile, imageMetadata, loadImage, portableRaster, calibration, rescale, worldFromPixel, pixelFromWorld, imageRect, traceBody, placeElement, applyDetected, finish });
 })(globalThis);

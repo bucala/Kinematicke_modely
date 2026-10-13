@@ -236,5 +236,40 @@
     throws(() => M.applyDetected(p, image, scale(), [{ ...candidate, outline: [{ x: 100, y: 80 }, { x: 200, y: 180 }, { x: 100, y: 180 }, { x: 200, y: 80 }] }]));
     assert(JSON.stringify(p) === before);
   });
+  add('Detekované vnútorné montážne body patria k telesu a spoje používajú ich skutočné polohy.', () => {
+    const original = K.preset('custom'), before = JSON.stringify(original);
+    const anchors = [{ x: 200, y: 130, radius: 6 }, { x: 400, y: 140, radius: 5 }];
+    const bodies = [
+      { type: 'ground', selected: true, points: [{ x: 100, y: 80 }, { x: 500, y: 80 }], anchors: [anchors[0]], width: 10, radius: 5 },
+      { type: 'link', selected: true, points: [{ x: 120, y: 100 }, { x: 500, y: 200 }], anchors, width: 10, radius: 5 },
+    ];
+    const { project, added } = M.applyDetected(original, image, scale(), bodies, { connections: true });
+    const link = project.elements.find((e) => e.type === 'link'), mounted = project.elements.filter((e) => e.parentId === link.id);
+    assert(added.length === 5 && mounted.length === 2 && project.connections.length === 1);
+    const pose = E.design(project, 0).poses;
+    mounted.forEach((node, i) => { const expected = M.worldFromPixel(anchors[i], scale()); near(pose[node.id].a.x, expected.x); near(pose[node.id].a.y, expected.y); assert(node.mass === 0 && !node.drive); });
+    const joint = project.connections[0];
+    assert(joint.a.elementId !== link.id && joint.b.elementId === mounted[0].id);
+    assert(!project.connections.some((j) => j.a.elementId === j.b.elementId));
+    const moved = K.copy(project); moved.connections = []; moved.elements.find((e) => e.id === link.id).angle += 90;
+    const after = E.design(moved, 0).poses;
+    near(K.distance(after[mounted[0].id].a, after[mounted[1].id].a), K.distance(pose[mounted[0].id].a, pose[mounted[1].id].a));
+    assert(K.distance(after[mounted[0].id].a, pose[mounted[0].id].a) > 10, 'Montážny bod sa musí pohybovať s telesom');
+    const restored = X.parseNative(X.serializeNative(project)).project;
+    assert(restored.elements.filter((e) => e.parentId === link.id).length === 2);
+    assert(JSON.stringify(original) === before);
+  });
+  add('Montážne body možno vypnúť; neplatné body a prekročenie limitu nezmenia projekt.', () => {
+    const original = K.preset('custom'), before = JSON.stringify(original);
+    const candidate = { type: 'link', selected: true, points: [{ x: 100, y: 80 }, { x: 500, y: 80 }], width: 10, radius: 5, anchors: [{ x: 200, y: 80, radius: 5 }] };
+    assert(M.applyDetected(original, image, scale(), [{ ...candidate, useAnchors: false }]).project.elements.length === 1);
+    const noJoints = M.applyDetected(original, image, scale(), [candidate], { connections: false }).project;
+    assert(noJoints.elements.length === 2 && noJoints.connections.length === 0);
+    for (const anchors of [null, 'wrong', [{ x: NaN, y: 80, radius: 5 }], [{ x: 900, y: 80, radius: 5 }], [{ x: 200, y: 80, radius: -1 }]]) {
+      if (anchors !== null) throws(() => M.applyDetected(original, image, scale(), [{ ...candidate, anchors }]));
+    }
+    throws(() => M.applyDetected(original, image, scale(), Array.from({ length: 60 }, () => ({ ...candidate, anchors: [...candidate.anchors, { x: 300, y: 80, radius: 5 }] }))));
+    assert(JSON.stringify(original) === before);
+  });
   global.KinematicsTestCases.push(...cases);
 })(globalThis);

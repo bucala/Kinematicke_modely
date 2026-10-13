@@ -7,6 +7,7 @@ import '../double-drawer.js';
 import '../editor.js';
 import '../interaction.js';
 import '../workbench.js';
+import '../workflow.js';
 import '../magic-import.js';
 import '../magic-detection.js';
 import '../physics.js';
@@ -60,9 +61,9 @@ function controller(width = 1440) {
     icon: () => '', escape: (value) => String(value), fmt: (value) => String(value), svgNS: 'http://www.w3.org/2000/svg',
     line: (a, b, attributes = '') => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${attributes}/>`,
     ib: (name, action, title, active = false, extra = '') => `<button data-action="${action}" ${extra}></button>`,
-    K, I, E, W: globalThis.KinmoWorkbench, M: { ...globalThis.KinmoMagicImport }, AD: { ...globalThis.KinmoDetection }, AbortController, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo', cam: 'Rotačná vačka' }, typeIcons: { ground: 'ground', cam: 'cam' },
+    K, I, E, W: globalThis.KinmoWorkbench, WF: globalThis.KinmoWorkflow, M: { ...globalThis.KinmoMagicImport }, AD: { ...globalThis.KinmoDetection }, AbortController, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo', cam: 'Rotačná vačka' }, typeIcons: { ground: 'ground', cam: 'cam' },
     CAD: { ENDPOINT: 'http://127.0.0.1:8765' },
-    renderTree() {}, renderInspector() {}, renderScene() {}, renderGraph() {}, fitView() {},
+    drawElement() { return '<g class="ghost-body"/>'; }, renderTree() {}, renderInspector() {}, renderScene() {}, renderGraph() {}, fitView() {},
     onChange() {}, onSubmit() {}, onContextMenu() {}, updateHover() {}, updateMotion() {},
     worldPoint: (event) => ({ x: event.clientX, y: event.clientY }), solveCurrent: () => E.design(state.project, state.motion),
     changed() { if (state.magic) state.magic.geometryStarted = true; context.repairSelection(); state.result = E.design(state.project, state.motion); }, recalculate() { state.result = E.design(state.project, state.motion); },
@@ -82,16 +83,16 @@ function controller(width = 1440) {
     download: (filename, content, type) => { context.downloaded = { filename, content, type }; },
     modal: (title, html, wide) => { context.dialog = { title, html, wide }; },
   });
-  for (const name of ['buildShell', 'updateInspectorVisibility', 'setInspectorOpen', 'updatePanelVisibility', 'toggleViewPanel', 'selectElement', 'selectTarget', 'repairSelection', 'memberSelected', 'selectedNodeReferences', 'defaultTraceReference', 'closeContextMenu', 'jointPoints', 'canvasHit', 'contextItems', 'openContextMenu', 'onContextMenu', 'pushHistory', 'undo', 'editCanvas', 'deleteSelected', 'fixSelected', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onCanvasSubmit', 'animate', 'templateCards', 'projectsModal', 'canSelectText', 'onKeyboard', 'wireEvents', 'manipulationSVG', 'transformModal', 'submitTransform', 'renderDiagnostics', 'toggleSmartSnap', 'findDragSnap', 'smartSnapSVG', 'offerSnapConnection', 'submitSnapConnection', 'readCollection', 'writeCollection', 'collectionRecord', 'recordSaveModal', 'draftRecord', 'submitWorkbenchSave', 'exportCollection', 'importCollection', 'collectionErrorModal', 'assembliesModal', 'insertLibraryModal', 'submitLibraryInsert', 'revisionsModal', 'restoreRevisionModal', 'confirmRevisionRestore', 'comparisonModal', 'submitRevisionComparison', 'deleteRecordModal', 'confirmRecordDelete', 'loadProject', 'replaceProject', 'exportModal', 'fusionModal', 'onChange', 'magicBounds', 'magicImageSVG', 'renderMagicReference', 'magicDrawingSVG', 'magicWorking', 'magicActionAllowed', 'startMagicImport', 'renderMagicImport', 'setMagicStep', 'nextMagicStep', 'pickMagicImage', 'onMagicImage', 'submitMagicScale', 'selectMagicTool', 'clearMagicDrawing', 'commitMagicDrawing', 'magicPointer', 'onMagicSetting', 'persistMagicProjects', 'magicOriginalPreserved', 'submitMagicFinish', 'cancelMagicImport', 'addElement', 'setTool', 'connectPoint', 'onContextAction', 'sceneMarkup', 'drawElement', 'drawDoubleDrawer', 'drawElastic', 'panelPolygon', 'node', 'dimHorizontal', 'groundGlyph', 'traceLabel', 'gifOptions', 'gifModal', 'updateGIFEstimate', 'gifProgress', 'cancelGIF', 'checkGIF', 'gifSource', 'gifFrameCanvas', 'exportGIF', 'gifError']) {
+  for (const name of ['buildShell', 'updateInspectorVisibility', 'setInspectorOpen', 'updatePanelVisibility', 'toggleViewPanel', 'selectElement', 'selectTarget', 'repairSelection', 'memberSelected', 'selectedNodeReferences', 'defaultTraceReference', 'closeContextMenu', 'jointPoints', 'canvasHit', 'contextItems', 'openContextMenu', 'onContextMenu', 'pushHistory', 'undo', 'editCanvas', 'deleteSelected', 'fixSelected', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onCanvasSubmit', 'animate', 'templateCards', 'projectsModal', 'canSelectText', 'onKeyboard', 'wireEvents', 'manipulationSVG', 'transformModal', 'submitTransform', 'renderDiagnostics', 'toggleSmartSnap', 'findDragSnap', 'smartSnapSVG', 'offerSnapConnection', 'submitSnapConnection', 'readCollection', 'writeCollection', 'collectionRecord', 'recordSaveModal', 'draftRecord', 'submitWorkbenchSave', 'exportCollection', 'importCollection', 'collectionErrorModal', 'assembliesModal', 'insertLibraryModal', 'submitLibraryInsert', 'revisionsModal', 'restoreRevisionModal', 'confirmRevisionRestore', 'comparisonModal', 'submitRevisionComparison', 'deleteRecordModal', 'confirmRecordDelete', 'loadProject', 'replaceProject', 'exportModal', 'fusionModal', 'onChange', 'magicBounds', 'magicImageSVG', 'renderMagicReference', 'magicDrawingSVG', 'magicWorking', 'magicActionAllowed', 'startMagicImport', 'renderMagicImport', 'setMagicStep', 'nextMagicStep', 'pickMagicImage', 'onSubmit', 'onMagicImage', 'submitMagicScale', 'selectMagicTool', 'clearMagicDrawing', 'commitMagicDrawing', 'magicPointer', 'onMagicSetting', 'persistMagicProjects', 'magicOriginalPreserved', 'submitMagicFinish', 'cancelMagicImport', 'addElement', 'setTool', 'connectPoint', 'onContextAction', 'sceneMarkup', 'drawElement', 'drawDoubleDrawer', 'drawElastic', 'panelPolygon', 'node', 'dimHorizontal', 'groundGlyph', 'traceLabel', 'gifOptions', 'gifModal', 'updateGIFEstimate', 'gifProgress', 'cancelGIF', 'checkGIF', 'gifSource', 'gifFrameCanvas', 'exportGIF', 'gifError']) {
     const definition = source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))?.[0];
     assert(definition, `Missing UI function ${name}`);
     vm.runInContext(definition, context);
   }
   vm.runInContext(source.match(/  const pathD = [^\n]+/)[0], context);
-  for (const name of ['magicScalePreview', 'applyMagicScale', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
+  for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['toggleGridSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -719,8 +720,38 @@ test('Delete handles all selected members and Undo restores the multiselection',
 
 test('Endpoint deletion explains that its owning rigid member will be removed', () => {
   const { context, state } = controller(); context.selectTarget('n:body:b'); context.deleteSelected();
-  assert(context.dialog.html.includes('confirm-canvas-delete')); assert.equal(state.project.elements.length, 2);
+  assert(context.dialog.html.includes('impact-form')); assert(context.dialog.html.includes('keep-pose')); assert.equal(state.project.elements.length, 2);
   context.deleteSelected(state.pendingDeleteKeys, true); assert.equal(state.project.elements.length, 1);
+});
+
+test('Workflow form submission prevents navigation and atomically saves the Magic reference preferences', async () => {
+  const { context, state } = controller();
+  state.project.importReference = { kind: 'magic', visible: true, opacity: .35, active: 0, frames: [{ name: 'Obrázok', dataURL: 'data:image/jpeg;base64,/9j/2Q==', rect: { x: 0, y: 0, width: 100, height: 50 } }] };
+  const fields = new Map([['opacity', '60'], ['active', '0'], ['visible', 'on']]);
+  context.FormData = class { get(key) { return fields.get(key) ?? null; } has(key) { return fields.has(key); } };
+  let prevented = false; await context.onSubmit({ target: { id: 'reference-form' }, preventDefault() { prevented = true; } });
+  assert(prevented); assert.equal(state.project.importReference.opacity, .6); assert.equal(state.history.length, 1);
+  context.undo(); assert.equal(state.project.importReference.opacity, .35);
+});
+test('Reference control appears only for Magic projects and renders calibrated coordinates', () => {
+  const { context, state, element } = controller(); context.renderWorkflowTools(); assert(!element('#workflow-tools').innerHTML.includes('reference-toggle'));
+  state.project.source = { kind: 'custom', name: 'Magic import', motion: 0, note: '' }; context.renderWorkflowTools(); assert.match(element('#workflow-tools').innerHTML, /reference-toggle/); assert.match(element('#workflow-tools').innerHTML, /Doplniť pôvodný obrázok/);
+  state.project.importReference = { kind: 'magic', visible: true, opacity: .35, active: 0, frames: [{ dataURL: 'data:image/jpeg;base64,/9j/2Q==', rect: { x: -20, y: -10, width: 200, height: 100 } }] };
+  assert.match(context.referenceSVG(), /x="-20" y="-10" width="200"/); state.project.importReference.visible = false; assert.equal(context.referenceSVG(), '');
+});
+test('Consequence confirmation is one Undo operation and rejects a stale review', () => {
+  const { context, state } = controller(), original = JSON.stringify(state.project), next = context.I.deleteSelection(state.project, ['e:body'], state.result);
+  context.reviewImpact(next, 'Odstránené'); assert.equal(JSON.stringify(state.project), original);
+  context.workflowSubmit({ id: 'impact-form' }, new Map([['keep-pose', 'on']])); assert.equal(state.project.elements.length, 1); assert.equal(state.history.length, 1);
+  context.undo(); assert.equal(JSON.stringify(state.project), original);
+  context.reviewImpact(next, 'Odstránené'); state.project.name = 'Novšia úprava'; assert.throws(() => context.workflowSubmit({ id: 'impact-form' }, new Map())); assert.equal(state.project.elements.length, 2);
+});
+test('Detection repair history is separate from project geometry and supports redo', () => {
+  const { context, state } = tracingWizard(); state.magic.detectEnabled = true; context.setMagicStep(2.5);
+  state.magic.detectCandidates = [{ id: 'manual', type: 'panel', selected: true, points: [{ x: 20, y: 20 }, { x: 80, y: 20 }], outline: [], anchors: [], evidence: {} }];
+  const project = JSON.stringify(state.project); context.pushDetectionHistory(); state.magic.detectCandidates[0].points[0].x = 30;
+  context.undoDetection(); assert.equal(state.magic.detectCandidates[0].points[0].x, 20); context.undoDetection(true); assert.equal(state.magic.detectCandidates[0].points[0].x, 30);
+  assert.equal(JSON.stringify(state.project), project); assert.equal(state.history.length, 0);
 });
 
 test('Node properties forms use atomic operations rather than modifying a menu alone', () => {
@@ -740,6 +771,53 @@ test('Invalid node edits preserve history, geometry and selection', () => {
 
 const pointer = (clientX, clientY, extra = {}) => ({ clientX, clientY, button: 0, pointerId: 1, target: { closest: (selector) => selector === '[data-element]' ? { dataset: { element: 'body' } } : null }, preventDefault() {}, ...extra });
 const handlePointer = (kind, x, y, fixedEnd = 'a') => pointer(x, y, { target: { closest: (selector) => selector === '[data-edit-handle]' ? { dataset: { editHandle: kind, fixedEnd } } : null } });
+
+test('Dragging a circular mount translates the entire rigid member and one Undo restores it', () => {
+  const { context, state } = controller(); context.selectTarget('n:body:b');
+  context.onPointerDown(pointer(110, 20)); context.onPointerMove(pointer(140, 45)); context.onPointerUp({ pointerId: 1 });
+  assert.equal(state.project.elements[0].length, 100); assert.equal(state.project.elements[0].x, 40); assert.equal(state.project.elements[0].y, 45);
+  assert.equal(state.history.length, 1); context.undo(); assert.equal(state.project.elements[0].x, 10); assert.equal(state.project.elements[0].y, 20);
+});
+test('Alt bypasses grid and smart snap during mounting-point dragging without changing the toggles', () => {
+  const { context, state } = controller(); state.snap = true; state.smartSnap = true; context.selectTarget('n:body:a');
+  context.onPointerDown(pointer(10, 20, { altKey: true })); context.onPointerMove(pointer(12, 58, { altKey: true })); context.onPointerUp({ pointerId: 1 });
+  assert.equal(state.project.elements[0].x, 12); assert.equal(state.project.elements[0].y, 58); assert(!state.pendingSnap); assert(!state.snapPreview);
+  assert(state.snap && state.smartSnap); assert.equal(state.project.elements[0].length, 100);
+});
+test('Palette click prepares a cancellable ghost; Tab cycles mounts without creating geometry or history', () => {
+  const { context, state, element } = controller(), before = JSON.stringify(state.project);
+  element('#mechanism-canvas').insertAdjacentHTML = (_, html) => { element('#mechanism-canvas').innerHTML += html; };
+  context.addElement('rail'); assert.equal(state.insertingType, 'rail'); assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
+  context.cyclePlacementMount(); assert.equal(state.placementMount, 'ct');
+  assert.match(element('#placement-tools').innerHTML, /placement-cancel/);
+  context.cyclePlacementMount(true); assert.equal(state.placementMount, 'c');
+  context.onPointerDown(pointer(200, 200, { target: { closest: () => null } }));
+  assert.equal(state.insertingType, null); assert.equal(state.project.elements.length, 3); assert.equal(state.history.length, 1);
+  const rail = state.project.elements.at(-1), point = context.K.point(state.result, { elementId: rail.id, point: 'c' });
+  assert.equal(point.x, 200); assert.equal(point.y, 200); context.undo(); assert.equal(state.project.elements.length, 2);
+});
+test('A stale inline snap transaction cannot merge a connection into unrelated edits', () => {
+  const { context, state } = controller(); state.smartSnap = true; context.selectTarget('n:body:a');
+  context.onPointerDown(pointer(10, 20)); context.onPointerMove(pointer(10, 59)); context.onPointerUp({ pointerId: 1 });
+  assert(state.pendingSnap); state.project.elements[0].name = 'Changed after snap';
+  assert.throws(() => context.submitSnapConnection(new Map([['type', 'fixed']])));
+  assert.equal(state.project.connections.length, 0); assert.equal(state.pendingSnap, null); assert.equal(state.history.length, 1);
+});
+test('Clickable model checks select the named body and start connecting its mounting point', () => {
+  const { context, state, element } = controller(); state.view = { x: 800, y: 800, width: 300, height: 200 }; context.renderModelChecks();
+  assert.match(element('#model-checks').innerHTML, /data-key="e:body"/);
+  context.focusModelCheck({ dataset: { key: 'e:body', kind: 'connect' } });
+  assert.equal(state.selected, 'body'); assert.equal(state.tool, 'connect'); assert.equal(state.pendingJoint.elementId, 'body');
+  assert.equal(state.view.x, -90); assert.equal(state.view.y, -80);
+  context.selectTarget('n:body:b'); context.renderBindingTools();
+  assert.match(element('#binding-tools').innerHTML, /bod k rámu/); assert.match(element('#binding-tools').innerHTML, /Spojenia/); assert.match(element('#binding-tools').innerHTML, /Pohon/);
+});
+test('Alt bypasses 5mm rounding when resizing with the separate dimension handle', () => {
+  const { context, state } = controller(); state.snap = true; context.selectTarget('e:body');
+  context.onPointerDown(handlePointer('length', 110, 20));
+  context.onPointerMove(pointer(127, 20, { altKey: true })); context.onPointerUp({ pointerId: 1 });
+  assert.equal(state.project.elements[0].length, 117); assert(state.snap); assert.equal(state.history.length, 1);
+});
 
 for (const width of [393, 1440]) {
   test(`Magic connects coincident fixed/member nodes and drives the selected body at ${width}px`, () => {
@@ -872,6 +950,34 @@ test('Grid toggle is discoverable and independent from intelligent snap', () => 
   assert.equal(state.history.length, 0);
 });
 
+test('The 10-degree toggle persists independently and quantizes absolute rotation during a drag', () => {
+  for (const enabled of [false, true]) {
+    const { context, state, element } = controller(); context.buildShell();
+    assert.match(element('#app').innerHTML, /data-action="angle-snap"/);
+    state.snap = !enabled; state.smartSnap = true; state.angleSnap = false;
+    if (enabled) context.toggleAngleSnap();
+    assert.equal(state.angleSnap, enabled); assert.equal(state.snap, !enabled); assert.equal(state.smartSnap, true);
+    const preferences = globalThis.KinmoExport.parseNative(globalThis.KinmoExport.serializeNative(state.project, { workspace: state })).workspace;
+    assert.equal(preferences.angleSnap, enabled);
+    state.project.elements[0].angle = 17; state.result = globalThis.KinmoEditor.design(state.project, 0);
+    context.selectTarget('e:body'); state.editPivot = { x: 10, y: 20 };
+    context.onPointerDown(handlePointer('rotate', 60, 20));
+    context.onPointerMove(pointer(10 + 50 * Math.cos(14 * Math.PI / 180), 20 - 50 * Math.sin(14 * Math.PI / 180)));
+    context.onPointerUp({ pointerId: 1 });
+    assert(Math.abs(state.project.elements[0].angle - (enabled ? 30 : 31)) < 1e-7);
+    assert.equal(state.history.length, 1); context.undo(); assert.equal(state.project.elements[0].angle, 17);
+  }
+});
+test('The rail context menu switches the moving part and Undo restores the original mode', () => {
+  const { context, state } = controller();
+  state.project.elements = [{ ...globalThis.Kinematics.makeElement('rail', 10, 20), id: 'body' }];
+  state.result = globalThis.KinmoEditor.design(state.project, 0); context.selectTarget('n:body:b');
+  const target = globalThis.KinmoInteraction.target(state.project, 'n:body:b');
+  assert(context.contextItems(target).some((item) => item.id === 'rail-motion' && /Pohyblivé vedenie/.test(item.label)));
+  state.contextMenuState.targetId = 'n:body:b'; context.onContextAction('rail-motion');
+  assert(state.project.elements[0].movingRail); assert.equal(state.history.length, 1);
+  context.undo(); assert(!state.project.elements[0].movingRail);
+});
 test('Free insertion retains arbitrary coordinates without five-millimetre steps', () => {
   const { context, state } = controller();
   state.snap = false; state.smartSnap = false;
@@ -992,16 +1098,17 @@ test('Disabled intelligent snap does not offer a joint after an ordinary drag', 
   assert(!context.dialog);
 });
 
-test('Enabled intelligent snap previews geometry but requires a separate joint confirmation', () => {
-  const { context, state } = controller(); state.smartSnap = true; context.selectTarget('n:body:a');
+test('Enabled intelligent snap previews geometry and inline confirmation shares one Undo step', () => {
+  const { context, state, element } = controller(); state.smartSnap = true; context.selectTarget('n:body:a');
   context.onPointerDown(pointer(10, 20)); context.onPointerMove(pointer(10, 59));
   assert(state.snapPreview && !state.project.connections.length);
   context.onPointerUp({ pointerId: 1 });
   assert.equal(state.project.elements[0].y, 60); assert.equal(state.history.length, 1); assert(!state.project.connections.length);
-  assert.match(context.dialog.html, /snap-joint-form/); assert(state.pendingSnap);
+  assert.match(element('#snap-choices').innerHTML, /snap-connect/); assert(state.pendingSnap); assert(!context.dialog);
   context.submitSnapConnection(new Map([['type', 'revolute']]));
-  assert.equal(state.project.connections.length, 1); assert.equal(state.history.length, 2); assert.equal(state.pendingSnap, null);
-  context.undo(); assert.equal(state.project.connections.length, 0); assert.equal(state.project.elements[0].y, 60);
+  assert.equal(state.project.connections.length, 1); assert.equal(state.history.length, 1); assert.equal(state.pendingSnap, null);
+  context.undo(); assert.equal(state.project.connections.length, 0); assert.equal(state.project.elements[0].y, 20);
+  context.undo(true); assert.equal(state.project.connections.length, 1); assert.equal(state.project.elements[0].y, 60);
 });
 
 test('Turning intelligent snap off cancels an active drag and preserves redo', () => {
@@ -1584,6 +1691,53 @@ test('Detection preview leaves the draft unchanged; applying it is one undoable 
   assert.equal(state.history.length, 1);
   context.setMagicStep(2.5); context.applyMagicDetection(); assert.equal(state.project.elements.length, 1);
   context.setMagicStep(3); context.undo(); assert.equal(state.project.elements.length, 0);
+});
+test('An invalid detection identifies the failing row and deselecting it allows the next step', () => {
+  const { context, state } = tracingWizard(), before = JSON.stringify(state.project);
+  state.magic.detectEnabled = true; context.setMagicStep(2.5);
+  const valid = { id: 'detect-1', type: 'link', selected: true, points: [{ x: 100, y: 80 }, { x: 500, y: 80 }], width: 10, radius: 5, confidence: .8 };
+  state.magic.detectCandidates = [valid, { ...valid, id: 'detect-2', points: [{ x: -.02, y: 80 }, { x: 500, y: 80 }] }];
+  context.nextMagicStep();
+  assert.equal(state.magic.step, 2.5); assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
+  assert.match(state.magic.error, /Návrh 2/); assert.match(state.magic.error, /Odznačte/);
+  context.onMagicSetting({ dataset: { magicSetting: 'detect-selected', detection: 'detect-2' }, checked: false });
+  context.nextMagicStep();
+  assert.equal(state.magic.step, 3); assert.equal(state.project.elements.length, 1); assert.equal(state.history.length, 1);
+});
+test('Mounting-point preview and opt-out are reviewable and the complete insertion is undoable', async () => {
+  const { context, state, element } = tracingWizard();
+  state.magic.detectEnabled = true; context.setMagicStep(2.5);
+  const candidate = { id: 'detect-1', type: 'link', selected: true, points: [{ x: 100, y: 80 }, { x: 500, y: 80 }], width: 10, radius: 5, confidence: .64, anchors: [{ x: 200, y: 80, radius: 6 }] };
+  context.AD.detectImage = async () => ({ candidates: [candidate], note: 'Overiť.' });
+  await context.runMagicDetection();
+  assert.match(element('#magic-wizard').innerHTML, /detect-anchors/);
+  assert.match(context.magicDetectionSVG(1), /data-detection-anchor/);
+  context.onMagicSetting({ dataset: { magicSetting: 'detect-anchors', detection: candidate.id }, checked: false });
+  assert.doesNotMatch(context.magicDetectionSVG(1), /data-detection-anchor/);
+  context.onMagicSetting({ dataset: { magicSetting: 'detect-anchors', detection: candidate.id }, checked: true });
+  context.applyMagicDetection();
+  assert.equal(state.project.elements.length, 2); assert.equal(state.history.length, 1);
+  context.undo(); assert.equal(state.project.elements.length, 0);
+});
+test('Two-corner region selection uses original image pixels without changing the project or calibration', async () => {
+  const { context, state } = tracingWizard(), before = JSON.stringify(state.project), calibration = JSON.stringify(state.magic.scale);
+  state.magic.detectEnabled = true; context.setMagicStep(2.5);
+  context.selectMagicDetectionRegion();
+  assert(context.magicPointer({ x: -40, y: -30 })); // Original pixel (20, 20), calibration A=(100,80), scale=.5
+  context.magicPointer({ x: 150, y: 60 }); // Original pixel (400, 200)
+  assert.deepEqual(JSON.parse(JSON.stringify(state.magic.detectRegion)), { x: 20, y: 20, width: 380, height: 180 });
+  assert.match(context.magicDetectionSVG(1), /data-detection-region/);
+  let received;
+  context.AD.detectImage = async (image, options) => { received = options.region; return { candidates: [], note: 'Overiť.' }; };
+  await context.runMagicDetection(); assert.equal(received, state.magic.detectRegion);
+  assert.equal(JSON.stringify(state.project), before); assert.equal(JSON.stringify(state.magic.scale), calibration);
+  context.selectMagicDetectionRegion(true); assert.equal(state.magic.detectRegion, null);
+  context.selectMagicDetectionRegion(); context.magicPointer({ x: -1000, y: -1000 }); assert.equal(state.magic.detectRegionPoints.length, 0);
+  context.magicPointer({ x: 0, y: 0 }); context.magicPointer({ x: 1, y: 1 }); assert.equal(state.magic.detectRegionPoints.length, 1);
+  await context.runMagicDetection(); assert.match(state.magic.error, /dva protiľahlé rohy/);
+  let prevented = false;
+  context.onKeyboard({ key: 'Escape', code: 'Escape', target: { closest: () => null }, preventDefault() { prevented = true; } });
+  assert(prevented); assert.equal(state.magic.tool, 'select'); assert.equal(state.magic.detectRegionPoints.length, 0);
 });
 test('Cancelling a detection or its wizard prevents a late result from changing either project', async () => {
   for (const cancelWizard of [false, true]) {

@@ -209,11 +209,13 @@ Vlastnosti sa samy neotvoria. Inteligentné prichytávanie začína vypnuté a z
 
 Vyberte dlhý známy úsek, aspoň 2 pixely. Známy rozmer musí byť 0,1–5 000 mm a celý kalibrovaný podklad sa musí zmestiť do rozsahu ±5 000 mm. Jedna mierka **neopravuje perspektívu, natočenie roviny ani skreslenie objektívu**. Kalibrácia neotáča obrázok. Fotografia šikmo odfotenej zostavy nie je presný technický výkres.
 
-Detekcia vychádza zo spojitého tvaru, vonkajšieho obrysu a priebehu strednice, nie z farebnej identity súčiastky. Rozpoznaný konkávny obrys rámu/ramena/čela sa prenesie v kalibrovanej mierke. Tenká zakrivená dráha ostáva spojitou lomenou strednicou. Rozvetvené alebo nejasné tvary sa nepredvyberajú; doplnkové návrhy podľa hrán pri prekrytí majú nízku dôveru. Farba je vzhľad, nie dôkaz fixácie, pohonu alebo funkcie.
+Pri náčrte s viacerými polohami kliknite v kroku 2.5 na **Vybrať oblasť · 2 rohy** a označte protiľahlé rohy jednej polohy, bez legendy. **Celý obrázok** zruší výrez; Escape zruší rozpracovaný výber. Kalibrácia zostáva spoločná pre celý obrázok. Menší výrez poskytuje viac detailov pri rovnakom limite rastra.
+
+Detekcia vychádza zo spojitého tvaru, vonkajšieho obrysu a priebehu strednice, nie z farebnej identity súčiastky. Doplnkový priechod rozlišuje oblasti uzavreté hranami aj úzke biele vnútorné pásy obrysového náčrtu. Kruhové otvory navrhujú montážne body vo vnútri ramena alebo čela; tieto body sa pohybujú s telesom a môžu tvoriť otočné spoje mimo koncov A/B. Náhľad ich označí krúžkami a pri každom telese ich možno vypnúť. Pri ráme sú predvolene vypnuté: okolité čapy nemusia byť pevné ani patriť k rámu. Rozpoznaný konkávny obrys rámu/ramena/čela sa prenesie v kalibrovanej mierke. Tenká zakrivená dráha ostáva spojitou lomenou strednicou. Rozvetvené alebo nejasné tvary sa nepredvyberajú; doplnkové návrhy podľa hrán pri prekrytí majú nízku dôveru. Farba je vzhľad, nie dôkaz fixácie, pohonu alebo funkcie.
 
 Detekcia používa zmenšený raster do 768 × 768 px, najviac 4 000 komponentov, 8 192 bodov jednej kontúry, 240 pracovných návrhov a 60 výsledných kandidátov. Zjednodušovanie má samostatný pracovný limit. V textoch, legendách, prekrytých čiarach a neostrých fotografiách môže navrhnúť nesprávne alebo chýbajúce prvky. Typ, konce, pevné časti a väzby musí skontrolovať používateľ; ručné nástroje ostávajú dostupné.
 
-Pri reálnej kontrole pribaleného náčrtu s troma polohami a legendou vzniklo 10 návrhov, z toho 6 predvybraných. Pracovný postup, vloženie a Späť fungovali, ale návrhy správne nezrekonštruovali obe kulisy a rameno. Tento obrázok preto vyžaduje ručnú opravu alebo obkreslenie, nie slepé prijatie automatického výsledku.
+Pri historickej kontrole pred rozšírením detekcie pribaleného náčrtu s troma polohami a legendou vzniklo 10 návrhov, z toho 6 predvybraných. Pracovný postup, vloženie a Späť fungovali, ale návrhy správne nezrekonštruovali obe kulisy a rameno. Tento obrázok preto vyžaduje ručnú opravu alebo obkreslenie, nie slepé prijatie automatického výsledku.
 
 </details>
 
@@ -223,7 +225,7 @@ Pri reálnej kontrole pribaleného náčrtu s troma polohami a legendou vzniklo 
 - Počas sprievodcu sa rozpracovaná schéma automaticky neukladá medzi hotové projekty a neprepisuje predvoľby. Geometriu možno samostatne exportovať do `.kinmo` v poslednom kroku.
 - **Zrušiť** po kreslení vyžaduje potvrdenie a obnoví pôvodný projekt, výber a celú históriu. Rozpracovaná schéma sa zahodí; ak bol pôvodný projekt neuložený, pokračuje jeho bežné ukladanie.
 - **Finish** uloží nový aj potrebný pôvodný projekt oddelene. Pri plnom alebo poškodenom úložisku nevymazáva staršie záznamy. Ak pôvodný stav ešte nie je zachovaný, najskôr ponúkne jeho export a vyžiada potvrdenie zálohy. Dokončenie bez dostupného úložiska ostane iba v pamäti: nový projekt exportujte.
-- Obrázok zostáva lokálne ako dočasný podklad. **Neposiela sa na server ani sa neukladá do projektu, CAD či obrazových exportov.** Po Finish alebo zrušení sa uvoľní; projekt uchová len geometriu a poznámku o kalibrácii.
+- Obrázok zostáva lokálny. **Finish uloží zmenšený prvý obrázok a jeho kalibrovanú polohu do projektu a `.kinmo`/JSON.** Tlačidlo Predloha ho prepína; nastavenia upravia priehľadnosť a zarovnanie. Pri staršom Magic projekte možno pôvodný obrázok doplniť bez prestavby modelu. CAD a čisté obrazové exporty predlohu neobsahujú.
 - Mierku možno upraviť aj po kreslení. Náhľad ukáže pomer starej/novej mierky a zmena vyžaduje potvrdenie prepočtu všetkej geometrie a lineárnych parametrov. Uhly, hmotnosti a sily sa nemenia. **Späť/znova** obnovia mierku aj geometriu spolu. Výmena samotného obrázka naďalej vyžaduje potvrdenie čistej schémy; existujúca geometria sa vymaže až po úspešnom načítaní nového podkladu.
 - Finish dokončuje geometriu, **nezaručuje správny pohyb ani určitý model**. Upozornenia na chýbajúci pohon, voľné členy alebo konfliktné väzby možno riešiť aj po dokončení.
 
@@ -280,6 +282,10 @@ Poloha piesta sa vypočíta z pevnej dĺžky ojnice a osi priamkového vedenia.
 <summary><strong>Vlastný mechanizmus a jeho solver</strong></summary>
 
 Pridajte pevné body, vedenia, ramená a ložiská. Nástrojom **J** vyberte dva uzly. Kliknutím na drážku a uzol sa vytvorí čap vo vedení. Ložisko sa dá na kulisu naviazať aj priamo v inšpektore.
+
+Vo vlastnom modeli môžete pravým klikom na vedenie alebo jeho uzol zvoliť **Pohyblivé vedenie, pevný vozík**. Vozík C/CT/CB potom zostáva na mieste a lineárny pohon posúva koľajnicu A/B v opačnom smere relatívneho zdvihu. Uvoľnenie pôvodne pevného A alebo B klávesom **F** zapne tento režim; zmenu možno vrátiť cez Späť. Prepínač **Pohyblivý vozík, pevné vedenie** obnoví bežný režim. Vyžaduje samostatné vedenie vo vlastnom modeli a jediný lineárny pohon. Uvoľnenie v tomto prípade mení uloženie celej zostavy, nie iba jeden koniec. Otočné/pevné spoje A/B s rámom sa pri prepnutí odstránia; montáž vozíka zostáva zachovaná.
+
+Pri zapnutom inteligentnom prichytávaní možno v Úprave geometrie posunúť bod vozíka k bodu rámu a po prichytení výslovne potvrdiť **Pevné spojenie**. Pozdĺžny posun upraví polohu vozíka na koľajnici, priečny posun presunie vedenie. Potom zvoľte režim pevného vozíka a overte simuláciu.
 
 Lineárne vedenie má body vozíka **C** (stred), **CT** (vrch) a **CB** (spodok). Ich poloha rešpektuje otočenie vedenia; môžete na ne pripojiť člen alebo pružinu. Na vlastnom ramene môžete zapnúť rotačný pohon; jeho začiatočný bod potom zostáva pevný. Aktivácia rotačného pohonu vypne ostatné vlastné pohony.
 
@@ -458,18 +464,34 @@ Odchýlky mm/° zostávajú oddelené aj v analýze, kinematickom CSV a PDF/HTML
 
 <a id="snapping"></a>
 
+## Rozpoznanie, voľnosť a definovanie pohybu
+
+Magic import porovná až **štyri zarovnané polohy** podľa rovnakého pevného kalibračného úseku. Návrhy odlišujú geometrické skóre, ručné opravy a odhad pevnej/posuvnej/otočnej časti. Obrysy a čapy sa dajú posunúť na obrázku, fragmenty spojiť alebo rozdeliť a chýbajúce teleso dokresliť. Opravy majú vlastnú históriu ešte pred vložením.
+
+Na plátne sú tlačidlá **Voľnosť**, **Skúšobný pohyb**, **Zostavy** a **Fázy pohybu**. Ukážu možné smery pohybu, umožnia potiahnuť vyriešený mechanizmus bez zmeny modelu, vložia pripravené zostavy so skutočnými väzbami a nastavia postupnosť až 12 fáz jedného pohonu. Zmeny s naviazanými závislosťami majú náhľad dôsledkov a voľbu zachovania zobrazeného východiska.
+
+Podrobný postup, zachovanie predlohy a limity: **[Práca s obrázkami a mechanizmami](docs/mechanism-workflows.md)**.
+
 ## Inteligentné prichytávanie iba na požiadanie
 
 <details>
 <summary><strong>Zapnúť náhľad prichytenia a samostatne potvrdiť spoj</strong></summary>
 
 1. **Inteligentné prichytávanie je pri štarte a po každom načítaní projektu vypnuté.** Zapnite ho výslovne jeho tlačidlom na plátne.
-2. Pri ťahaní uzla, skupiny, úchytu alebo pri drop z knižnice sa ponúkne blízky koncový bod, stred/os člena, hrana, vedenie alebo viditeľná trajektória. Voľný koniec pružiny aj body vozíka C/CT/CB používajú tú istú geometriu. Tolerancia je približne **9 pixelov obrazovky**, aj po zoome.
-3. Náhľad upraví polohu, ale **nevytvorí väzbu**. Po uvoľnení sa pri skutočnom bode alebo vedení zobrazí samostatná otázka.
-4. Vyberte **Ponechať iba polohu**, alebo potvrďte skutočný otočný kĺb, posuvný kĺb či čap vo vedení. Stredový POI vznikne až po potvrdení.
-5. Potvrdenie spojenia je ďalší krok Späť. Jeho zrušenie ponechá prichytenú polohu. Osi, hrany ani vypočítaná trajektória samy spoj nevytvárajú.
+2. Pri ťahaní uzla, skupiny, úchytu alebo pri drop z knižnice sa ponúkne blízky koncový bod, stred/os člena, hrana, vedenie alebo viditeľná trajektória. Voľný koniec pružiny aj body vozíka C/CT/CB používajú tú istú geometriu. Vstupná tolerancia je **8 pixelov obrazovky**, aj po zoome. Zvolený cieľ sa drží až do 12 pixelov, aby náhľad nepreskakoval medzi susednými bodmi; popis uvádza prvok a jeho bod.
+3. Náhľad upraví polohu, ale **nevytvorí väzbu**. Po uvoľnení sa pri skutočnom bode alebo vedení zobrazí malá ponuka priamo pri prichytení.
+4. Vyberte **Len poloha**, **Otočne**, **Napevno**, alebo pri priamom vedení **Posuvne**. Čap v dráhe môže ísť aj po zakrivenej kulise. Stredový POI vznikne až po potvrdení.
+5. Vloženie alebo posun spolu s následne potvrdeným spojom tvorí **jeden krok Späť**. Escape alebo voľba Len poloha ponechá prichytenú polohu bez väzby. Osi, hrany ani vypočítaná trajektória samy spoj nevytvárajú.
+
+Pri vložení potiahnite prvok z knižnice, alebo naň kliknite a následne kliknite na plátno. Náhľad ukáže jeho skutočný tvar. Vyberte montážny bod tlačidlami **A/B**, pri vedení aj **C/CT/CB**; **Tab / Shift+Tab** prepínajú body. Vozík sa predvolene uchopí za C. **Zrušiť** alebo Escape ukončí vloženie bez nového prvku.
+
+Ťahanie kruhového montážneho bodu presúva celý tuhý člen a zachová jeho dĺžku. Štvorcové rozmerové úchyty slúžia na zmenu rozmerov. **Alt** počas manipulácie dočasne vypne prichytenie na body, sieť aj uhlové kroky; jednotlivé prepínače zostanú nastavené. Posúvanie plátna používa H alebo prostredné tlačidlo myši.
+
+Pri vybranom prvku je krátky panel **Spojenia / Uloženie / Pohon**. Spojiť bod začne spojenie z vybraného montážneho bodu. Uloženie rozlišuje fixáciu bodu a celého telesa. Pri vlastnom lineárnom vedení voľby **Hýbe sa vozík / Hýbe sa vedenie** prepínajú kinematické uloženie a riadenú časť; lineárny pohon možno následne upraviť. **Overiť model** ukazuje konkrétne odporúčania. Klik označí príslušný prvok alebo konfliktné väzby, vycentruje ich a otvorí spojenie, pohon či vlastnosti. Ide o kontrolu zobrazenej polohy; celý rozsah kontrolujte Analýzou.
 
 Vlastné teleso a jeho nesení potomkovia nie sú cieľom pre nadbytočné prichytenie. Neaktuálny náhľad ani duplicitná väzba sa nepotvrdia. Vypnutie tlačidlom zruší aj rozpracované ťahanie.
+
+Tlačidlo **10°** vedľa siete zapína samostatné uhlové kroky pri otáčaní a zmene smeru člena ťahaním. Zaokrúhľuje absolútny uhol na násobky 10°, nezávisle od polohovej siete a inteligentného prichytávania. Vypnutie umožní plynulé otáčanie; presné číselné vstupy zostávajú nezmenené. Nastavenie sa ukladá do preferencií a `.kinmo`.
 
 Tlačidlo **Sieť 5 mm** je nezávislé. Jeho vypnutie umožní voľnú polohu, ale nevypne inteligentné prichytávanie ani kreslenú mriežku pozadia. Viditeľnosť mriežky je ďalšia samostatná voľba. Nastavenie inteligentného prichytávania sa neukladá do preferencií, `.kinmo` ani pomenovaných verzií.
 
@@ -850,6 +872,7 @@ engine.js              Geometria, kinematické solvery a validácia
 double-drawer.js       Samostatný odhadový dvojkulisový projekt
 editor.js              Návrhové polohy, voľné kópie, kóty a analýza voľnosti
 interaction.js         Výberové identity, hit-testing a atómové modelové operácie
+workflow.js            Porovnanie polôh, opravy návrhov, zostavy, skúšanie a fázy
 workbench.js           Výrazy, kóty, úchyty, celá analýza, snap, podzostavy a verzie
 magic-import.js        Lokálny raster, kalibrácia, obkreslenie a Finish
 magic-detection.js     Ohraničené lokálne geometrické návrhy z obrázka
@@ -879,6 +902,7 @@ tests/export-cases.js  Prenosné súbory, obrysy drážok a reporty
 tests/scene-export.test.mjs  Štýly snímku, limity, zrušenie a Blob URL
 tests/gif-cases.js     GIF časovanie, paleta, kompresia a obmedzenia
 tests/gif-decoder.js   Nezávislý testovací dekóder, nie runtime aplikácie
+tests/workflow.test.mjs  Predloha, zarovnanie, opravy, zostavy, skúšanie a fázy
 tests/kinematics.test.mjs  Node.js test runner
 tests/export-integration.test.mjs  Transport, ZIP a offline PDF distribúcia
 tests/test_fusion.py   Izolovaný most a náhradné Fusion API

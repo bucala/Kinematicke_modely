@@ -106,6 +106,10 @@
       const parentOrigin = parent?.[e.parentPoint] || parent?.a;
       const local = parent ? K.rotate({ x: world.x - parentOrigin.x, y: world.y - parentOrigin.y }, -parent.angle) : world;
       e.x = local.x; e.y = local.y; e.angle = angle(pose.angle + rotation - (parent?.angle || 0));
+      if (e.type === 'rail' && e.movingRail && e.drive) {
+        const range = K.driveRange(p), travel = ((result.motion ?? range.min) - range.min) / Math.max(K.EPS, range.max - range.min) * e.stroke;
+        const shift = K.along({ x: 0, y: 0 }, travel, e.angle); e.x += shift.x; e.y += shift.y;
+      }
       if (e.drive && e.driveMode === 'linear' && e.type !== 'rail') e.driveAngle = angle(e.driveAngle + rotation);
     }
     updateAnchors(p, descendants(p, ids));
@@ -244,7 +248,17 @@
     if (rows.some((r) => r.status === 'error')) hints.push('Zvýraznené väzby nie sú v zobrazenej polohe splnené. V editácii sa nevynucujú; v simulácii skontrolujte dĺžky, pevné body, uhly a dorazy.');
     if (rows.some((r) => r.status === 'missing')) hints.push('Niektorá väzba nemá dostupný uzol alebo vodiacu krivku.');
     if (rows.some((r) => r.prescribed)) hints.push('Bodové väzby chránenej šablóny riadi parametrický zákon. Ich samostatné rezíduá sa neodhadujú zo symbolických dvojíc bodov.');
-    return { rows, freedom, hints, duplicates, conflicts };
+    const checks = [];
+    const movable = project.elements.filter((e) => !e.parentId && !e.locked && !['ground', 'slot'].includes(e.type));
+    if (project.kind === 'custom' && movable.length && !project.elements.some((e) => e.drive)) checks.push({ key: I.elementKey(movable[0].id), message: 'Chýba pohon. Vyberte prvok a priraďte mu pohyb.', action: 'motor' });
+    for (const e of movable.filter((e) => !e.drive && !K.isElastic(e))) {
+      const family = descendants(project, [e.id]), joints = project.connections.filter((j) => family.has(j.a.elementId) !== family.has(j.b.elementId));
+      if (!joints.length && !(e.type === 'bearing' && e.slotId)) checks.push({ key: I.elementKey(e.id), message: `${e.name}: chýba spojenie s ďalším prvkom.`, action: 'connect' });
+      else if (joints.length === 1 && joints[0].type === 'revolute' && ['link', 'panel', 'cam'].includes(e.type)) checks.push({ key: I.elementKey(e.id), message: `${e.name}: jeden otočný spoj ešte umožňuje voľné otáčanie.`, action: 'support' });
+    }
+    for (const pair of conflicts) checks.push({ key: I.jointKey(pair[0]), otherKey: I.jointKey(pair[1]), message: 'Tieto dve väzby si odporujú. Skontrolujte ich hodnoty.', action: 'joint' });
+    for (const row of rows.filter((r) => ['error', 'missing'].includes(r.status))) checks.push({ key: row.key, message: `${row.name}: ${row.status === 'missing' ? 'chýba bod alebo dráha' : 'body alebo uhly sa nezhodujú'}.`, action: 'joint' });
+    return { rows, freedom, hints, duplicates, conflicts, checks };
   }
   function analyzeSweep(project, samples) {
     const p = K.validateProject(project);
@@ -316,16 +330,19 @@
   }
   function findSnap(project, keys, result, delta, options = {}) {
     if (options.enabled !== true) return null;
-    const tolerance = options.tolerance ?? 8;
+    let tolerance = options.tolerance ?? 8;
     if (![delta.x, delta.y, tolerance].every(Number.isFinite) || tolerance <= 0) throw new Error('Neplatný posun alebo tolerancia prichytávania.');
-    const sources = movingSnapPoints(project, keys, result, !!options.wholeBodies, !!options.inserting), excluded = new Set(sources.map((s) => s.elementId));
+    const sources = movingSnapPoints(project, keys, result, !!options.wholeBodies, !!options.inserting).filter((s) => !options.sourcePoint || s.ref?.point === options.sourcePoint), excluded = new Set(sources.map((s) => s.elementId));
+    const enterTolerance = tolerance, releaseTolerance = options.previous ? tolerance * 1.5 : tolerance;
+    tolerance = releaseTolerance;
     const roots = new Set(sources.map((s) => I.root(project, project.elements.find((e) => e.id === s.elementId))?.id));
     const candidates = [], destinations = project.elements.filter((e) => e.visible && !excluded.has(e.id) && !roots.has(I.root(project, e)?.id));
     const offer = (source, target, point, kind, distance, tier = 0) => {
       const at = { x: source.at.x + delta.x, y: source.at.y + delta.y };
       if (options.axis === 'x' && Math.abs(point.y - at.y) > .00001 || options.axis === 'y' && Math.abs(point.x - at.x) > .00001) return;
       const adjustment = { x: point.x - at.x, y: point.y - at.y };
-      const label = ({ endpoint: target.ref ? K.pointName(target.ref.point) + ' · montážny bod' : 'Uzlový bod', midpoint: 'Stred člena', guide: 'Vodiaca krivka', 'cam-contact': 'Vačkový kontakt · valček', axis: 'Stredová os', edge: 'Obrys / hrana', trajectory: 'Trajektória', 'alignment-x': 'Zarovnanie X', 'alignment-y': 'Zarovnanie Y' })[kind];
+      const targetName = project.elements.find((e) => e.id === target.elementId)?.name;
+      const label = (targetName ? `${targetName} · ` : '') + ({ endpoint: target.ref ? K.pointName(target.ref.point) + ' · montážny bod' : 'Uzlový bod', midpoint: 'Stred člena', guide: 'Vodiaca krivka', 'cam-contact': 'Vačkový kontakt · valček', axis: 'Stredová os', edge: 'Obrys / hrana', trajectory: 'Trajektória', 'alignment-x': 'Zarovnanie X', 'alignment-y': 'Zarovnanie Y' })[kind];
       candidates.push({ source: K.copy(source), target: K.copy(target), point: { x: point.x, y: point.y }, delta: { x: delta.x + adjustment.x, y: delta.y + adjustment.y }, kind, distance, tier, label, priority: options.cursor ? K.distance(source.at, options.cursor) : 0 });
     };
     const targets = destinations.flatMap((e) => snapPoints(project, e, result));
@@ -366,8 +383,12 @@
       }
     }
     const priority = { endpoint: 0, midpoint: 1, guide: 2, 'cam-contact': 2, axis: 3, edge: 4, trajectory: 4, 'alignment-x': 5, 'alignment-y': 5 };
-    candidates.sort((a, b) => a.tier - b.tier || (Math.abs(a.distance - b.distance) > .00001 ? a.distance - b.distance : priority[a.kind] - priority[b.kind] || a.priority - b.priority));
-    return candidates[0] || null;
+    const sameTarget = (a, b) => a && b && a.kind === b.kind && (options.inserting || a.source.elementId === b.source.elementId) && a.source.ref?.point === b.source.ref?.point && a.target.elementId === b.target.elementId && a.target.ref?.point === b.target.ref?.point && a.target.kind === b.target.kind && a.target.id === b.target.id;
+    const retained = options.previous && candidates.find((c) => sameTarget(c, options.previous) && c.distance <= releaseTolerance);
+    if (retained) return { ...retained, motion: result.motion };
+    const entering = candidates.filter((c) => c.distance <= enterTolerance);
+    entering.sort((a, b) => a.tier - b.tier || (Math.abs(a.distance - b.distance) > .00001 ? a.distance - b.distance : priority[a.kind] - priority[b.kind] || a.priority - b.priority));
+    return entering[0] ? { ...entering[0], motion: result.motion } : null;
   }
   function findPlacementSnap(project, element, options = {}) {
     if (options.enabled !== true) return null;
@@ -376,6 +397,15 @@
     p.elements.push(e);
     const validated = K.validateProject(p);
     return findSnap(validated, [I.elementKey(e.id)], design(validated), { x: 0, y: 0 }, { ...options, inserting: true, wholeBodies: true });
+  }
+  function placement(project, type, at, mount = 'a') {
+    const e = K.makeElement(type, at.x, at.y), p = K.copy(project);
+    if (!I.pointKeys(e).includes(mount)) throw new Error('Vyberte existujúci montážny bod prvku.');
+    if (e.drive && (p.kind !== 'custom' || p.elements.some((v) => v.drive))) e.drive = false;
+    p.elements.push(e);
+    const point = K.point(design(K.validateProject(p)), { elementId: e.id, point: mount });
+    e.x += at.x - point.x; e.y += at.y - point.y;
+    return e;
   }
   function connectSnap(project, preview, type = null) {
     if (!preview || !['endpoint', 'midpoint', 'guide', 'cam-contact'].includes(preview.kind)) throw new Error('Osové zarovnanie nevytvára kĺb. Vyberte skutočný bod, stred alebo vedenie.');
@@ -388,15 +418,15 @@
       p.elements.push(node);
       return { elementId: node.id, point: 'a' };
     };
-    const a = materialize(preview.source), b = materialize(preview.target), result = design(p), first = K.point(result, a);
+    const a = materialize(preview.source), b = materialize(preview.target), result = E.design(p, preview.motion ?? K.driveRange(p).min), first = K.point(result, a);
     if (I.root(p, p.elements.find((e) => e.id === a.elementId))?.id === I.root(p, p.elements.find((e) => e.id === b.elementId))?.id) throw new Error('Uzly patria tomu istému tuhému telesu; ďalší kĺb by bol nadbytočný.');
     const target = p.elements.find((e) => e.id === b.elementId), source = p.elements.find((e) => e.id === a.elementId);
     const path = result.poses[b.elementId]?.path, second = b.point === 'curve' && first && path?.length ? target.type === 'cam' ? K.nearestOnCam(first, result.poses[b.elementId], source.radius) : K.nearestOnPath(first, path) : K.point(result, b);
     if (!first || !second || K.distance(first, second) > K.TOLERANCE) throw new Error('Body sa už nezhodujú. Najskôr ich znova prichyťte.');
     if (p.connections.some((j) => [j.a, j.b].some((r) => r.elementId === a.elementId && r.point === a.point) && [j.a, j.b].some((r) => r.elementId === b.elementId && r.point === b.point))) throw new Error('Tieto body už majú väzbu. Jej typ zmeňte cez úpravu kĺbu.');
     const mode = type || (b.point === 'curve' ? target?.type === 'cam' ? 'cam-contact' : target?.type === 'rail' ? 'prismatic' : 'point-path' : 'revolute');
-    if (b.point === 'curve' ? !['prismatic', 'point-path', 'cam-contact'].includes(mode) : mode !== 'revolute') throw new Error('Typ spojenia nezodpovedá prichytenému bodu.');
-    const value = mode === 'prismatic' ? angle(result.poses[b.elementId].angle - result.poses[a.elementId].angle) : 0;
+    if (b.point === 'curve' ? !['prismatic', 'point-path', 'cam-contact'].includes(mode) : !['revolute', 'fixed'].includes(mode)) throw new Error('Typ spojenia nezodpovedá prichytenému bodu.');
+    const value = ['prismatic', 'fixed'].includes(mode) ? angle(result.poses[b.elementId].angle - result.poses[a.elementId].angle) : 0;
     return I.setJoint(p, a, { type: mode, other: b, value });
   }
   const collectionLimits = Object.freeze({ assembly: 20, revision: 40 });
@@ -452,6 +482,7 @@
     if (!ids.length) throw new Error('Najskôr vyberte členy, uzly alebo ich vnútorné väzby.');
     const included = descendants(original, ids), result = design(original), p = K.copy(original);
     for (const j of original.connections) for (const [r, other] of [[j.a, j.b], [j.b, j.a]]) if (included.has(r.elementId) && original.elements.find((e) => e.id === other.elementId)?.role === 'canvas-anchor') included.add(other.elementId);
+    p.importReference = null; p.motionPlan = null;
     p.id = K.uid(); p.name = recordName(name); p.controls = null; p.simulation.mode = 'kinematic';
     p.elements = p.elements.filter((e) => included.has(e.id));
     for (const e of p.elements) {
@@ -550,7 +581,7 @@
     });
   }
   global.KinmoWorkbench = Object.freeze({
-    parseNumber, applyDimension, preferredEnd, bodies, descendants, pivot, transform, setLength, constraints, diagnose, analyzeSweep, findSnap, findPlacementSnap, connectSnap,
+    parseNumber, applyDimension, preferredEnd, bodies, descendants, pivot, transform, setLength, constraints, diagnose, analyzeSweep, findSnap, findPlacementSnap, placement, connectSnap,
     collectionLimits, normalizeRecord, normalizeCollection, serializeCollection, mergeCollection,
     captureAssembly, insertAssembly, createRevision, restoreRevision, compareDimensions,
   });

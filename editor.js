@@ -16,7 +16,7 @@
     const result = K.solve(original, motion, { collisions: false });
     const project = K.copy(original);
     project.id = K.uid(); project.name = `${original.name} · voľná kópia`;
-    project.kind = 'custom'; project.controls = null;
+    project.kind = 'custom'; project.controls = null; project.motionPlan = null;
     project.parameters = { ...K.copy(K.defaults), travelMax: K.driveRange(original).max - K.driveRange(original).min };
     project.simulation = { ...K.simulationDefaults, ...original.simulation, mode: 'kinematic' };
     project.dimensions = project.dimensions || []; project.trajectories = project.trajectories || [];
@@ -211,7 +211,7 @@
       return residuals(poses).map((v, i) => (v - original[i]) / (key === 'angle' ? 0.0001 : delta));
     });
     const matrix = original.map((_, row) => columns.map((column) => column[row]));
-    let rank = 0;
+    let rank = 0; const pivots = [];
     for (let column = 0; column < variables.length && rank < matrix.length; column++) {
       let pivot = rank;
       for (let row = rank + 1; row < matrix.length; row++) if (Math.abs(matrix[row][column]) > Math.abs(matrix[pivot][column])) pivot = row;
@@ -223,9 +223,18 @@
         const amount = matrix[row][column];
         for (let c = column; c < variables.length; c++) matrix[row][c] -= amount * matrix[rank][c];
       }
-      rank++;
+      pivots.push(column); rank++;
     }
-    return { driven, free: Math.max(0, variables.length - rank), rank, variables: variables.length };
+    const basis = [];
+    for (let column = 0; column < variables.length; column++) if (!pivots.includes(column)) {
+      const v = Array(variables.length).fill(0); v[column] = 1;
+      pivots.forEach((pivot, row) => { v[pivot] = -matrix[row][column]; }); basis.push(v);
+    }
+    const directions = bodies.map((e) => ({ elementId: e.id, vectors: basis.map((v) => {
+      const get = (key) => { const index = variables.findIndex((a) => a.id === e.id && a.key === key); return index < 0 ? 0 : v[index]; };
+      return { x: get('x'), y: get('y'), angle: get('angle') };
+    }).filter((v) => Math.hypot(v.x, v.y, v.angle) > .0001) }));
+    return { directions, driven, free: Math.max(0, variables.length - rank), rank, variables: variables.length };
   }
 
   global.KinmoEditor = Object.freeze({

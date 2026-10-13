@@ -68,7 +68,7 @@
     if (element.com) return K.worldPoint(pose, element.com);
     if (element.type === 'cam') return camMass(pose).center;
     if (['bearing', 'node'].includes(element.type)) return pose.a;
-    if (element.type === 'rail' && pose.c) return pose.c;
+    if (element.type === 'rail' && pose.c && !element.movingRail) return pose.c;
     return { x: (pose.a.x + pose.b.x) / 2, y: (pose.a.y + pose.b.y) / 2 };
   }
 

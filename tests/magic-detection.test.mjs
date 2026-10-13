@@ -2,9 +2,34 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
+import { gunzipSync } from 'node:zlib';
+import '../engine.js';
+import '../editor.js';
+import '../interaction.js';
+import '../magic-import.js';
+import '../exports.js';
 import '../magic-detection.js';
 
 const D = globalThis.KinmoDetection;
+test('Kinka JPEG retains visible pin locations and broad bent silhouettes as reviewable plates', async () => {
+  const bytes = gunzipSync(await readFile(new URL('./fixtures/kinka-768x429.rgba.gz', import.meta.url)));
+  assert.equal(bytes.length, 768 * 429 * 4);
+  const result = D.detectPixels({ width: 768, height: 429, data: new Uint8ClampedArray(bytes) });
+  for (const at of [{ x: 164, y: 254 }, { x: 491, y: 276 }, { x: 481, y: 336 }, { x: 696, y: 254 }]) {
+    assert(result.candidates.some((c) => c.type === 'bearing' && Math.hypot(c.points[0].x - at.x, c.points[0].y - at.y) < 2), `missing visible circular feature ${JSON.stringify(at)}`);
+  }
+  const plate = result.candidates.find((c) => c.type === 'panel' && c.evidence.closedRegion && c.anchors?.some((p) => Math.hypot(p.x - 164, p.y - 254) < 2) && c.anchors?.some((p) => Math.hypot(p.x - 491, p.y - 276) < 2));
+  assert(plate && plate.outline.length >= 8 && !plate.selected, 'the broad silhouette and its mounting points need review');
+  assert(result.candidates.filter((c) => c.type === 'slot').every((c) => c.evidence.widthRatio <= .1));
+  assert(!result.candidates.some((c) => c.points.length === 2 && !c.outline.length && c.width <= 1.5 && (c.evidence.edgePartition || c.evidence.closedRegion)), 'secondary one-pixel partitions are edge artifacts');
+  const image = { width: 768, height: 429 }, scale = KinmoMagicImport.calibration(image, { x: 0, y: 0 }, { x: 768, y: 0 }, 500);
+  const imported = KinmoMagicImport.applyDetected(Kinematics.preset('custom'), image, scale, result.candidates.map((c) => ({ ...c, selected: true })), { connections: true }).project;
+  assert(imported.elements.length > result.candidates.length, 'actual mounting points must be inserted');
+  assert(!imported.elements.some((e) => e.drive), 'a picture does not establish a driver');
+  const restored = KinmoExport.parseNative(KinmoExport.serializeNative(imported)).project;
+  assert.equal(restored.elements.length, imported.elements.length);
+  assert.equal(restored.connections.length, imported.connections.length);
+});
 const raster = (width = 240, height = 180) => {
   const data = new Uint8ClampedArray(width * height * 4).fill(255);
   const pixel = (x, y, color) => data.set([...color, 255], (y * width + x) * 4);
@@ -13,6 +38,47 @@ const raster = (width = 240, height = 180) => {
   };
   return { width, height, data, pixel, rect };
 };
+// A schematic fixture inspired by the supplied Kinka illustration, not its JPEG bytes.
+function mountingSketch(grayscale = false) {
+  const image = raster(480, 300);
+  const paint = (color) => grayscale ? [color[0], color[0], color[0]] : color;
+  const polygon = (points, fill) => {
+    for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+      let inside = false, boundary = Infinity;
+      for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const a = points[i], b = points[j];
+        if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+        const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy)));
+        boundary = Math.min(boundary, Math.hypot(x - a.x - dx * t, y - a.y - dy * t));
+      }
+      if (boundary <= 2) image.pixel(x, y, paint([35, 65, 100]));
+      else if (inside) image.pixel(x, y, paint(fill));
+    }
+  };
+  image.rect(20, 90, 140, 125, paint([80, 155, 90]));
+  polygon([{ x: 90, y: 180 }, { x: 345, y: 180 }, { x: 350, y: 250 }, { x: 320, y: 268 }, { x: 305, y: 225 }, { x: 110, y: 210 }], [190, 220, 235]);
+  polygon([{ x: 90, y: 180 }, { x: 320, y: 120 }, { x: 365, y: 35 }, { x: 385, y: 40 }, { x: 365, y: 180 }, { x: 335, y: 205 }, { x: 110, y: 210 }], [170, 210, 225]);
+  for (const center of [{ x: 120, y: 192 }, { x: 338, y: 182 }, { x: 330, y: 245 }]) {
+    for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+      const r = Math.hypot(x - center.x, y - center.y);
+      if (r <= 8) image.pixel(x, y, r >= 5 ? paint([35, 65, 100]) : [255, 255, 255]);
+    }
+  }
+  return image;
+}
+
+test('Enclosed interiors separate touching outlined plates and retain internal circular mounting points', () => {
+  for (const grayscale of [false, true]) {
+    const result = D.detectPixels(mountingSketch(grayscale));
+    const bodies = result.candidates.filter((c) => c.evidence.closedRegion && c.outline.length);
+    assert(bodies.length >= 2, 'edge-enclosed plates should survive a connected foreground');
+    assert(bodies.every((c) => !c.selected), 'overlapping interpretations require review');
+    for (const at of [{ x: 120, y: 192 }, { x: 338, y: 182 }, { x: 330, y: 245 }]) {
+      assert(result.candidates.some((c) => c.type === 'bearing' && Math.hypot(c.points[0].x - at.x, c.points[0].y - at.y) < 2), `missing circle at ${JSON.stringify(at)}`);
+      assert(bodies.some((c) => c.anchors?.some((p) => Math.hypot(p.x - at.x, p.y - at.y) < 2)), 'internal mounting point must attach to a plate');
+    }
+  }
+});
 test('Offline detection extracts colored members, a frame and a round node', () => {
   const image = raster();
   image.rect(20, 20, 180, 4, [10, 150, 50]); image.rect(20, 20, 4, 120, [10, 150, 50]); image.rect(196, 20, 4, 90, [10, 150, 50]);
@@ -106,7 +172,7 @@ test('Candidate count and IDs remain bounded on a noisy many-member image', () =
 });
 
 const source = await readFile(new URL('../magic-detection.js', import.meta.url), 'utf8');
-const loader = (outcome = 'load') => {
+const loader = (outcome = 'load', pixels = raster) => {
   const canvases = [], images = [], timers = new Map();
   class Image {
     constructor() { images.push(this); }
@@ -117,7 +183,7 @@ const loader = (outcome = 'load') => {
     setTimeout(fn, ms) { if (ms === 0) queueMicrotask(fn); else timers.set(1, fn); return ms === 0 ? 2 : 1; },
     clearTimeout(id) { timers.delete(id); },
     document: { createElement() {
-      const canvas = { getContext: () => ({ fillRect() {}, drawImage() {}, getImageData(x, y, w, h) { return raster(w, h); } }) };
+      const canvas = { getContext: () => ({ fillRect() {}, drawImage(...args) { canvas.drawArgs = args.slice(1); }, getImageData(x, y, w, h) { return pixels(w, h); } }) };
       canvases.push(canvas); return canvas;
     } },
   });
@@ -132,6 +198,31 @@ test('Image detection accepts only local rasters and releases the private canvas
   assert.equal(result.candidates.length, 0); assert.equal(canvases[0].width, 0); assert.equal(canvases[0].height, 0);
   assert.equal(images[0].source, ''); assert.equal(timers.size, 0);
   assert(!/\bfetch\s*\(|XMLHttpRequest|eval\s*\(/.test(source));
+});
+test('Cropped detection maps contours, points and mounting radii back to original image coordinates', async () => {
+  const pixels = (w, h) => {
+    const image = raster(w, h); image.rect(20, 30, 180, 22, [50, 90, 180]);
+    for (let y = 32; y < 51; y++) for (let x = 25; x < 45; x++) {
+      const r = Math.hypot(x - 35, y - 41);
+      if (r <= 7) image.pixel(x, y, r >= 4 ? [0, 0, 0] : [255, 255, 255]);
+    }
+    return image;
+  };
+  const { api, canvases } = loader('load', pixels), region = { x: 1000, y: 300, width: 2000, height: 1000 };
+  const expected = D.detectPixels(pixels(768, 384));
+  const result = await api.detectImage({ url: 'blob:cropped', width: 4000, height: 2000 }, { region });
+  assert.deepEqual(canvases[0].drawArgs, [1000, 300, 2000, 1000, 0, 0, 768, 384]);
+  assert(result.candidates.some((c) => c.anchors?.length));
+  assert.equal(result.candidates.length, expected.candidates.length);
+  result.candidates.forEach((candidate, i) => {
+    for (const field of ['points', 'outline', 'anchors']) (candidate[field] || []).forEach((p, j) => {
+      const original = expected.candidates[i][field][j];
+      assert(Math.abs(p.x - (1000 + original.x * 2000 / 768)) < 1e-8);
+      assert(Math.abs(p.y - (300 + original.y * 1000 / 384)) < 1e-8);
+      if (field === 'anchors') assert(Math.abs(p.radius - original.radius / .384) < 1e-8);
+    });
+  });
+  for (const bad of [{ ...region, x: -1 }, { ...region, width: 5000 }, { ...region, height: 2 }, { ...region, x: .5 }]) await assert.rejects(api.detectImage({ url: 'blob:cropped', width: 4000, height: 2000 }, { region: bad }));
 });
 test('Abort, stalled decoding and image errors release resources without revoking the borrowed photo', async () => {
   for (const outcome of ['abort', 'timeout', 'error']) {

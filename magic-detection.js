@@ -1,4 +1,4 @@
-/* Bounded, offline sketch detection. Proposals are editable geometry, not inferred mechanics. */
+/* Bounded, offline sketch detection. Geometry and mounting points remain reviewable proposals. */
 (function (global) {
   'use strict';
   const limits = Object.freeze({ side: 768, pixels: 768 * 768, candidates: 60, components: 4000, contour: 8192, proposals: 240, simplifyWork: 200000 });
@@ -40,6 +40,35 @@
     }
     return true;
   }
+  function inside(p, polygon) {
+    let value = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const a = polygon[i], b = polygon[j];
+      if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) value = !value;
+    }
+    return value;
+  }
+  // Flood regions between strong edges, including white holes. Never interpret a color as a part type.
+  function enclosedRegions(width, height, edge, threshold, queue) {
+    const regions = new Uint32Array(width * height), visited = new Uint8Array(width * height);
+    let id = 0, limited = false;
+    for (let start = 0; start < regions.length; start++) {
+      if (visited[start] || edge[start] >= threshold) continue;
+      if (++id > limits.components) { limited = true; break; }
+      let head = 0, tail = 1, border = false;
+      queue[0] = start; visited[start] = 1;
+      while (head < tail) {
+        const at = queue[head++], x = at % width, y = Math.floor(at / width);
+        border ||= x === 0 || y === 0 || x === width - 1 || y === height - 1;
+        for (const n of [x ? at - 1 : -1, x + 1 < width ? at + 1 : -1, y ? at - width : -1, y + 1 < height ? at + width : -1]) {
+          if (n < 0 || visited[n] || edge[n] >= threshold) continue;
+          visited[n] = 1; queue[tail++] = n;
+        }
+      }
+      if (!border && tail >= 12) for (let n = 0; n < tail; n++) regions[queue[n]] = id;
+    }
+    return { regions, limited };
+  }
   function contour(labels, id, start, width, height, size) {
     const directions = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
     let at = { x: start % width, y: Math.floor(start / width) }, back = { x: at.x - 1, y: at.y }, first = null;
@@ -76,34 +105,44 @@
       const x = i % width, y = Math.floor(i / width);
       edge[i] = Math.max(x ? difference(i, i - 1) : 0, x + 1 < width ? difference(i, i + 1) : 0, y ? difference(i, i - width) : 0, y + 1 < height ? difference(i, i + width) : 0);
     }
-    let limited = false, pass = 0, ambiguous = false;
+    const enclosed = enclosedRegions(width, height, edge, barrier, queue);
+    let limited = enclosed.limited, pass = 0, ambiguous = false;
     const add = (type, points, stroke, confidence, color, outline = [], evidence = {}) => {
       if (points.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return;
+      if (points.length > 64) { limited = true; return; }
+      // Secondary partitions often isolate one-pixel JPEG/antialias edges, not additional members.
+      if (pass && points.length === 2 && !outline.length && stroke <= 1.5) return;
+      points = points.map((p) => ({ x: Math.max(0, Math.min(width - 1, p.x)), y: Math.max(0, Math.min(height - 1, p.y)) }));
       if (points.length > 1 && distance(points[0], points.at(-1)) < 8) return;
       if (proposals.length >= limits.proposals) { limited = true; return; }
-      if (pass) { confidence = Math.min(confidence, .64); evidence = { ...evidence, edgePartition: true }; }
-      proposals.push({ type, points, width: Math.max(1, stroke), radius: Math.max(2, stroke / 2), confidence, color, selected: confidence >= .78, outline, geometry: outline.length ? 'contour' : 'centerline', evidence });
+      if (pass) { confidence = Math.min(confidence, .64); evidence = { ...evidence, ...(pass === 2 ? { closedRegion: true } : { edgePartition: true }) }; }
+      stroke = Math.min(Math.max(width, height), Math.max(1, stroke));
+      proposals.push({ type, points, width: stroke, radius: Math.max(2, stroke / 2), confidence, color, selected: confidence >= .78, outline, geometry: outline.length ? 'contour' : 'centerline', evidence });
     };
     let components = 0;
-    for (pass = 0; pass < 2; pass++) {
-      if (pass) { if (!ambiguous || components >= limits.components) break; labels.fill(0); }
+    for (pass = 0; pass < 3; pass++) {
+      if (components >= limits.components) { limited = true; break; }
+      if (pass === 1 && !ambiguous) continue;
+      if (pass) labels.fill(0);
     for (let start = 0; start < count; start++) {
-      if (!mask[start] || labels[start] || pass && mask[start] !== 2) continue;
+      if (labels[start] || (pass === 2 ? !enclosed.regions[start] : !mask[start] || pass === 1 && mask[start] !== 2)) continue;
       if (++components > limits.components) { limited = true; break; }
-      let head = 0, tail = 1, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, minX = width, minY = height, maxX = 0, maxY = 0;
+      let head = 0, tail = 1, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, uncertain = 0, foreground = 0, minX = width, minY = height, maxX = 0, maxY = 0;
       queue[0] = start; labels[start] = components;
       while (head < tail) {
         const i = queue[head++], x = i % width, y = Math.floor(i / width);
         sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+        uncertain += mask[i] === 2 ? 1 : 0; foreground += mask[i] ? 1 : 0;
         minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
           const nx = x + dx, ny = y + dy, n = ny * width + nx;
-          if (nx < 0 || nx >= width || ny < 0 || ny >= height || labels[n] || !mask[n] || pass && (mask[n] !== 2 || difference(i, n) > barrier)) continue;
+          if (nx < 0 || nx >= width || ny < 0 || ny >= height || labels[n]) continue;
+          if (pass === 2 ? enclosed.regions[n] !== enclosed.regions[start] : !mask[n] || pass === 1 && (mask[n] !== 2 || difference(i, n) > barrier)) continue;
           labels[n] = components; queue[tail++] = n;
         }
       }
       const bw = maxX - minX + 1, bh = maxY - minY + 1, fill = tail / (bw * bh);
-      if (tail < 20 || Math.max(bw, bh) < 12 || tail > count * .7) continue;
+      if (tail < (pass === 2 ? 12 : 20) || Math.max(bw, bh) < (pass === 2 ? 5 : 12) || tail > count * .7) continue;
       const cx = sx / tail, cy = sy / tail, xx = sxx / tail - cx * cx, yy = syy / tail - cy * cy, xy = sxy / tail - cx * cy;
       const theta = .5 * Math.atan2(2 * xy, xx - yy), ux = Math.cos(theta), uy = Math.sin(theta);
       const colorIndex = queue[Math.floor(tail / 2)] * 3, color = `#${[0, 1, 2].map((k) => rgb[colorIndex + k].toString(16).padStart(2, '0')).join('')}`;
@@ -126,8 +165,16 @@
       const radii = boundary.points.map((p) => distance(p, { x: cx, y: cy })), meanRadius = radii.reduce((sum, v) => sum + v, 0) / (radii.length || 1);
       const roundness = meanRadius ? Math.sqrt(radii.reduce((sum, v) => sum + (v - meanRadius) ** 2, 0) / (radii.length || 1)) / meanRadius : 1;
       const orthogonal = outline.reduce((sum, a, i) => { const b = outline[(i + 1) % outline.length], l = distance(a, b); return sum + (Math.min(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= 1 ? l : 0); }, 0) / (outline.reduce((sum, a, i) => sum + distance(a, outline[(i + 1) % outline.length]), 0) || 1);
-      if (Math.max(bw, bh) <= 64 && Math.min(bw, bh) >= 8 && Math.max(bw, bh) / Math.min(bw, bh) < 1.3 && roundness < .16) {
-        add('bearing', [{ x: cx, y: cy }], meanRadius * 2, support > .7 ? .84 : .64, color, [], { edgeSupport: support, continuity: 1 });
+      const smallHole = pass === 2 && Math.max(bw, bh) <= 10 && foreground / tail < .25;
+      const circular = Math.max(bw, bh) <= 64 && Math.min(bw, bh) >= (pass === 2 ? 5 : 8) && Math.max(bw, bh) / Math.min(bw, bh) < (smallHole ? 1.5 : 1.3) && roundness < (smallHole ? .25 : .16);
+      // Thin white interiors are useful in outline-only diagrams. Large white windows are background.
+      if (pass === 2 && !circular) {
+        if (foreground / tail >= .75 && uncertain / tail < .5) continue;
+        if (foreground / tail < .75 && (aspect < 2.8 || aspect > 50 || length < 25 || breadth < 3)) continue;
+        if (outline.length && proposals.some((c) => c.selected && c.outline.length && outline.every((p) => inside(p, c.outline)) && (c.type !== 'ground' || outline.every((p) => c.outline.some((a, i) => segmentDistance(p, a, c.outline[(i + 1) % c.outline.length]) <= 6))))) continue;
+      }
+      if (circular) {
+        add('bearing', [{ x: cx, y: cy }], meanRadius * 2, support > .7 ? .84 : .64, color, [], { edgeSupport: support, continuity: 1, circularFeature: true });
       } else if (fill < .25 && bw >= 40 && bh >= 40 && outline.length >= 8 && orthogonal > .75 && aspect < 4.5) {
         add('ground', points, Math.max(2, tail / Math.max(bw, bh)), .8 + support * .06, color, outline, { edgeSupport: support, continuity: 1 });
       } else if ((aspect >= 2.8 || aspect >= 1.6 && fill < .35 && outline.length >= 6) && length >= 20) {
@@ -152,10 +199,11 @@
         const branched = separated / bins.length > .2 && variation > .45 || widths.some((v) => v > stroke * 3.5) || centreline.some((p, i) => i && distance(p, centreline[i - 1]) > Math.max(20, stroke * 3));
         const deviation = Math.max(...centreline.map((p) => segmentDistance(p, centreline[0], centreline.at(-1)))), path = simplify(centreline, .65);
         const curved = deviation > Math.max(2, stroke * .55) && path.length >= 4;
-        const evidence = { edgeSupport: support, continuity, branched };
-        if (curved && !branched && continuity >= .85) add('slot', resample(path), stroke, .76 + support * .08, color, [], evidence);
+        const evidence = { edgeSupport: support, continuity, branched, widthRatio: stroke / Math.max(1, length) };
+        // A bent silhouette is not necessarily a guide: broad plates keep their editable outline.
+        if (curved && !branched && continuity >= .85 && stroke / Math.max(1, length) <= .1) add('slot', resample(path), stroke, .76 + support * .08, color, [], evidence);
         else {
-          const type = tail / (Math.max(1, length) * breadth) < .35 ? 'rail' : aspect < 6 ? 'panel' : 'link';
+          const type = pass === 2 && branched ? 'panel' : tail / (Math.max(1, length) * breadth) < .35 ? 'rail' : aspect < 6 ? 'panel' : 'link';
           add(type, points, stroke, branched || continuity < .85 ? .58 : .78 + support * .08, color, outline, evidence);
         }
       } else if (outline.length && Math.max(bw, bh) >= 24) add('panel', points, Math.max(2, breadth), .6, color, outline, { edgeSupport: support, continuity: 1, branched: true });
@@ -170,17 +218,35 @@
     for (const candidate of proposals) {
       const duplicate = unique.find((other) => {
         if (candidate.points.length !== 2 || other.points.length !== 2) return candidate.points.length === 1 && other.points.length === 1 && distance(candidate.points[0], other.points[0]) < Math.min(candidate.radius, other.radius);
-        const a = candidate.points, b = other.points, tolerance = Math.max(6, Math.min(candidate.width, other.width) * .6);
+        if (candidate.outline.length && other.outline.length) {
+          const bounds = (points) => ({ x: Math.min(...points.map((p) => p.x)), y: Math.min(...points.map((p) => p.y)), r: Math.max(...points.map((p) => p.x)), b: Math.max(...points.map((p) => p.y)) });
+          const a = bounds(candidate.outline), b = bounds(other.outline), intersection = Math.max(0, Math.min(a.r, b.r) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.y, b.y));
+          const union = (a.r - a.x) * (a.b - a.y) + (b.r - b.x) * (b.b - b.y) - intersection;
+          return intersection / Math.max(1, union) > .85 && Math.min(area(candidate.outline), area(other.outline)) / Math.max(1, area(candidate.outline), area(other.outline)) > .75;
+        }
+        const a = candidate.points, b = other.points, tolerance = Math.max(6, Math.min(10, Math.min(candidate.width, other.width) * .6));
         return Math.min(distance(a[0], b[0]) + distance(a[1], b[1]), distance(a[0], b[1]) + distance(a[1], b[0])) < tolerance * 2;
       });
       if (!duplicate) unique.push(candidate);
-      else if (candidate.outline.length && area(candidate.outline) > area(duplicate.outline)) { duplicate.outline = candidate.outline; duplicate.geometry = 'contour'; }
+      else {
+        duplicate.evidence = { ...duplicate.evidence, ...candidate.evidence };
+        if (candidate.outline.length && area(candidate.outline) > area(duplicate.outline)) { duplicate.outline = candidate.outline; duplicate.geometry = 'contour'; }
+      }
       if (unique.length > limits.candidates) { limited = true; break; }
     }
-    return { method: 'contours', candidates: unique.slice(0, limits.candidates).map((c, i) => ({ ...c, id: `detect-${i + 1}` })), limited, note: 'Obrysový geometrický návrh: hrany, tvar a spojitosť strednice, nie význam farieb. Rozvetvené a nejasné tvary nie sú predvybrané. Skontrolujte typy, konce a pevné časti. Detekcia neurčuje pohon, funkciu mechanizmu ani správnosť väzieb.' };
+    const candidates = unique.slice(0, limits.candidates).map((c, i) => ({ ...c, id: `detect-${i + 1}` }));
+    for (const body of candidates) {
+      if (!['ground', 'link', 'panel'].includes(body.type) || !body.outline.length) continue;
+      body.anchors = candidates.filter((pin) => pin.type === 'bearing' && (inside(pin.points[0], body.outline) || body.outline.some((p, i) => segmentDistance(pin.points[0], p, body.outline[(i + 1) % body.outline.length]) <= Math.min(3, pin.radius / 2)))).map((pin) => ({ ...pin.points[0], radius: pin.radius }));
+      // A frame can surround moving parts without owning their pins. Fixing these points needs explicit review.
+      if (body.type === 'ground' && body.anchors.length) body.useAnchors = false;
+    }
+    return { method: 'contours', candidates, limited, note: 'Obrysový návrh: hrany, uzavreté oblasti a kruhové montážne body, nie význam farieb. Nejasné tvary nie sú predvybrané. Krúžok môže byť otvor, čap alebo značka; overte jeho priradenie k telesu a otočné spoje. Detekcia neurčuje pohon, funkciu mechanizmu ani správnosť väzieb.' };
   }
-  async function detectImage(image, { signal, sensitivity = 50 } = {}) {
+  async function detectImage(image, { signal, sensitivity = 50, region } = {}) {
     if (!image?.url?.startsWith('blob:') || !Number.isInteger(image.width) || !Number.isInteger(image.height) || image.width < 1 || image.height < 1 || image.width > 8192 || image.height > 8192 || image.width * image.height > 16000000) throw new Error('Detekcia používa iba lokálne nahraný obrázok.');
+    const crop = region ?? { x: 0, y: 0, width: image.width, height: image.height };
+    if (![crop.x, crop.y, crop.width, crop.height].every(Number.isInteger) || crop.x < 0 || crop.y < 0 || crop.width < (region ? 5 : 1) || crop.height < (region ? 5 : 1) || crop.x + crop.width > image.width || crop.y + crop.height > image.height) throw new Error('Vyberte oblasť vo vnútri obrázka s rozmermi aspoň 5 × 5 px.');
     const check = () => { if (signal?.aborted) throw new Error('Detekcia bola zrušená.'); };
     check();
     const decoded = new global.Image(), canvas = global.document.createElement('canvas');
@@ -197,16 +263,18 @@
         decoded.src = image.url;
       });
       check();
-      const factor = Math.min(1, limits.side / Math.max(image.width, image.height));
-      canvas.width = Math.max(1, Math.round(image.width * factor)); canvas.height = Math.max(1, Math.round(image.height * factor));
+      const factor = Math.min(1, limits.side / Math.max(crop.width, crop.height));
+      canvas.width = Math.max(1, Math.round(crop.width * factor)); canvas.height = Math.max(1, Math.round(crop.height * factor));
       const context = canvas.getContext('2d', { willReadFrequently: true });
       if (!context) throw new Error('Prehliadač neposkytuje čítanie obrázka.');
-      context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(decoded, 0, 0, canvas.width, canvas.height);
+      context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(decoded, crop.x, crop.y, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
       await new Promise((resolve) => global.setTimeout(resolve, 0)); check();
       const result = detectPixels(context.getImageData(0, 0, canvas.width, canvas.height), { sensitivity });
       result.candidates.forEach((candidate) => {
-        candidate.points = candidate.points.map((p) => ({ x: p.x * image.width / canvas.width, y: p.y * image.height / canvas.height }));
-        candidate.outline = candidate.outline.map((p) => ({ x: p.x * image.width / canvas.width, y: p.y * image.height / canvas.height }));
+        const original = (p) => ({ x: crop.x + p.x * crop.width / canvas.width, y: crop.y + p.y * crop.height / canvas.height });
+        candidate.points = candidate.points.map(original);
+        candidate.outline = candidate.outline.map(original);
+        candidate.anchors = candidate.anchors?.map((p) => ({ ...original(p), radius: p.radius / factor }));
         candidate.width /= factor; candidate.radius /= factor;
       });
       check(); return result;
