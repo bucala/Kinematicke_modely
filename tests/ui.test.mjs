@@ -1902,3 +1902,28 @@ test('The calibration marker stays visible on a white raster even with the dark 
   assert.match(context.magicDrawingSVG(1), /data-editor-overlay="magic-drawing"/);
   assert.match(styles, /\.magic-active :is\(\.part-label, \.node-label, \.part-sublabel\)[^{]*\{[^}]*fill: #33322f;[^}]*paint-order: stroke;/);
 });
+
+test('Reverse-moving guide follows pointer along its rotated axis and clamps at carriage stops', () => {
+  for (const angle of [0, 30, 90]) {
+    const { context, state } = controller(), K = context.K, rail = { ...K.makeElement('rail', 0, 0), angle, length: 200, stroke: 150, carriageOffset: 100, movingRail: true };
+    state.project = K.preset('custom'); state.project.elements = [rail]; state.mode = 'simulate'; state.motion = 100; state.result = K.solve(state.project, 100, { collisions: false });
+    const before = state.result.poses[rail.id].a, axis = K.along({ x: 0, y: 0 }, 1, angle);
+    context.setMotion = (value) => { const range = K.driveRange(state.project); state.motion = K.clamp(value, range.min, range.max); state.result = K.solve(state.project, state.motion, { collisions: false }); };
+    state.drag = { kind: 'custom-rail', angle, start: { x: 0, y: 0 }, startMotion: 100, stroke: 150, reversed: true };
+    context.onPointerMove({ clientX: 20 * axis.x, clientY: 20 * axis.y, preventDefault() {}, target: { closest: () => null } });
+    assert(Math.abs(state.result.poses[rail.id].a.x - before.x - axis.x * 20) < .001);
+    assert(Math.abs(state.result.poses[rail.id].a.y - before.y - axis.y * 20) < .001);
+    context.onPointerMove({ clientX: -1000 * axis.x, clientY: -1000 * axis.y, preventDefault() {}, target: { closest: () => null } });
+    assert.equal(state.motion, K.driveRange(state.project).max); assert(!state.result.blocked);
+    const local = K.localPoint(state.result.poses[rail.id], state.result.poses[rail.id].c); assert(Math.abs(local.x - rail.length) < .001);
+  }
+});
+
+test('Piston inspector design length resizes its cylinder and stroke together', () => {
+  const { context, state } = controller(), K = context.K, piston = K.makeElement('piston-push', 0, 0);
+  state.project = K.preset('custom'); state.project.elements = [piston]; state.selected = piston.id; state.result = context.E.design(state.project, 0);
+  const before = K.pistonGeometry(piston).cylinder;
+  context.onPropertyChange({ value: '480', min: '1', max: '5000', dataset: { property: 'length', scope: 'element' }, checkValidity: () => true });
+  const e = state.project.elements[0]; assert.equal(e.length, 480); assert.equal(e.maxLength, 480); assert(K.pistonGeometry(e).cylinder > before * 1.8 && K.pistonGeometry(e).fits);
+  assert.equal(state.history.length, 1);
+});

@@ -389,9 +389,10 @@
       for (const key of ['c', 'ct', 'cb']) near(K.distance(start.poses[rail.id][key], finish.poses[rail.id][key]), 0);
       near(K.distance(parked.poses[rail.id].a, start.poses[rail.id].a), 0);
       near(K.distance(start.poses[marker.id].a, finish.poses[marker.id].a), 0);
-      near(K.distance(start.poses[endMarker.id].a, finish.poses[endMarker.id].a), rail.stroke);
+      const usableStroke = K.railTravel(next, next.elements.find((e) => e.id === rail.id), K.driveRange(next).max);
+      near(K.distance(start.poses[endMarker.id].a, finish.poses[endMarker.id].a), usableStroke);
       assert(I.status(next, ref(marker)) === 'fixed' && I.status(next, ref(endMarker)) === 'driven');
-      const expected = K.along(start.poses[rail.id].a, -rail.stroke, angle);
+      const expected = K.along(start.poses[rail.id].a, -usableStroke, angle);
       near(finish.poses[rail.id].a.x, expected.x); near(finish.poses[rail.id].a.y, expected.y);
       const loaded = global.KinmoExport.parseNative(global.KinmoExport.serializeNative(next)).project;
       assert(loaded.elements.find((e) => e.id === rail.id).movingRail);

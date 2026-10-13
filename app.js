@@ -228,7 +228,7 @@
   function solveCurrent() {
     return state.mode === 'edit'
       ? E.design(state.project, state.motion, { profile: state.profile })
-      : K.solve(state.project, state.motion, { profile: state.profile, collisions: state.collisions });
+      : K.solve(state.project, state.motion, { profile: state.profile, collisions: state.collisions, elasticPositions: P.elasticPositions(state.dynamic) });
   }
 
   function prepareForces(notify = false) {
@@ -494,12 +494,12 @@
 
   function elasticGeometry(e) {
     const spring = e.type.startsWith('spring-'), compression = e.type === 'spring-compression', pulling = ['spring-extension', 'piston-pull'].includes(e.type);
-    const force = state.result.forces?.find((v) => v.id === e.id);
-    return section('Dĺžka medzi montážnymi čapmi', `${field(spring ? 'Voľná dĺžka L₀' : 'Referenčná dĺžka', 'restLength', e.restLength, 'mm', .1, 5000, .1, 'element')}${two(field('Minimálna dĺžka', 'minLength', e.minLength, 'mm', .1, 5000, .1, 'element'), field('Maximálna dĺžka', 'maxLength', e.maxLength, 'mm', .1, 5000, .1, 'element'))}<div class="analysis-metric"><span>Aktuálna dĺžka</span><strong>${fmt(selectedPose()?.length, 2)} <small>mm</small></strong></div>`) +
+    const force = state.result.forces?.find((v) => v.id === e.id), geometry = !spring && K.pistonGeometry(e);
+    return (!spring ? section('Funkcia piesta', `<label class="property-field"><span>Správanie</span><select id="actuator-mode" class="property-select"><option value="gas"${e.actuatorMode !== 'damper' ? ' selected' : ''}>Plynová vzpera · sila a tlmenie</option><option value="damper"${e.actuatorMode === 'damper' ? ' selected' : ''}>Tlmič · odpor proti rýchlosti</option></select></label><p class="section-description">Pri návrhovom predĺžení sa zväčší aj valec a pracovný rozsah. Pri simulovanom vysúvaní má valec stálu dĺžku.</p>${!geometry.fits ? `<p class="analysis-warning">Zdvih ${fmt(geometry.stroke)} mm sa nezmestí do valca ${fmt(geometry.cylinder)} mm.</p><button class="button button-secondary full-width" data-action="piston-fit">Prispôsobiť valec a rozsah</button>` : ''}`) : '') + section('Dĺžka medzi montážnymi čapmi', `${field(spring ? 'Voľná dĺžka L₀' : 'Referenčná dĺžka', 'restLength', e.restLength, 'mm', .1, 5000, .1, 'element')}${two(field('Minimálna dĺžka', 'minLength', e.minLength, 'mm', .1, 5000, .1, 'element'), field('Maximálna dĺžka', 'maxLength', e.maxLength, 'mm', .1, 5000, .1, 'element'))}<div class="analysis-metric"><span>Aktuálna dĺžka</span><strong>${fmt(selectedPose()?.length, 2)} <small>mm</small></strong></div>`) +
       section('Priemery', `${field(spring ? 'Vonkajší priemer pružiny' : 'Priemer valca', 'diameter', e.diameter, 'mm', .1, 500, .1, 'element')}${field(spring ? 'Priemer drôtu' : 'Priemer tyče', spring ? 'wireDiameter' : 'rodDiameter', spring ? e.wireDiameter : e.rodDiameter, 'mm', .01, 500, .01, 'element')}`) +
-      section(pulling ? 'Ťažná sila (sťahuje čapy)' : 'Tlačná sila (odtláča čapy)', `${spring ? `<label class="property-field"><span>Spôsob zadania sily</span><select class="property-select" id="force-mode"><option value="rated"${e.forceMode !== 'stiffness' ? ' selected' : ''}>F pri pracovnom limite</option><option value="stiffness"${e.forceMode === 'stiffness' ? ' selected' : ''}>Tuhosť k (N/mm)</option></select></label>${e.forceMode === 'stiffness' ? field('Tuhosť pružiny k', 'stiffness', e.stiffness, 'N/mm', 0, 100000, .001, 'element') : field(compression ? 'F pri minimálnej dĺžke' : 'F pri maximálnej dĺžke', 'force', e.force, 'N', 0, 1000000, .01, 'element')}${!compression ? field('Počiatočné predpätie F₀', 'preload', e.preload, 'N', 0, 1000000, .01, 'element') : ''}<p class="section-description">${compression ? 'Nad voľnou dĺžkou pružina netlačí. F = k · (L₀ − L).' : 'Pod voľnou dĺžkou je pružina voľná. Od L₀ ťahá silou F₀ + k · (L − L₀).'}</p>` : `${field('Referenčná sila F', 'force', e.force, 'N', 0, 1000000, .1, 'element')}${field('Pomer sily na konci zdvihu', 'progression', e.progression, '×', 1, 3, .01, 'element')}<p class="section-description">${pulling ? 'F pri minimálnej dĺžke, rastie pri vysúvaní.' : 'F pri maximálnej dĺžke, rastie pri zasúvaní.'} Pomer 1 znamená konštantnú silu. Nejde o pneumatický okruh ani výrobný model plynu.</p>`}${field('Osové tlmenie', 'damping', e.damping, 'N·s/m', 0, 100000, .1, 'element')}<div class="analysis-metric"><span>Výsledná osová sila</span><strong>${fmt(force?.magnitude || 0, 2)} <small>N</small></strong></div>`) +
+      section(pulling ? 'Ťažná sila (sťahuje čapy)' : 'Tlačná sila (odtláča čapy)', `${spring ? `<label class="property-field"><span>Spôsob zadania sily</span><select class="property-select" id="force-mode"><option value="rated"${e.forceMode !== 'stiffness' ? ' selected' : ''}>F pri pracovnom limite</option><option value="stiffness"${e.forceMode === 'stiffness' ? ' selected' : ''}>Tuhosť k (N/mm)</option></select></label>${e.forceMode === 'stiffness' ? field('Tuhosť pružiny k', 'stiffness', e.stiffness, 'N/mm', 0, 100000, .001, 'element') : field(compression ? 'F pri minimálnej dĺžke' : 'F pri maximálnej dĺžke', 'force', e.force, 'N', 0, 1000000, .01, 'element')}${!compression ? field('Počiatočné predpätie F₀', 'preload', e.preload, 'N', 0, 1000000, .01, 'element') : ''}<p class="section-description">${compression ? 'Nad voľnou dĺžkou pružina netlačí. F = k · (L₀ − L).' : 'Pod voľnou dĺžkou je pružina voľná. Od L₀ ťahá silou F₀ + k · (L − L₀).'}</p>` : `${field('Referenčná sila F', 'force', e.force, 'N', 0, 1000000, .1, 'element')}${field('Pomer sily na konci zdvihu', 'progression', e.progression, '×', 1, 3, .01, 'element')}<p class="section-description">${pulling ? 'F pri minimálnej dĺžke, rastie pri vysúvaní.' : 'F pri maximálnej dĺžke, rastie pri zasúvaní.'} Pomer 1 znamená konštantnú silu. Nejde o pneumatický okruh ani výrobný model plynu.</p>`}${field('Osové tlmenie', 'damping', e.damping, 'N·s/m', 0, 100000, .1, 'element')}${!spring ? two(field('Tlmenie pri zasúvaní', 'dampingCompression', e.dampingCompression ?? e.damping, 'N·s/m', 0, 100000, .1, 'element'), field('Tlmenie pri vysúvaní', 'dampingExtension', e.dampingExtension ?? e.damping, 'N·s/m', 0, 100000, .1, 'element')) : ''}${field('Hmotnosť na voľnom čape', 'tipMass', e.tipMass, 'kg', .001, 1000, .001, 'element')}<p class="section-description">V režime Pohyb zo síl sa sila prenáša na pohon aj spoločné voľné čapy. Tlmenie pôsobí proti rýchlosti; hmotnosť určuje zrýchlenie.</p><div class="analysis-metric"><span>Výsledná osová sila</span><strong>${fmt(force?.magnitude || 0, 2)} <small>N</small></strong></div>`) +
       section('Montáž medzi telesami', `<label class="property-field"><span>Koniec A</span><select id="mount-a" class="property-select">${nodeOptions(K.elasticMount(state.project, e, 'a'), false, true, true)}</select></label><label class="property-field"><span>Koniec B</span><select id="mount-b" class="property-select">${nodeOptions(K.elasticMount(state.project, e, 'b'), false, true, true)}</select></label><p class="section-description">Sila sa prenesie medzi zvolené body. Pružný prvok nepredpisuje tuhú dĺžku. Koncové dĺžky sú dorazy, ktoré zastavia simuláciu.</p>`) +
-      section('Voľné konce v editácii', `${two(field('Poloha X', 'x', e.x, 'mm', -5000, 5000, .1, 'element'), field('Poloha Y', 'y', e.y, 'mm', -5000, 5000, .1, 'element'))}${field('Rozostup voľných čapov', 'length', e.length, 'mm', .1, 5000, .1, 'element')}${field('Uhol prvku', 'angle', e.angle, '°', -360, 360, .1, 'element')}`) +
+      section('Voľné konce v editácii', `${two(field('Poloha X', 'x', e.x, 'mm', -5000, 5000, .1, 'element'), field('Poloha Y', 'y', e.y, 'mm', -5000, 5000, .1, 'element'))}${field(spring ? 'Rozostup voľných čapov' : 'Návrhová vysunutá dĺžka', 'length', e.length, 'mm', .1, 5000, .1, 'element')}${field('Uhol prvku', 'angle', e.angle, '°', -360, 360, .1, 'element')}`) +
       `<div class="inspector-note">${icon('warning', 15)}<p>Parametre sú návrhový odhad. Overte minimálnu dĺžku, zdvih, rezervu a silu v údajoch výrobcu.</p></div><button class="button button-secondary full-width" data-action="elastic-sources">Katalógové príklady a zdroje</button>`;
   }
 
@@ -514,7 +514,7 @@
       points.push(at(length * .87), pose.b);
       body = `<path d="${pathD(points)}" stroke="${color}" stroke-width="${Math.min(4, Math.max(1, e.wireDiameter))}" stroke-linejoin="round" fill="none"/>`;
     } else {
-      const cylinder = Math.min(length * .8, e.minLength * .72), rod = at(cylinder);
+      const geometry = K.pistonGeometry(e), cylinder = Math.max(0, Math.min(length - geometry.eye, geometry.cylinder)), rod = at(cylinder);
       body = `${line(pose.a, pose.b, `stroke="#8995a2" stroke-width="${e.rodDiameter}" stroke-linecap="round"`)}${line(pose.a, rod, `stroke="${color}" stroke-width="${e.diameter}" stroke-linecap="butt"`)}${line(at(4), at(Math.max(4, cylinder - 4)), `stroke="#dde4eb" stroke-width="${e.diameter * .45}"`)}`;
     }
     const force = result.forces?.find((v) => v.id === e.id);
@@ -1024,8 +1024,8 @@
     const readout = $('#dynamics-readout');
     readout.hidden = state.project.simulation?.mode !== 'dynamic';
     if (!readout.hidden) {
-      const dynamic = state.dynamic;
-      readout.textContent = `ODHADOVÁ DYNAMIKA · t = ${fmt(dynamic?.time || 0, 2)} s · v = ${fmt((dynamic?.velocity || 0) / (state.forceContext?.scale || .001), 2)} ${range.unit}/s${dynamic?.reason ? ` · ${dynamic.reason}` : ''}`;
+      const dynamic = state.dynamic, tipSpeed = Math.max(0, ...Object.values(dynamic?.particles || {}).map((p) => Math.hypot(p.vx, p.vy) * 1000));
+      readout.textContent = `ODHADOVÁ DYNAMIKA · t = ${fmt(dynamic?.time || 0, 2)} s · v = ${fmt((dynamic?.velocity || 0) / (state.forceContext?.scale || .001), 2)} ${range.unit}/s${dynamic?.particles ? ` · čapy ${fmt(tipSpeed, 2)} mm/s` : ''}${dynamic?.reason ? ` · ${dynamic.reason}` : ''}`;
     }
   }
 
@@ -1046,8 +1046,7 @@
     state.motion = K.clamp(value, range.min, range.max);
     state.result = solveCurrent();
     if (state.dynamic && state.forceContext) {
-      const value = P.generalized(state.forceContext, state.motion, state.dynamic.velocity);
-      state.result.forces = P.forces(state.project, state.result, value.lengthRates);
+      state.result.forces = P.dynamicForces(state.forceContext, state.dynamic, state.result);
     }
     if (state.playing && state.result.blocked) {
       state.playing = false;
@@ -1427,7 +1426,7 @@
     if (!el) return; el.hidden = !preview;
     if (!preview) return;
     const target = state.project.elements.find((e) => e.id === preview.target.elementId), source = state.project.elements.find((e) => e.id === preview.source.elementId);
-    const types = preview.kind === 'cam-contact' ? [['cam-contact', 'Kontakt vačky']] : preview.target.ref?.point === 'curve' ? [...(target?.type === 'rail' ? [['prismatic', 'Posuvne']] : []), ['point-path', 'Otočne v dráhe']] : [['revolute', 'Otočne'], ['fixed', 'Napevno']];
+    const types = preview.kind === 'cam-contact' ? [['cam-contact', 'Kontakt vačky']] : preview.target.ref?.point === 'curve' ? [...(target?.type === 'rail' ? [['prismatic', 'Posuvne']] : []), ['point-path', 'Otočne v dráhe']] : K.isElastic(source) || K.isElastic(target) ? [['revolute', 'Otočne']] : [['revolute', 'Otočne'], ['fixed', 'Napevno']];
     el.innerHTML = `<span>${escape(source?.name || 'Prvok')} ↔ ${escape(target?.name || 'Montážny bod')}</span><div>${types.map(([type, label]) => `<button type="button" data-action="snap-connect" data-type="${type}">${label}</button>`).join('')}<button type="button" data-action="snap-position">Len poloha</button></div><small>Vyberte spoj · Escape ponechá polohu · Späť vráti celé prichytenie</small>`;
     const matrix = $('#mechanism-canvas').getScreenCTM(), area = $('#canvas-area').getBoundingClientRect();
     if (matrix) { el.style ||= {}; el.style.left = `${Math.max(12, Math.min(area.width - 300, preview.point.x * matrix.a + preview.point.y * matrix.c + matrix.e - (area.left || 0) + 16))}px`; el.style.top = `${Math.max(12, Math.min((area.height || 450) - 110, preview.point.x * matrix.b + preview.point.y * matrix.d + matrix.f - (area.top || 0) + 16))}px`; }
@@ -1994,7 +1993,7 @@
       } else if (e.primary && ['fourbar', 'crank'].includes(state.project.kind) && e.role === 'input') {
         state.drag = { kind: 'crank', center: pose.a, pointerId: event.pointerId };
       } else if (!e.primary && e.drive && e.type === 'rail') {
-        state.drag = { kind: 'custom-rail', start: point, angle: e.angle, startMotion: state.motion, stroke: e.stroke, pointerId: event.pointerId };
+        state.drag = { kind: 'custom-rail', start: point, angle: e.angle, startMotion: state.motion, stroke: e.stroke, reversed: !!e.movingRail, pointerId: event.pointerId };
       } else if (!e.primary && e.drive && ['link', 'panel', 'cam', 'node'].includes(e.type)) {
         state.drag = e.driveMode === 'linear'
           ? { kind: 'custom-rail', start: point, angle: e.driveAngle, startMotion: state.motion, stroke: e.stroke, pointerId: event.pointerId }
@@ -2073,9 +2072,9 @@
     } else if (drag.kind === 'rail') setMotion(drag.startMotion + point.x - drag.start.x);
     else if (drag.kind === 'panel') setMotion(K.inverseDrive(state.project, point, drag.fraction, { profile: state.profile, collisions: false, elementId: drag.elementId, point: drag.point }));
     else if (drag.kind === 'custom-rail') {
-      const radians = drag.angle * K.DEG, range = K.driveRange(state.project);
+      const radians = drag.angle * K.DEG, range = K.configuredDriveRange(state.project);
       const offset = (point.x - drag.start.x) * Math.cos(radians) - (point.y - drag.start.y) * Math.sin(radians);
-      setMotion(drag.startMotion + offset / drag.stroke * (range.max - range.min));
+      setMotion(drag.startMotion + (drag.reversed ? -1 : 1) * offset / drag.stroke * (range.max - range.min));
     }
     else if (drag.kind === 'crank' || drag.kind === 'custom-crank') { let angle = (K.angleOf(drag.center, point) - (drag.offset || 0) + 720) % 360; if (state.angleSnap && !state.snapSuppressed) angle = Math.round(angle / 10) * 10; setMotion(angle); }
     else if (drag.kind === 'inverse') setMotion(K.inverseDrive(state.project, point, drag.fraction, { profile: state.profile, collisions: false, elementId: drag.id, point: drag.key }));
@@ -2204,7 +2203,7 @@
     const root = $('#workflow-tools'); if (!root) return;
     root.hidden = !!state.magic;
     const reference = state.project.importReference, imported = reference || state.project.source?.name === 'Magic import';
-    const markup = `${state.phasePick ? '<button data-action="plan-pick-done">Použiť polohu</button><button data-action="plan-pick-cancel">Zrušiť výber</button>' : ''}${imported ? `<button data-action="reference-toggle" aria-pressed="${!!reference?.visible}"${reference ? '' : ' title="Doplniť pôvodný obrázok staršieho Magic projektu"'}>Predloha</button>${reference ? '<button data-action="reference-settings" aria-label="Nastaviť predlohu">◐</button>' : ''}` : ''}<button data-action="freedom-toggle" aria-pressed="${!!state.showFreedom}">Voľnosť</button><button data-action="trial-toggle" aria-pressed="${!!state.trial}">Skúšobný pohyb</button><button data-action="mechanism-kit">Zostavy</button><button data-action="motion-plan">Fázy pohybu</button>`;
+    const markup = `${state.phasePick ? '<button data-action="plan-pick-done">Použiť polohu</button><button data-action="plan-pick-cancel">Zrušiť výber</button>' : ''}${imported ? `<button data-action="reference-toggle" aria-pressed="${!!reference?.visible}"${reference ? '' : ' title="Doplniť pôvodný obrázok staršieho Magic projektu"'}>Predloha</button>${reference ? '<button data-action="reference-settings" aria-label="Nastaviť predlohu">◐</button>' : ''}` : ''}${state.project.elements.some(K.isElastic) ? `<button data-action="force-motion" aria-pressed="${state.project.simulation?.mode === 'dynamic'}">Pohyb zo síl</button>` : ''}<button data-action="freedom-toggle" aria-pressed="${!!state.showFreedom}">Voľnosť</button><button data-action="trial-toggle" aria-pressed="${!!state.trial}">Skúšobný pohyb</button><button data-action="mechanism-kit">Zostavy</button><button data-action="motion-plan">Fázy pohybu</button>`;
     if (root._workflowMarkup !== markup) { root.innerHTML = markup; root._workflowMarkup = markup; }
   }
 
@@ -3682,11 +3681,21 @@
     'confirm-replace': () => { if (state.pendingProject) { loadProject(state.pendingProject, state.pendingImport); state.pendingProject = null; state.pendingImport = null; } },
     'undo': () => undo(),
     'redo': () => undo(true),
+    'force-motion': () => {
+      const next = K.copy(state.project); next.simulation.mode = next.simulation.mode === 'dynamic' ? 'kinematic' : 'dynamic';
+      applyProject(next);
+      if (next.simulation.mode === 'dynamic') { toast('Pohyb zo síl je zapnutý. Spustite simuláciu; parametre hmotnosti a tlmenia upravíte vo Vlastnostiach.'); actions.play(); }
+    },
+    'piston-fit': () => {
+      const next = K.copy(state.project), e = next.elements.find((e) => e.id === state.selected);
+      if (!e?.type.startsWith('piston-')) return;
+      try { K.resizePiston(e, Math.max(e.maxLength, state.result.poses[e.id]?.length || e.length)); applyProject(next); } catch (error) { toast(error.message, true); }
+    },
     'play': () => {
       if (!state.project.elements.length) return;
       if (state.analysis) setWorkspaceView(false);
       if (state.mode === 'edit') setMode('simulate');
-      if (!state.playing && state.project.motionPlan?.phases.length && !state.planTime) { state.direction = 1; setMotion(state.project.motionPlan.phases[0].from); }
+      if (!state.playing && state.project.simulation.mode !== 'dynamic' && state.project.motionPlan?.phases.length && !state.planTime) { state.direction = 1; setMotion(state.project.motionPlan.phases[0].from); }
       if (!state.playing && state.result.blocked) { toast(`Pohon nemožno spustiť: ${state.result.issues[0]}`, true); return; }
       if (!state.playing && state.project.simulation.mode === 'dynamic') {
         if (!state.forceContext && !prepareForces(true)) return;
@@ -3812,6 +3821,8 @@
       if (key === 'length' && !element.primary && !element.locked && !element.outline.length && ['link', 'panel', 'rail', 'ground'].includes(element.type)) {
         try { next = W.setLength(next, element.id, value, W.preferredEnd(next, element.id), state.result); }
         catch (error) { toast(error.message, true); renderInspector(); return; }
+      } else if ((key === 'length' || key === 'maxLength') && element.type.startsWith('piston-')) {
+        try { K.resizePiston(element, value); } catch (error) { toast(error.message, true); renderInspector(); return; }
       } else if (key === 'curveRadius' && element.curveSemicircle) {
         try { next = I.semicircle(next, element.id, value, element.curveSide, state.result); }
         catch (error) { toast(error.message, true); renderInspector(); return; }
@@ -3881,9 +3892,10 @@
     if (input.id === 'graph-mode') {
       state.graphMode = input.value === 'force' ? 'force' : 'angle'; renderGraph(); renderInspector();
     }
-    if (['mount-a', 'mount-b', 'force-mode'].includes(input.id)) {
+    if (['mount-a', 'mount-b', 'force-mode', 'actuator-mode'].includes(input.id)) {
       const next = K.copy(state.project), e = next.elements.find((v) => v.id === state.selected);
       if (input.id === 'force-mode') e.forceMode = input.value;
+      else if (input.id === 'actuator-mode') e.actuatorMode = input.value;
       else {
         const key = input.id === 'mount-a' ? 'a' : 'b';
         e[key === 'a' ? 'mountA' : 'mountB'] = parseReference(input.value);

@@ -67,7 +67,7 @@
     };
     return {
       id: uid(), type, name: names[type] || 'Prvok', x, y, angle: type === 'panel' ? 90 : 0,
-      length: type === 'cam' ? 40 : type === 'panel' ? 160 : type === 'rail' ? 240 : 120,
+      length: type.startsWith('piston-') ? 240 : type === 'cam' ? 40 : type === 'panel' ? 160 : type === 'rail' ? 240 : 120,
       width: type === 'panel' ? 16 : 12, radius: type === 'cam' ? 40 : 6, stroke: 150, carriageOffset: 0, slotWidth: 16,
       carriageWidth: 24, carriageHeight: 30,
       camLift: 20, camPhase: 0,
@@ -78,9 +78,9 @@
       parentId: '', parentPoint: 'a', localC: null, outline: [],
       mass: ['ground', 'slot', 'node'].includes(type) || ELASTIC_TYPES.includes(type) ? 0 : type === 'rail' ? 2 : type === 'bearing' ? 0.1 : 1,
       inertia: 0, com: null,
-      restLength: 160, minLength: 80, maxLength: 240, diameter: 20,
+      restLength: type.startsWith('piston-') ? 240 : 160, minLength: type.startsWith('piston-') ? 144 : 80, maxLength: 240, diameter: 20,
       rodDiameter: 8, wireDiameter: 2, force: 100, stiffness: 1, preload: 0, forceMode: 'rated',
-      damping: 0, progression: 1, mountA: null, mountB: null,
+      damping: 0, dampingCompression: null, dampingExtension: null, actuatorMode: 'gas', tipMass: .1, progression: 1, mountA: null, mountB: null,
     };
   }
 
@@ -163,11 +163,22 @@
     return origin ? { x: position.x - origin.x, y: position.y - origin.y } : { ...position };
   }
 
-  function driveRange(project) {
+  function configuredDriveRange(project) {
     const rotary = ['fourbar', 'crank'].includes(project.kind) || (project.kind === 'custom' && project.elements.some((e) => e.drive && ['link', 'panel', 'cam'].includes(e.type) && e.driveMode !== 'linear'));
     return rotary
       ? { min: project.parameters.rotationMin ?? 0, max: project.parameters.rotationMax ?? 360, unit: '°', label: 'Uhol pohonu' }
       : { min: project.parameters.travelMin, max: project.parameters.travelMax, unit: 'mm', label: 'Posuv výsuvu' };
+  }
+
+  function driveRange(project) {
+    const range = configuredDriveRange(project), rail = project.kind === 'custom' && project.elements.find((e) => e.drive && e.type === 'rail');
+    if (!rail || !Number.isFinite(rail.carriageOffset) || !(rail.stroke > 0)) return range;
+    const span = range.max - range.min, low = Math.max(range.min, range.min - rail.carriageOffset / rail.stroke * span), high = Math.min(range.max, range.min + (rail.length - rail.carriageOffset) / rail.stroke * span);
+    return high > low + EPS ? { ...range, min: low, max: high } : range;
+  }
+  function railTravel(project, element, motion) {
+    const range = configuredDriveRange(project);
+    return element.drive ? clamp((motion - range.min) / Math.max(EPS, range.max - range.min), 0, 1) * element.stroke : 0;
   }
 
   function designAngle(p, s) {
@@ -348,9 +359,7 @@
     if (element.type === 'panel') pose.c = element.localC ? worldPoint(pose, element.localC) : along(a, element.bearingOffset, element.angle);
     if (element.outline?.length) pose.outline = element.outline.map((v) => worldPoint(pose, v));
     if (element.type === 'rail') {
-      const range = driveRange(project);
-      const t = (motion - range.min) / Math.max(EPS, range.max - range.min);
-      const travel = (element.drive ? t : 0) * element.stroke;
+      const travel = railTravel(project, element, motion);
       if (element.movingRail) {
         pose.a = along(a, -travel, element.angle); pose.b = along(pose.a, element.length, element.angle); pose.controlOrigin = pose.a;
         pose.c = along(a, element.carriageOffset || 0, element.angle);
@@ -551,19 +560,62 @@
     return joint ? (joint.a.elementId === element.id ? joint.b : joint.a) : null;
   }
 
+  function elasticGraph(project, poses) {
+    const elastic = project.elements.filter(isElastic), ports = new Map(), parent = new Map(), mounts = [];
+    const key = (r) => `${r.elementId}:${r.point}`;
+    for (const e of elastic) {
+      let body = e; const host = poses[e.parentId];
+      if (host) { const origin = host[e.parentPoint || 'a'] || host.a, offset = rotate({ x: e.x, y: e.y }, host.angle); body = { ...e, x: origin.x + offset.x, y: origin.y + offset.y, angle: e.angle + host.angle }; }
+      const base = bodyPose(body, 0, project);
+      for (const point of ['a', 'b']) { const id = key({ elementId: e.id, point }); ports.set(id, { id, elementId: e.id, point, at: base[point] }); parent.set(id, id); }
+    }
+    const root = (id) => { let current = id; while (parent.get(current) !== current) current = parent.get(current); return current; };
+    const connect = (a, b) => {
+      const x = key(a), y = key(b);
+      if (ports.has(x) && ports.has(y)) { const ra = root(x), rb = root(y); if (ra !== rb) parent.set(ra > rb ? ra : rb, ra > rb ? rb : ra); }
+      else if (ports.has(x)) mounts.push({ port: x, ref: b }); else if (ports.has(y)) mounts.push({ port: y, ref: a });
+    };
+    for (const e of elastic) for (const point of ['a', 'b']) { const r = e[point === 'a' ? 'mountA' : 'mountB']; if (r) connect({ elementId: e.id, point }, r); }
+    for (const j of project.connections) if (j.type === 'revolute' || !j.type) connect(j.a, j.b);
+    const groups = new Map();
+    for (const port of ports.values()) { const id = root(port.id); if (!groups.has(id)) groups.set(id, { id, ports: [], anchors: [] }); groups.get(id).ports.push(port); }
+    for (const mount of mounts) { const group = groups.get(root(mount.port)); if (!group.anchors.some((r) => key(r) === key(mount.ref))) group.anchors.push(mount.ref); }
+    for (const group of groups.values()) {
+      group.at = group.anchors.map((r) => poses[r.elementId]?.[r.point]).find((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y)) || { x: group.ports.reduce((s, p) => s + p.at.x, 0) / group.ports.length, y: group.ports.reduce((s, p) => s + p.at.y, 0) / group.ports.length };
+      group.mass = group.ports.reduce((sum, p) => sum + (elastic.find((e) => e.id === p.elementId).tipMass || .1), 0);
+    }
+    return { groups: [...groups.values()], ports: Object.fromEntries([...ports.keys()].map((id) => [id, root(id)])) };
+  }
+
+  function pistonGeometry(element) {
+    const stroke = element.maxLength - element.minLength, eye = Math.min(element.diameter * .4, element.minLength * .08), overlap = Math.max(element.rodDiameter, eye), cylinder = element.minLength - 2 * eye;
+    return { stroke, eye, overlap, cylinder, fits: cylinder >= stroke + overlap - TOLERANCE };
+  }
+
+  function resizePiston(element, length) {
+    if (!element.type.startsWith('piston-') || !Number.isFinite(length) || length < 1 || length > 5000) throw new Error('Dĺžka piesta musí byť 1 až 5000 mm.');
+    const ratio = Math.max(.6, Math.min(.85, element.minLength / element.maxLength));
+    const next = { ...element, length, maxLength: length, restLength: length, minLength: length * ratio };
+    if (!pistonGeometry(next).fits) {
+      const margin = Math.max(element.rodDiameter, element.diameter * .4);
+      next.minLength = Math.min(length * .9, (length + 3 * margin) / 2);
+    }
+    if (!pistonGeometry(next).fits) throw new Error('Piest je príliš krátky pre zadaný priemer a tyč. Zväčšite dĺžku alebo zmenšite priemery.');
+    Object.assign(element, { length: next.length, maxLength: next.maxLength, restLength: next.restLength, minLength: next.minLength });
+    return element;
+  }
+
   function solveElastic(project, poses, issues, invalid, options) {
+    const graph = elasticGraph(project, poses), positions = {};
+    for (const group of graph.groups) {
+      const dynamic = options.elasticPositions?.[group.id], at = !group.anchors.length && dynamic && [dynamic.x, dynamic.y].every(Number.isFinite) ? dynamic : group.at;
+      positions[group.id] = at;
+      for (const r of group.anchors) { const p = poses[r.elementId]?.[r.point]; if (!p || ![p.x, p.y].every(Number.isFinite) || distance(p, at) > TOLERANCE) { issues.push('Spoločný montážny bod pružiny alebo piesta má nezhodné uloženie.'); invalid.push(...group.ports.map((r) => r.elementId)); } }
+    }
     for (const e of project.elements.filter(isElastic)) {
-      const base = bodyPose(e, 0, project);
-      const ma = elasticMount(project, e, 'a'), mb = elasticMount(project, e, 'b');
-      const a = ma ? poses[ma.elementId]?.[ma.point] : base.a;
-      const b = mb ? poses[mb.elementId]?.[mb.point] : base.b;
-      if (!a || !b) { issues.push(`Prvok „${e.name}“ nemá platné montážne body.`); invalid.push(e.id); continue; }
-      const length = distance(a, b);
-      poses[e.id] = { a: { ...a }, b: { ...b }, length, angle: angleOf(a, b), mountA: ma, mountB: mb };
-      if (!options.design && (length < e.minLength - TOLERANCE || length > e.maxLength + TOLERANCE)) {
-        issues.push(`„${e.name}“ prekračuje dĺžkový rozsah ${e.minLength}–${e.maxLength} mm (aktuálne ${length.toFixed(1)} mm).`);
-        invalid.push(e.id);
-      }
+      const a = positions[graph.ports[`${e.id}:a`]], b = positions[graph.ports[`${e.id}:b`]], length = distance(a, b);
+      poses[e.id] = { a: { ...a }, b: { ...b }, length, angle: angleOf(a, b), mountA: elasticMount(project, e, 'a'), mountB: elasticMount(project, e, 'b') };
+      if (!options.design && (length < e.minLength - TOLERANCE || length > e.maxLength + TOLERANCE)) { issues.push(`„${e.name}“ prekračuje dĺžkový rozsah ${e.minLength}–${e.maxLength} mm (aktuálne ${length.toFixed(1)} mm).`); invalid.push(e.id); }
     }
   }
 
@@ -687,6 +739,7 @@
         }
       }
     }
+    if (!options.design) for (const e of project.elements.filter((e) => e.type === 'rail' && e.drive && !e.primary)) { const pose = poses[e.id], local = localPoint(pose, pose.c).x; if (local < -TOLERANCE || local > e.length + TOLERANCE) { issues.push(`Vozík „${e.name}“ je mimo mechanického rozsahu vedenia.`); invalid.push(e.id); } }
     const result = { ...details, motion: s, angle, displacement, poses, profile, residual, positionResidual, angularResidual, issues: [...new Set(issues)], collisions: [...new Set(collisions)], invalid: [...new Set(invalid)], blocked: issues.length > 0, range };
     if (global.KinmoPhysics && options.forces !== false) result.forces = global.KinmoPhysics.forces(project, result);
     return result;
@@ -811,6 +864,8 @@
       normalized.outline = (e.outline || []).map(vector);
       for (const key of ['restLength', 'minLength', 'maxLength', 'diameter', 'rodDiameter', 'wireDiameter']) normalized[key] = number(e[key], base[key], key === 'wireDiameter' ? 0.01 : 0.1, 5000);
       for (const key of ['force', 'stiffness', 'preload', 'damping']) normalized[key] = number(e[key], base[key], 0, 1000000);
+      normalized.actuatorMode = e.actuatorMode === 'damper' ? 'damper' : 'gas'; normalized.tipMass = number(e.tipMass, .1, .001, 1000);
+      normalized.dampingCompression = e.dampingCompression == null ? null : number(e.dampingCompression, 0, 0, 1000000); normalized.dampingExtension = e.dampingExtension == null ? null : number(e.dampingExtension, 0, 0, 1000000);
       normalized.progression = number(e.progression, 1, 1, 3);
       normalized.forceMode = e.forceMode === 'stiffness' ? 'stiffness' : 'rated';
       normalized.mountA = e.mountA || null; normalized.mountB = e.mountB || null;
@@ -929,7 +984,7 @@
       if (!Number.isInteger(importReference.active)) throw new Error('Neplatná poloha predlohy.');
     }
     if (input.motionPlan != null) {
-      const plan = input.motionPlan, range = driveRange({ kind: input.kind, elements, parameters: p });
+      const plan = input.motionPlan, range = configuredDriveRange({ kind: input.kind, elements, parameters: p });
       if (!Array.isArray(plan.phases) || plan.phases.length > 12 || !['mm', '°'].includes(plan.unit) || plan.unit !== range.unit) throw new Error('Fázy potrebujú jednotku aktuálneho pohonu a najviac 12 krokov.');
       const phases = plan.phases.map((v, i) => ({ name: text(v.name, `Fáza ${i + 1}`, 60), from: number(v.from, range.min, range.min, range.max), to: number(v.to, range.max, range.min, range.max), duration: number(v.duration, 1, .1, 120), easing: v.easing === 'smooth' ? 'smooth' : 'linear' }));
       if (phases.some((v, i) => i && Math.abs(v.from - phases[i - 1].to) > .00001)) throw new Error('Koniec fázy musí nadväzovať na začiatok ďalšej.');
@@ -945,7 +1000,7 @@
 
   global.Kinematics = Object.freeze({
     DEG, EPS, TOLERANCE, TYPES, KINDS, CURVES, ELASTIC_TYPES, CONSTRAINT_TYPES, defaults, simulationDefaults, clamp, lerp, distance, copy, uid,
-    along, angleOf, preset, makeElement, driveRange, designAngle, defaultControls, slotProfile,
+    along, angleOf, preset, makeElement, configuredDriveRange, driveRange, railTravel, pistonGeometry, resizePiston, elasticGraph, designAngle, defaultControls, slotProfile,
     bezier, catmull, arcPoints, circleIntersections, circlePathIntersections, nearestOnSegment,
     nearestOnPath, segmentIntersection, segmentRect, solve, sample, point, inverseDrive, bounds, validateProject,
     registerProject, prepareProject, projectPhases, tracePoint,

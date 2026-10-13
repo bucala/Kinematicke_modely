@@ -59,8 +59,13 @@
     if (e?.movingRail) return e.drive && ['a', 'b'].includes(point);
     return e?.primary && (e.role === 'carrier' || p.kind === 'drawer' && point === 'b') || (e?.drive || e?.primary) && K.carriagePoints.includes(point);
   };
-  function fixed(project, r) {
+  function fixed(project, r, visited = new Set()) {
+    const identity = nodeKey(r); if (visited.has(identity)) return false; visited.add(identity);
     const e = project.elements.find((v) => v.id === r.elementId), { body, point: rootPoint } = rootReference(project, e, r.point);
+    if (K.isElastic(e)) {
+      const mounts = [e[r.point === 'a' ? 'mountA' : 'mountB'], ...project.connections.filter((j) => (j.type || 'revolute') === 'revolute' && [j.a, j.b].some((v) => same(v, r))).map((j) => same(j.a, r) ? j.b : j.a)].filter(Boolean);
+      return mounts.some((other) => fixed(project, other, visited));
+    }
     if (!body) return false;
     if (body.type === 'rail' && !railDriven(project, body, rootPoint)) return true;
     if (body.type === 'ground' || (!body.primary && body.locked && !body.drive) || body.type === 'slot') return true;
@@ -120,7 +125,7 @@
     if (p.elements.some((v) => v.drive && v.id !== id)) throw new Error('Vedenie potrebuje jediný lineárny pohon. Najskôr vypnite druhý pohon.');
     storePose(e, result); e.movingRail = !!moving; e.drive = true; e.locked = false;
     // Rebase the drive so switching modes retains the displayed geometry at the current input.
-    const range = K.driveRange(p), travel = ((result.motion ?? range.min) - range.min) / Math.max(K.EPS, range.max - range.min) * e.stroke;
+    const range = K.driveRange(p), travel = K.railTravel(p, e, result.motion ?? range.min);
     if (moving) { const offset = K.along({ x: 0, y: 0 }, travel, e.angle); e.x += offset.x; e.y += offset.y; }
     e.carriageOffset -= travel;
     const released = moving ? ['a', 'b'] : K.carriagePoints;
@@ -274,7 +279,9 @@
     } else if (r.point === 'c') e.localC = K.localPoint(pose, at);
     else {
       const a = r.point === 'a' ? at : pose.a, b = r.point === 'b' ? at : pose.b, v = localOrigin(a);
-      e.x = v.x; e.y = v.y; e.length = K.distance(a, b); e.angle = K.angleOf(a, b) - parentAngle;
+      e.x = v.x; e.y = v.y;
+      if (e.type.startsWith('piston-')) K.resizePiston(e, K.distance(a, b)); else e.length = K.distance(a, b);
+      e.angle = K.angleOf(a, b) - parentAngle;
     }
     for (const j of p.connections.filter((j) => same(j.a, r) || same(j.b, r))) {
       const other = p.elements.find((v) => v.id === (same(j.a, r) ? j.b : j.a).elementId);

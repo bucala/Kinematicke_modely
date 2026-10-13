@@ -107,7 +107,7 @@
       const local = parent ? K.rotate({ x: world.x - parentOrigin.x, y: world.y - parentOrigin.y }, -parent.angle) : world;
       e.x = local.x; e.y = local.y; e.angle = angle(pose.angle + rotation - (parent?.angle || 0));
       if (e.type === 'rail' && e.movingRail && e.drive) {
-        const range = K.driveRange(p), travel = ((result.motion ?? range.min) - range.min) / Math.max(K.EPS, range.max - range.min) * e.stroke;
+        const range = K.driveRange(p), travel = K.railTravel(p, e, result.motion ?? range.min);
         const shift = K.along({ x: 0, y: 0 }, travel, e.angle); e.x += shift.x; e.y += shift.y;
       }
       if (e.drive && e.driveMode === 'linear' && e.type !== 'rail') e.driveAngle = angle(e.driveAngle + rotation);
@@ -385,8 +385,10 @@
     const priority = { endpoint: 0, midpoint: 1, guide: 2, 'cam-contact': 2, axis: 3, edge: 4, trajectory: 4, 'alignment-x': 5, 'alignment-y': 5 };
     const sameTarget = (a, b) => a && b && a.kind === b.kind && (options.inserting || a.source.elementId === b.source.elementId) && a.source.ref?.point === b.source.ref?.point && a.target.elementId === b.target.elementId && a.target.ref?.point === b.target.ref?.point && a.target.kind === b.target.kind && a.target.id === b.target.id;
     const retained = options.previous && candidates.find((c) => sameTarget(c, options.previous) && c.distance <= releaseTolerance);
-    if (retained) return { ...retained, motion: result.motion };
     const entering = candidates.filter((c) => c.distance <= enterTolerance);
+    const stronger = retained && entering.filter((c) => c.tier < retained.tier || c.tier === retained.tier && priority[c.kind] < priority[retained.kind]);
+    if (retained && !stronger.length) return { ...retained, motion: result.motion };
+    if (stronger?.length) { stronger.sort((a, b) => a.tier - b.tier || priority[a.kind] - priority[b.kind] || a.distance - b.distance); return { ...stronger[0], motion: result.motion }; }
     entering.sort((a, b) => a.tier - b.tier || (Math.abs(a.distance - b.distance) > .00001 ? a.distance - b.distance : priority[a.kind] - priority[b.kind] || a.priority - b.priority));
     return entering[0] ? { ...entering[0], motion: result.motion } : null;
   }

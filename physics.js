@@ -1,4 +1,5 @@
-/* Estimated, rigid, one-coordinate dynamics. SI is used internally (m, rad, s, kg, N).
+/* One rigid input coordinate plus axial elastic links with point masses at free ports.
+   SI is used internally (m, rad, s, kg, N).
    This is not a multibody/contact solver or a manufacturer gas-spring rating tool. */
 (function (global) {
   'use strict';
@@ -29,10 +30,11 @@
       const t = K.clamp((length - element.minLength) / (element.maxLength - element.minLength), 0, 1);
       const progression = element.progression || 1;
       const pulling = element.type === 'piston-pull';
-      force = (pulling ? -1 : 1) * element.force * (1 + (progression - 1) * (pulling ? t : 1 - t));
-      rate = element.force * (progression - 1) / (element.maxLength - element.minLength);
+      force = (element.actuatorMode === 'damper' ? 0 : (pulling ? -1 : 1)) * element.force * (1 + (progression - 1) * (pulling ? t : 1 - t));
+      rate = (element.actuatorMode === 'damper' ? 0 : element.force) * (progression - 1) / (element.maxLength - element.minLength);
     }
-    const damping = active ? -(element.damping || 0) * lengthVelocity : 0;
+    const coefficient = (lengthVelocity < 0 ? element.dampingCompression : element.dampingExtension) ?? element.damping ?? 0;
+    const damping = active ? -coefficient * lengthVelocity : 0;
     return {
       signedForce: force + damping, nominalForce: force, dampingForce: damping, magnitude: Math.abs(force + damping),
       potential, rate, active, withinRange: length >= element.minLength - K.TOLERANCE && length <= element.maxLength + K.TOLERANCE,
@@ -90,13 +92,15 @@
     const initial = K.solve(p, options.motion ?? range.min, { profile, collisions: options.collisions !== false });
     if (initial.blocked) throw new Error(`Dynamiku nemožno spustiť: ${initial.issues[0]}`);
     const freedom = E.freedom(p, initial);
-    if (!freedom.driven || freedom.free) throw new Error(`Dynamika vyžaduje jeden pohon a úplne určenú geometriu. Zostáva ${freedom.free} ďalších voľných súradníc.`);
+    const graph = K.elasticGraph(p, initial.poses), particles = graph.groups.filter((g) => !g.anchors.length);
+    const network = particles.length ? { graph, particles, members: p.elements.filter(K.isElastic).filter((e) => ['a', 'b'].some((key) => particles.some((g) => g.id === graph.ports[`${e.id}:${key}`]))) } : null;
+    if ((!freedom.driven && !network) || freedom.free) throw new Error(`Dynamika potrebuje určené tuhé telesá a pohon alebo voľné pružné čapy. Zostáva ${freedom.free} ďalších voľných súradníc.`);
     const samples = options.samples?.length >= 3 ? options.samples : K.sample(p, 241, { profile, collisions: options.collisions !== false, forces: false });
     const config = settings(p);
-    const elastic = p.elements.filter(K.isElastic);
+    const elastic = p.elements.filter(K.isElastic), rigidElastic = elastic.filter((e) => !network?.members.some((m) => m.id === e.id));
     const rows = samples.map((sample, index) => {
       const previous = samples[Math.max(0, index - 1)], next = samples[Math.min(samples.length - 1, index + 1)];
-      const dq = (next.motion - previous.motion) * scale;
+      const dq = (next.motion - previous.motion) * scale || 1;
       let mass = 0, gravity = 0;
       for (const e of p.elements.filter((v) => !K.isElastic(v) && v.mass > 0)) {
         const a = previous.poses[e.id], b = next.poses[e.id], pose = sample.poses[e.id];
@@ -107,11 +111,11 @@
         mass += e.mass * (dx * dx + dy * dy) + inertia(e, pose) * da * da;
         gravity += e.mass * config.gravity * dy;
       }
-      const members = elastic.map((e) => {
+      const members = rigidElastic.map((e) => {
         const a = previous.poses[e.id], b = next.poses[e.id], pose = sample.poses[e.id];
         return { id: e.id, length: pose?.length || 0, jacobian: a && b ? (b.length - a.length) / 1000 / dq : 0 };
       });
-      return { motion: sample.motion, mass, gravity, members, blocked: sample.blocked, issues: sample.issues };
+      return { motion: sample.motion, mass: freedom.driven ? mass : 1, gravity, members, blocked: sample.blocked, issues: sample.issues };
     });
     const usable = rows.filter((r) => !r.blocked);
     if (!usable.length || usable.some((r) => !Number.isFinite(r.mass) || r.mass < 1e-9)) throw new Error('Pohyblivé telesá nemajú platnú efektívnu hmotnosť. Nastavte hmotnosť a skontrolujte singulárne polohy.');
@@ -121,12 +125,18 @@
       for (const member of row.members) {
         const e = elastic.find((v) => v.id === member.id), value = axial(e, member.length);
         stiffness += value.rate * 1000 * member.jacobian ** 2;
-        damping += (e.damping || 0) * member.jacobian ** 2;
+        damping += Math.max(e.damping || 0, e.dampingCompression || 0, e.dampingExtension || 0) * member.jacobian ** 2;
       }
       maxStep = Math.min(maxStep, 0.25 * Math.sqrt(row.mass / Math.max(1, stiffness)), 0.4 * row.mass / Math.max(1, damping));
     }
+    if (network) for (const g of particles) {
+      const members = network.members.filter((e) => ['a', 'b'].some((key) => graph.ports[`${e.id}:${key}`] === g.id));
+      const stiffness = members.reduce((sum, e) => sum + Math.abs(axial(e, initial.poses[e.id].length).rate) * 1000, 0);
+      const damping = members.reduce((sum, e) => sum + Math.max(e.damping || 0, e.dampingCompression || 0, e.dampingExtension || 0), 0);
+      maxStep = Math.min(maxStep, .1 * Math.sqrt(g.mass / Math.max(1, stiffness)), .2 * g.mass / Math.max(1, damping));
+    }
     if (maxStep < 0.00001) throw new Error('Systém je príliš tuhý alebo silno tlmený pre túto odhadovú dynamiku. Znížte tuhosť / tlmenie alebo použite profesionálny dynamický solver.');
-    return { project: p, range, scale, profile, rows, config, elastic, maxStep, collisions: options.collisions !== false, freedom, estimated: true };
+    return { project: p, range, scale, profile, rows, config, elastic, maxStep, collisions: options.collisions !== false, freedom, network, estimated: true };
   }
 
   function interpolate(context, motion) {
@@ -170,7 +180,8 @@
   function initialState(context, motion = context.range.min) {
     return {
       motion: K.clamp(motion, context.range.min, context.range.max),
-      velocity: context.config.initialVelocity * context.scale, time: 0, stopped: false, reason: '',
+      velocity: context.freedom.driven ? context.config.initialVelocity * context.scale : 0, time: 0, stopped: false, reason: '',
+      ...(context.network ? { particles: Object.fromEntries(context.network.particles.map((g) => [g.id, { x: g.at.x, y: g.at.y, vx: 0, vy: 0 }])) } : {}),
     };
   }
 
@@ -178,6 +189,7 @@
     if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > 0.25) throw new Error('Časový krok musí byť v rozsahu 0–0,25 s.');
     const state = { ...previous };
     if (state.stopped || elapsed === 0) return state;
+    if (context.network) return stepNetwork(context, previous, elapsed);
     const count = Math.ceil(elapsed / context.maxStep), baseDt = elapsed / count;
     if (count > 25000) throw new Error('Časový krok je príliš veľký pre nastavenú tuhosť.');
     for (let i = 0; i < count; i++) {
@@ -215,9 +227,100 @@
     return state;
   }
 
+  function elasticPositions(state) {
+    return Object.fromEntries(Object.entries(state?.particles || {}).map(([id, p]) => [id, { x: p.x, y: p.y }]));
+  }
+
+  // Free ports share a particle at each revolute joint. Fixed/rigid ports remain exact anchors.
+  function networkForces(context, state) {
+    const positions = elasticPositions(state), solve = (q) => K.solve(context.project, q, { profile: context.profile, collisions: false, forces: false, elasticPositions: positions });
+    const result = solve(state.motion), span = context.range.max - context.range.min;
+    const qa = Math.max(context.range.min, state.motion - span * .00001), qb = Math.min(context.range.max, state.motion + span * .00001);
+    const before = context.freedom.driven ? solve(qa) : result, after = context.freedom.driven ? solve(qb) : result, dq = (qb - qa) * context.scale || 1;
+    const loads = Object.fromEntries(context.network.particles.map((g) => [g.id, { x: 0, y: g.mass * context.config.gravity }]));
+    let drive = 0; const lengthRates = {};
+    const endpoint = (e, key) => {
+      const id = context.network.graph.ports[`${e.id}:${key}`], particle = state.particles[id], at = result.poses[e.id][key];
+      const jacobian = particle ? { x: 0, y: 0 } : { x: (after.poses[e.id][key].x - before.poses[e.id][key].x) / 1000 / dq, y: (after.poses[e.id][key].y - before.poses[e.id][key].y) / 1000 / dq };
+      return { id, at, jacobian, velocity: particle ? { x: particle.vx, y: particle.vy } : { x: jacobian.x * state.velocity, y: jacobian.y * state.velocity } };
+    };
+    for (const e of context.network.members) {
+      const a = endpoint(e, 'a'), b = endpoint(e, 'b'), length = K.distance(a.at, b.at);
+      const ux = (b.at.x - a.at.x) / (length || 1), uy = (b.at.y - a.at.y) / (length || 1);
+      const rate = ux * (b.velocity.x - a.velocity.x) + uy * (b.velocity.y - a.velocity.y), force = axial(e, length, rate).signedForce;
+      lengthRates[e.id] = rate;
+      if (loads[a.id]) { loads[a.id].x -= ux * force; loads[a.id].y -= uy * force; }
+      if (loads[b.id]) { loads[b.id].x += ux * force; loads[b.id].y += uy * force; }
+      drive += force * (ux * (b.jacobian.x - a.jacobian.x) + uy * (b.jacobian.y - a.jacobian.y));
+    }
+    return { loads, drive, lengthRates, result };
+  }
+
+  function dynamicForces(context, state, result) {
+    const rates = generalized(context, state.motion, state.velocity).lengthRates;
+    if (context.network) Object.assign(rates, networkForces(context, state).lengthRates);
+    return forces(context.project, result, rates);
+  }
+
+  function stepNetwork(context, previous, elapsed) {
+    const state = { ...previous, particles: Object.fromEntries(Object.entries(previous.particles).map(([id, p]) => [id, { ...p }])) };
+    const count = Math.ceil(elapsed / context.maxStep), baseDt = elapsed / count;
+    if (count > 25000) throw new Error('Časový krok je príliš veľký pre nastavenú tuhosť.');
+    for (let i = 0; i < count; i++) {
+      const dt = Math.min(baseDt, Math.max(0, context.config.duration - state.time));
+      if (dt <= 0) { state.stopped = true; state.reason = 'Uplynul nastavený čas simulácie.'; break; }
+      const value = generalized(context, state.motion, state.velocity), network = networkForces(context, state);
+      if (context.freedom.driven) {
+        state.velocity += (value.net + network.drive) / value.mass * dt;
+        const candidate = state.motion + state.velocity * dt / context.scale;
+        state.motion = K.clamp(candidate, context.range.min, context.range.max);
+        if (state.motion !== candidate) state.velocity = 0;
+      }
+      for (const g of context.network.particles) {
+        const p = state.particles[g.id], load = network.loads[g.id];
+        p.vx += load.x / g.mass * dt; p.vy += load.y / g.mass * dt;
+        p.x += p.vx * dt * 1000; p.y += p.vy * dt * 1000;
+      }
+      // Inelastic stroke stops: project length and remove only forbidden radial velocity.
+      // Repeated passes handle series links sharing the same particle.
+      for (let pass = 0; pass < 20; pass++) {
+        const result = K.solve(context.project, state.motion, { profile: context.profile, collisions: false, forces: false, elasticPositions: elasticPositions(state) });
+        let correction = 0;
+        for (const e of context.network.members) {
+          const pose = result.poses[e.id], length = pose.length;
+          if (length < K.EPS) { state.stopped = true; state.reason = 'Pružný prvok má zhodné montážne body.'; break; }
+          const target = K.clamp(length, e.minLength, e.maxLength), error = length - target;
+          if (Math.abs(error) < .000001) continue;
+          correction = Math.max(correction, Math.abs(error));
+          const aId = context.network.graph.ports[`${e.id}:a`], bId = context.network.graph.ports[`${e.id}:b`], a = state.particles[aId], b = state.particles[bId];
+          const wa = a ? 1 / context.network.particles.find((g) => g.id === aId).mass : 0, wb = b ? 1 / context.network.particles.find((g) => g.id === bId).mass : 0, total = wa + wb;
+          if (!total) continue;
+          const ux = (pose.b.x - pose.a.x) / length, uy = (pose.b.y - pose.a.y) / length;
+          if (a) { a.x += ux * error * wa / total; a.y += uy * error * wa / total; }
+          if (b) { b.x -= ux * error * wb / total; b.y -= uy * error * wb / total; }
+          const velocityA = a || { vx: (pose.a.x - network.result.poses[e.id].a.x) / 1000 / dt, vy: (pose.a.y - network.result.poses[e.id].a.y) / 1000 / dt };
+          const velocityB = b || { vx: (pose.b.x - network.result.poses[e.id].b.x) / 1000 / dt, vy: (pose.b.y - network.result.poses[e.id].b.y) / 1000 / dt };
+          const radial = (velocityB.vx - velocityA.vx) * ux + (velocityB.vy - velocityA.vy) * uy;
+          if (radial * error > 0) {
+            if (a) { a.vx += radial * ux * wa / total; a.vy += radial * uy * wa / total; }
+            if (b) { b.vx -= radial * ux * wb / total; b.vy -= radial * uy * wb / total; }
+          }
+        }
+        if (state.stopped || correction < .000001) break;
+      }
+      state.time += dt;
+      const result = K.solve(context.project, state.motion, { profile: context.profile, collisions: context.collisions, forces: false, elasticPositions: elasticPositions(state) });
+      if (!Object.values(state.particles).every((p) => [p.x, p.y, p.vx, p.vy].every(Number.isFinite)) || !Number.isFinite(state.velocity)) { state.stopped = true; state.reason = 'Numericky nestabilný výpočet.'; }
+      else if (result.blocked) { state.stopped = true; state.reason = result.issues[0]; }
+      if (state.time >= context.config.duration - 1e-12) { state.time = context.config.duration; state.stopped = true; state.reason = 'Uplynul nastavený čas simulácie.'; }
+      if (state.stopped) break;
+    }
+    return state;
+  }
+
   function forceCurve(context) {
     return context.rows.map((row) => ({ motion: row.motion, ...generalized(context, row.motion), blocked: row.blocked }));
   }
 
-  global.KinmoPhysics = Object.freeze({ springRate, axial, forces, centerOfMass, inertia, prepare, generalized, initialState, step, forceCurve });
+  global.KinmoPhysics = Object.freeze({ springRate, axial, forces, centerOfMass, inertia, prepare, generalized, initialState, step, forceCurve, elasticPositions, dynamicForces });
 })(globalThis);

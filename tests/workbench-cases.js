@@ -600,5 +600,11 @@
     checks = W.diagnose(p, E.design(p, 0)).checks;
     assert(checks.some((c) => c.key === I.jointKey(p.connections[0].id) && c.otherKey === I.jointKey(p.connections[1].id)));
   });
+  add('Prichytenie osi nezablokuje následné prichytenie skutočného otočného bodu.', () => {
+    const spring = K.makeElement('spring-compression', 300, 0), piston = K.makeElement('piston-push', 0, 0), p = custom(spring, piston), result = E.design(p, 0), keys = [I.elementKey(spring.id)];
+    const axis = W.findSnap(p, keys, result, { x: -100, y: 0 }, { enabled: true, wholeBodies: true, sourcePoint: 'a', tolerance: 3 }); assert(axis.kind === 'axis');
+    const endpoint = W.findSnap(p, keys, result, { x: -60, y: 0 }, { enabled: true, wholeBodies: true, sourcePoint: 'a', tolerance: 3, previous: axis });
+    assert(endpoint.kind === 'endpoint' && endpoint.target.ref.point === 'b');
+  });
   global.KinematicsTestCases = [...(global.KinematicsTestCases || []), ...cases];
 })(globalThis);

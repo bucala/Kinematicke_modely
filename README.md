@@ -554,11 +554,13 @@ Nenamontovaný koniec A/B môžete v editore samostatne ťahať a prichytávať.
 - Tlačný piest rozťahuje, ťažný sťahuje; voliteľná lineárna progresia a osové tlmenie.
 - Hodnota F pružiny je sila pri pracovnej hranici. Pri explicitnej tuhosti rozhoduje k; F je len referenčný údaj.
 
-V **Nastaveniach** vyberte odhadovú dynamiku a nastavte gravitáciu, tlmenie, trenie, počiatočnú rýchlosť, vonkajšiu silu/moment a trvanie. Hmotnosť, ťažisko a zotrvačnosť patria jednotlivým telesám. Práca síl sa premieta do **jednej nezávislej súradnice** numerickými deriváciami polôh. Zobrazuje sa aj vyrovnávacia sila N alebo moment N·m a časový záznam.
+Tlačidlo **Pohyb zo síl** pri projektoch s pružnými prvkami zapne a spustí silovú simuláciu. V **Nastaveniach** môžete tiež vybrať odhadovú dynamiku a nastavte gravitáciu, tlmenie, trenie, počiatočnú rýchlosť, vonkajšiu silu/moment a trvanie. Hmotnosť, ťažisko a zotrvačnosť patria jednotlivým telesám. Práca síl sa premieta do **jednej nezávislej súradnice** numerickými deriváciami polôh. Zobrazuje sa aj vyrovnávacia sila N alebo moment N·m a časový záznam.
 
-Solver odmietne chýbajúci pohon, neurčené voľné členy, singularitu a nepoužiteľnú hmotnosť. Na doraze, pri neplatnej geometrii alebo pracovnej dĺžke sa zastaví bez modelu nárazu či odrazu. Podrobné limity platia nižšie.
+Spoločné otočné čapy pružín a piestov sa riešia naraz, nezávisle od poradia prvkov. Voľné čapy majú bodovú hmotnosť (predvolene 0,1 kg na koniec); sila a gravitácia ich rozhýbu aj bez predpísaného pohonu. Pri spoločnom čape sa hmotnosti sčítajú. Príslušné sily sa prenášajú aj na nosné teleso s jedným pohonom. Neurčené voľné tuhé členy, singularita a nepoužiteľná hmotnosť zostávajú odmietnuté. Na doraze, pri neplatnej geometrii alebo pracovnej dĺžke sa zastaví bez modelu nárazu či odrazu. Podrobné limity platia nižšie.
 
-Pružiny a piesty sa počítajú ako bezhmotnostné silové členy. Ich vlastnú hmotnosť pridajte k príslušnému nosnému telesu.
+Telesá pružín a piestov sú osové silové členy; voľné konce používajú nastaviteľnú bodovú hmotnosť, uložené konce sledujú nosné teleso. Jeho hmotnosť nastavte samostatne. Voľné čapy sa na pracovnom doraze obmedzia bez odrazu; simulácia môže pokračovať po uvoľnení dorazu.
+
+Piest možno prepnúť na **Tlmič**, ktorý nemá statickú tlačnú/ťažnú silu a odporuje rýchlosti. Tlmenie pri zasúvaní a vysúvaní možno zadať samostatne. Pri zmene návrhovej vysunutej dĺžky (aj ťahaním voľného konca) sa zväčší valec aj pracovný rozsah; pri simulácii sa vysúva tyč zo stáleho valca. Starší neúmerný zdvih upravíte tlačidlom **Prispôsobiť valec a rozsah** v inšpektore.
 
 Katalógové príklady a zdroje sú v inšpektore pružných prvkov: Gutekunst D-001 a RZ-001I. Predpätie RZ-001I je odvodené, nie samostatne overené. Plynová vzpera 400 N je **modelový príklad, nie identifikovaný katalógový výrobok**. Výber a montáž overte u výrobcu.
 
@@ -771,7 +773,7 @@ CAD obrys môže odmietnuť nulovú či pretínajúcu sa strednicu, prudký náv
 
 ## Hranice simulácie
 
-Kinematika je polohový solver. Voliteľná dynamika je **odhad jedného pohonu**, nie všeobecná viacstupňová fyzika, pevnostný výpočet či overenie výrobku. Nezahŕňa kontaktné reakcie, pružné deformácie tuhých telies, nárazy, funkciu západky, teplotu plynu ani životnosť ložísk.
+Kinematika je polohový solver. Voliteľná dynamika je **odhad jedného pohonu a siete osových pružných členov s bodovými hmotnosťami**, nie všeobecná viacstupňová fyzika, pevnostný výpočet či overenie výrobku. Nezahŕňa kontaktné reakcie, pružné deformácie tuhých telies, nárazy, funkciu západky, teplotu plynu ani životnosť ložísk.
 
 Geometrické kolízie sa vyhodnocujú v jednej 2D rovine; pri ramenách ide o kríženie stredníc. Vlastné polygonálne obrysy slúžia na kreslenie/CAD, nie na všeobecnú kontaktnú fyziku. Ramená v rôznych rovinách môžu byť v skutočnom výrobku priechodné. 121 diskrétnych polôh nezaručuje kontinuálnu bezkolízovosť.
 
@@ -877,7 +879,7 @@ workbench.js           Výrazy, kóty, úchyty, celá analýza, snap, podzostavy
 magic-import.js        Lokálny raster, kalibrácia, obkreslenie a Finish
 magic-detection.js     Ohraničené lokálne geometrické návrhy z obrázka
 context-menu.js        Samostatná klávesnicová a responzívna kontextová ponuka
-physics.js             Osové sily a odhadová dynamika jedného pohonu
+physics.js             Osové sily, tlmiče a dynamika pohonu a voľných pružných čapov
 slot-outline.js        Uzavreté polygonálne referenčné odsadenia drážok
 scene-export.js        Skutočný štýlovaný SVG snímok a ohraničené lokálne rasterovanie
 gif-export.js          Časovanie, adaptívna paleta a lokálny GIF89a/LZW encoder
