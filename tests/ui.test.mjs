@@ -92,7 +92,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -885,7 +885,7 @@ test('A handle click opens numeric entry without adding empty history', () => {
   assert.match(context.dialog.html, /id="transform-form"/); assert.equal(state.history.length, 0); assert(!state.inspectorOpen);
 });
 
-for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey']) test(`A handle does not swallow ${modifier} multiselection`, () => {
+for (const modifier of ['shiftKey', 'metaKey']) test(`A handle does not swallow ${modifier} multiselection`, () => {
   const { context, state } = controller(); context.selectTarget('n:body:a');
   const event = handlePointer('pivot', 10, 20); event[modifier] = true;
   context.onPointerDown(event);
@@ -1289,7 +1289,7 @@ test('Simple Click+Select adds no empty history entry; background clears nonempt
   assert.equal(state.selectedElementIds.length, 0); assert.equal(state.project.elements.length, 2);
 });
 
-for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey']) test(`${modifier}+click toggles selection without initiating a drag`, () => {
+for (const modifier of ['shiftKey', 'metaKey']) test(`${modifier}+click toggles selection without initiating a drag`, () => {
   const { context, state } = controller(); context.selectTarget('e:another-body');
   context.onPointerDown(pointer(60, 20, { [modifier]: true })); assert.equal(state.selectedElementIds.length, 2); assert(!state.drag);
   context.onPointerDown(pointer(60, 20, { [modifier]: true })); assert.deepEqual([...state.selectedElementIds], ['e:another-body']);
@@ -1963,4 +1963,40 @@ test('Manual simulation drag stops at piston stroke instead of drawing an imposs
   state.project.elements = [anchor, body, piston]; state.project.parameters.travelMax = 180; state.result = K.solve(state.project, 0, { collisions: false });
   context.setMotion(180); assert(!state.result.blocked); assert(state.motion < 97);
   assert(state.result.poses[piston.id].length >= piston.minLength - K.TOLERANCE);
+});
+
+for(const type of ['spring-compression','spring-extension','piston-push','piston-pull']) test(`${type}: bound A leaves B individually draggable and snap-ready`,()=>{
+  const {context,state}=controller(),K=context.K,ground=K.makeElement('ground',0,0),e=K.makeElement(type,0,0);
+  e.mountA={elementId:ground.id,point:'a'};state.project=K.preset('custom');state.project.elements=[ground,e];state.mode='edit';state.result=context.E.design(state.project,0);
+  const before=state.result.poses[e.id].b;
+  context.onPointerDown(pointer(before.x,before.y));assert.deepEqual([...state.drag.keys],[context.I.nodeKey({elementId:e.id,point:'b'})]);
+  context.onPointerMove(pointer(before.x+20,before.y+10));context.onPointerUp({pointerId:1});
+  const pose=state.result.poses[e.id];assert.equal(pose.a.x,0);assert.equal(pose.a.y,0);assert(Math.abs(pose.b.x-before.x-20)<.001&&Math.abs(pose.b.y-before.y-10)<.001);
+  assert.equal(state.project.elements.find((v)=>v.id===e.id).mountA.elementId,ground.id);assert.equal(state.history.length,1);
+});
+test('Transverse handle changes link width, preserves endpoints and is one undo transaction',()=>{
+  const {context,state}=controller(),e=state.project.elements[0],pose=state.result.poses[e.id];context.selectTarget(context.I.elementKey(e.id));
+  assert.match(context.manipulationSVG(1),/data-edit-handle="thickness"/);
+  const target={closest:s=>s==='[data-edit-handle]'?{dataset:{editHandle:'thickness'}}:null};
+  context.onPointerDown(pointer(60,0,{target}));context.onPointerMove(pointer(60,10));context.onPointerUp({pointerId:1});
+  assert.equal(state.project.elements[0].width,32);assert.equal(state.project.elements[0].length,100);assert.deepEqual(state.result.poses[e.id].a,pose.a);assert.deepEqual(state.result.poses[e.id].b,pose.b);assert.equal(state.history.length,1);
+  context.undo();assert.equal(state.project.elements[0].width,12);
+});
+test('Thickness handle also exists on a mounted elastic element and fixed frame',()=>{
+  const {context,state}=controller(),K=context.K,g=K.makeElement('ground',0,0),e=K.makeElement('piston-push',0,0);e.mountA={elementId:g.id,point:'a'};state.project=K.preset('custom');state.project.elements=[g,e];state.result=context.E.design(state.project,0);
+  for(const element of [g,e]) {context.selectTarget(context.I.elementKey(element.id));const html=context.manipulationSVG(1);assert.match(html,/data-edit-handle="thickness"/);assert.doesNotMatch(html,/data-edit-handle="move-x"/);}
+});
+test('Ctrl click cycles overlapping entities while Shift retains additive selection',()=>{
+  const {context,state}=controller(),hits=['n:body:a','e:body','e:another-body'];context.canvasHit=(_event,all)=>all?hits:hits[0];context.selectTarget('e:body');
+  context.onPointerDown(pointer(10,20,{ctrlKey:true}));assert.deepEqual([...state.selectedElementIds],['e:another-body']);assert(!state.drag);
+  context.onPointerDown(pointer(10,20,{ctrlKey:true}));assert.deepEqual([...state.selectedElementIds],['n:body:a']);
+  context.onPointerDown(pointer(10,20,{shiftKey:true}));assert.equal(state.selectedElementIds.length,0);
+});
+test('Right menus cover every library body, node, and an actual joint without invalid operations',()=>{
+  const {context,state}=controller(),K=context.K,types=K.TYPES;
+  for(const type of types){const e=K.makeElement(type,0,0);state.project=K.preset('custom');state.project.elements=[e];state.result=context.E.design(state.project,0);
+    for(const key of [context.I.elementKey(e.id),context.I.nodeKey({elementId:e.id,point:'a'})]){const items=context.contextItems(context.I.target(state.project,key));assert(items.some(i=>i.id==='inspect'));assert(items.some(i=>i.id==='thickness'));if(K.isElastic(e))assert(!items.flatMap(i=>i.items||[]).some(i=>i.id==='joint-prismatic'));}
+  }
+  const a=K.makeElement('link',0,0),b=K.makeElement('link',120,0),j={id:'menu-joint',type:'revolute',a:{elementId:a.id,point:'b'},b:{elementId:b.id,point:'a'}};state.project.elements=[a,b];state.project.connections=[j];
+  const menu=context.contextItems(context.I.target(state.project,context.I.jointKey(j.id)));assert(menu.some(i=>i.id==='edit-joint'));assert(menu.some(i=>i.id==='delete'&&i.label.includes('iba túto väzbu')));
 });

@@ -415,12 +415,12 @@
     const elastic = project.elements.filter(K.isElastic);
     const rows = [[`pohon_${unit === '°' ? 'deg' : 'mm'}`, 'cas_s', `rychlost_${unit === '°' ? 'deg' : 'mm'}_s`, `vyrovnavacia_${unit === '°' ? 'Nm' : 'N'}`, 'blokovanie', ...elastic.flatMap((e) => [`${e.id}_dlzka_mm`, `${e.id}_sila_N`])].join(';')];
     const states = history.length ? history.map((s) => ({
-      ...K.solve(project, s.motion, { profile: context?.profile, forces: false, elasticPositions: P.elasticPositions(s) }),
-      time: s.time, velocity: s.velocity, particles: s.particles,
+      ...K.solve(project, s.motion, { profile: context?.profile, forces: false, elasticPositions: P.elasticPositions(s), bodyPositions:P.bodyPositions(s) }),
+      time: s.time, velocity: s.velocity, particles: s.particles, bodies:s.bodies,
     })) : samples;
     for (const s of states) {
       const velocity = s.velocity || 0, value = context ? P.generalized(context, s.motion, velocity) : null;
-      const forces = context && s.particles ? P.dynamicForces(context, s, s) : P.forces(context?.project || project, s, value?.lengthRates || {});
+      const forces = context && (s.particles || s.bodies) ? P.dynamicForces(context, s, s) : P.forces(context?.project || project, s, value?.lengthRates || {});
       rows.push([n(s.motion), s.time == null ? '' : n(s.time), s.velocity == null ? '' : n(velocity / (unit === '°' ? K.DEG : .001)), value ? n(value.handForce) : '', s.blocked ? 1 : 0, ...elastic.flatMap((e) => [n(s.poses[e.id]?.length), n(forces.find((f) => f.id === e.id)?.signedForce)])].map(q).join(';'));
     }
     return '\uFEFF' + rows.join('\r\n');

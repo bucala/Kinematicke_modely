@@ -80,7 +80,7 @@
       inertia: 0, com: null,
       restLength: type === 'piston-pull' ? 144 : type === 'piston-push' ? 240 : 160, minLength: type.startsWith('piston-') ? 144 : 80, maxLength: 240, diameter: 20,
       rodDiameter: 8, wireDiameter: 2, force: 100, stiffness: 1, preload: 0, forceMode: 'rated',
-      damping: type.startsWith('piston-') ? 400 : type.startsWith('spring-') ? 200 : 0, dampingCompression: null, dampingExtension: null, actuatorMode: 'gas', tipMass: .1, progression: 1, mountA: null, mountB: null,
+      damping: type.startsWith('piston-') ? 400 : type.startsWith('spring-') ? 200 : 0, dampingCompression: null, dampingExtension: null, actuatorMode: 'gas', rangeMode: 'auto', tipMass: .1, progression: 1, mountA: null, mountB: null,
     };
   }
 
@@ -392,13 +392,14 @@
       const offset = linear ? along({ x: e.x, y: e.y }, (motion - range.min) / (range.max - range.min) * e.stroke, e.driveAngle || 0) : e;
       const angle = e.angle + (!options.design && e.drive && ['link', 'panel', 'cam'].includes(e.type) && !linear ? motion : 0);
       let x = offset.x, y = offset.y;
+      const seed = !options.design && !e.drive && !e.locked && !e.parentId && options.bodyPositions?.[e.id];
       if (!options.design && e.drive && !linear && e.drivePivot !== 'a') {
         const local = e.drivePivot === 'c' ? e.localC || { x: e.bearingOffset, y: 0 } : { x: e.length, y: 0 };
         const before = rotate(local, e.angle), after = rotate(local, angle);
         x += before.x - after.x; y += before.y - after.y;
       }
       return [e.id, {
-        element: e, x, y, angle, path: null,
+        element: e, x: seed && Number.isFinite(seed.x) ? seed.x : x, y: seed && Number.isFinite(seed.y) ? seed.y : y, angle: seed && Number.isFinite(seed.angle) ? seed.angle : angle, path: null,
       }];
     }));
     const refreshAll = () => {
@@ -624,6 +625,24 @@
       if (pose.length > e.maxLength + TOLERANCE || pose.length < e.minLength - TOLERANCE || !pistonGeometry(e).fits) {
         e.x = pose.a.x; e.y = pose.a.y; e.angle = pose.angle;
         resizePiston(e, pose.length);
+      }
+    }
+    return project;
+  }
+
+  function fitElasticRanges(project, ids = null, result = null) {
+    result ||= solve(project, driveRange(project).min, { design: true, collisions: false, forces: false });
+    for (const e of project.elements.filter((e) => isElastic(e) && e.rangeMode !== 'manual' && (!ids || ids.includes(e.id)))) {
+      const pose = result.poses[e.id], length = pose?.length;
+      if (!(length >= 1) || length > 5000 || ![elasticMount(project, e, 'a'), elasticMount(project, e, 'b')].some(Boolean)) continue;
+      if (e.type.startsWith('piston-')) { if (length > e.maxLength + TOLERANCE || length < e.minLength - TOLERANCE || !pistonGeometry(e).fits) { e.x = pose.a.x; e.y = pose.a.y; e.angle = pose.angle; resizePiston(e, length); } }
+      else if (length > e.maxLength + TOLERANCE || length < e.minLength - TOLERANCE) {
+        if (e.forceMode !== 'stiffness') {
+          const stroke = e.type === 'spring-compression' ? e.restLength - e.minLength : e.maxLength - e.restLength;
+          e.stiffness = stroke > EPS ? Math.max(0, e.force - (e.type === 'spring-extension' ? e.preload : 0)) / stroke : 0; e.forceMode = 'stiffness';
+        }
+        e.maxLength = Math.max(e.maxLength, Math.min(5000, length * 1.1));
+        e.minLength = Math.min(e.minLength, Math.max(.1, length * .8));
       }
     }
     return project;
@@ -891,6 +910,7 @@
       for (const key of ['restLength', 'minLength', 'maxLength', 'diameter', 'rodDiameter', 'wireDiameter']) normalized[key] = number(e[key], base[key], key === 'wireDiameter' ? 0.01 : 0.1, 5000);
       for (const key of ['force', 'stiffness', 'preload', 'damping']) normalized[key] = number(e[key], base[key], 0, 1000000);
       normalized.actuatorMode = e.actuatorMode === 'damper' ? 'damper' : 'gas'; normalized.tipMass = number(e.tipMass, .1, .001, 1000);
+      normalized.rangeMode = e.rangeMode === 'manual' ? 'manual' : 'auto';
       normalized.dampingCompression = e.dampingCompression == null ? null : number(e.dampingCompression, 0, 0, 1000000); normalized.dampingExtension = e.dampingExtension == null ? null : number(e.dampingExtension, 0, 0, 1000000);
       normalized.progression = number(e.progression, 1, 1, 3);
       normalized.forceMode = e.forceMode === 'stiffness' ? 'stiffness' : 'rated';
@@ -1027,7 +1047,7 @@
 
   global.Kinematics = Object.freeze({
     DEG, EPS, TOLERANCE, TYPES, KINDS, CURVES, ELASTIC_TYPES, CONSTRAINT_TYPES, defaults, simulationDefaults, clamp, lerp, distance, copy, uid,
-    along, angleOf, preset, makeElement, configuredDriveRange, driveRange, railTravel, pistonGeometry, resizePiston, fitMountedPistons, elasticGraph, designAngle, defaultControls, slotProfile,
+    along, angleOf, preset, makeElement, configuredDriveRange, driveRange, railTravel, pistonGeometry, resizePiston, fitMountedPistons, fitElasticRanges, elasticGraph, designAngle, defaultControls, slotProfile,
     bezier, catmull, arcPoints, circleIntersections, circlePathIntersections, nearestOnSegment,
     nearestOnPath, segmentIntersection, segmentRect, solve, sample, point, inverseDrive, bounds, validateProject,
     registerProject, prepareProject, projectPhases, tracePoint,

@@ -316,5 +316,38 @@
     const a = P.step(ordinary, P.initialState(ordinary), .03), b = P.step(returning, P.initialState(returning), .03);
     assert(b.motion < a.motion && b.motion > 0 && returning.returning); near(returning.elastic[0].damping, 200); near(spring.damping, 0); assert(JSON.stringify(project) === before);
   });
+  add('Pružina rozhýbe nepoháňané rameno okolo pevného čapu a neprepíše návrh.', () => {
+    const p=K.preset('custom'),pivot=K.makeElement('ground',0,0),anchor=K.makeElement('ground',0,200),link=K.makeElement('link',0,0),spring=K.makeElement('spring-extension',0,200);
+    spring.mountA={elementId:anchor.id,point:'a'};spring.mountB={elementId:link.id,point:'b'};
+    p.elements=[pivot,anchor,link,spring];p.connections=[{id:K.uid(),type:'revolute',a:{elementId:link.id,point:'a'},b:{elementId:pivot.id,point:'a'}}];p.simulation.gravity=0;
+    const json=JSON.stringify(p),c=P.prepare(p,{collisions:false}),initial=P.initialState(c),state=P.step(c,initial,.03),result=K.solve(p,0,{collisions:false,bodyPositions:P.bodyPositions(state),elasticPositions:P.elasticPositions(state)});
+    assert(c.bodyDynamics && !state.stopped && !result.blocked);assert(result.poses[link.id].b.y>1);near(K.distance(result.poses[link.id].a,result.poses[pivot.id].a),0,.001);near(result.poses[link.id].length,120);
+    assert(JSON.stringify(p)===json && initial.bodies[link.id].angle===0);
+  });
+  add('Silový pohyb ramena s ložiskom v kulise funguje bez motora.', () => {
+    const p=K.preset('custom'),anchor=K.makeElement('ground',0,240),link=K.makeElement('link',0,0),slot=K.makeElement('slot',120,0),bearing=K.makeElement('bearing',120,0),spring=K.makeElement('spring-extension',0,0);
+    Object.assign(slot,{curveKind:'polyline',controls:[{x:0,y:0},{x:80,y:80},{x:160,y:100}],slotWidth:20});bearing.slotId=slot.id;
+    spring.mountA={elementId:link.id,point:'a'};spring.mountB={elementId:anchor.id,point:'a'};p.elements=[anchor,slot,link,bearing,spring];p.simulation.gravity=0;
+    p.connections=[{id:K.uid(),type:'revolute',a:{elementId:link.id,point:'b'},b:{elementId:bearing.id,point:'a'}}];
+    const c=P.prepare(p,{collisions:false}),state=P.step(c,P.initialState(c),.03),result=K.solve(p,0,{collisions:false,bodyPositions:P.bodyPositions(state)});
+    assert(c.bodyDynamics && c.freedom.free===2 && !state.stopped && !result.blocked);assert(result.poses[link.id].a.y>1);
+    near(K.distance(result.poses[link.id].b,result.poses[bearing.id].a),0,.001);near(K.nearestOnPath(result.poses[bearing.id].a,result.poses[slot.id].path).distance,0,.001);
+    const csv=global.KinmoExport.forceCSV(p,[],c,[state]);assert(!csv.includes('NaN'));
+  });
+  add('Automatická montáž pružiny zachová jej tuhosť a povolí dlhú montáž.', () => {
+    const p=K.preset('custom'),a=K.makeElement('ground',0,0),b=K.makeElement('ground',0,353),spring=K.makeElement('spring-extension',0,0);spring.mountA={elementId:a.id,point:'a'};spring.mountB={elementId:b.id,point:'a'};p.elements=[a,b,spring];
+    const rate=P.springRate(spring),next=K.fitElasticRanges(K.copy(p)),e=next.elements.find((e)=>e.id===spring.id);near(P.springRate(e),rate);assert(e.maxLength>353 && e.restLength===160 && !K.solve(next,0).blocked);
+    spring.rangeMode='manual';const manual=K.fitElasticRanges(K.copy(p));near(manual.elements.find((e)=>e.id===spring.id).maxLength,240);assert(K.solve(manual,0).blocked);
+  });
+  add('Nepoháňané rameno s piestom sa zastaví na ručnom doraze bez preskočenia.', () => {
+    const p=K.preset('custom'),pivot=K.makeElement('ground',0,0),anchor=K.makeElement('ground',0,200),link=K.makeElement('link',0,0),piston=K.makeElement('piston-push',0,200);
+    Object.assign(piston,{force:1000,rangeMode:'manual',mountA:{elementId:anchor.id,point:'a'},mountB:{elementId:link.id,point:'b'}});
+    p.elements=[pivot,anchor,link,piston];p.connections=[{id:K.uid(),type:'revolute',a:{elementId:link.id,point:'a'},b:{elementId:pivot.id,point:'a'}}];p.simulation.gravity=0;
+    const c=P.prepare(p,{collisions:false});let state=P.initialState(c);
+    for(let i=0;i<100&&!state.stopped;i++)state=P.step(c,state,.01);
+    const result=K.solve(p,0,{collisions:false,bodyPositions:P.bodyPositions(state)});
+    assert(state.stopped && !result.blocked);near(result.poses[piston.id].length,piston.maxLength,.002);near(K.distance(result.poses[link.id].a,result.poses[pivot.id].a),0,.001);
+    assert(Object.values(state.bodies).every(b=>[b.vx,b.vy,b.omega].every(v=>v===0)));
+  });
   global.KinematicsTestCases = Object.freeze([...global.KinematicsTestCases, ...cases]);
 })(globalThis);

@@ -606,5 +606,11 @@
     const endpoint = W.findSnap(p, keys, result, { x: -60, y: 0 }, { enabled: true, wholeBodies: true, sourcePoint: 'a', tolerance: 3, previous: axis });
     assert(endpoint.kind === 'endpoint' && endpoint.target.ref.point === 'b');
   });
+  add('Priečny rozmer vlastného obrysu škáluje skutočnú výšku okolo stredu.', () => {
+    const e=K.makeElement('link',0,0);e.outline=[{x:0,y:20},{x:100,y:20},{x:100,y:60},{x:0,y:60}];
+    const p=custom(e),next=W.setThickness(p,e.id,80),updated=next.elements[0];near(W.thickness(e).value,40);near(W.thickness(updated).value,80);
+    near(Math.min(...updated.outline.map(p=>p.y)),0);near(Math.max(...updated.outline.map(p=>p.y)),80);near(updated.length,e.length);near(p.elements[0].outline[0].y,20);
+    const spring=K.makeElement('spring-compression');throws(()=>W.setThickness(custom(spring),spring.id,2*spring.wireDiameter));
+  });
   global.KinematicsTestCases = [...(global.KinematicsTestCases || []), ...cases];
 })(globalThis);

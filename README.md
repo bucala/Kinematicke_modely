@@ -375,7 +375,7 @@ Všetky tri voľby si pamätajú nastavenia pracovného priestoru aj `.kinmo`. P
 
 ## Výber a kontextové úpravy
 
-Ľavým kliknutím vyberiete bod, kĺb alebo telo členu. Koncové body majú prednosť pred telesom a približovanie nemení veľkosť ich klikateľnej oblasti. **Shift/Ctrl/Cmd + klik** pridá alebo odoberie položku. Kliknutie na prázdne plátno výber zruší. Symboly a kurzor odlišujú pevné, voľné a poháňané body; akcent zvýrazňuje výber.
+Ľavým kliknutím vyberiete bod, kĺb alebo telo členu. Koncové body majú prednosť pred telesom a približovanie nemení veľkosť ich klikateľnej oblasti. **Shift/Cmd + klik** pridá alebo odoberie položku. Kliknutie na prázdne plátno výber zruší. Symboly a kurzor odlišujú pevné, voľné a poháňané body; akcent zvýrazňuje výber.
 
 **Pravé tlačidlo** otvorí vlastnú ponuku, nie ponuku prehliadača. Pravý klik na časť už zvýrazneného telesa zachová skupinu, ale cieľom ponuky ostáva presne kliknutý bod, vrchol či dráha. Pravý klik na pozadie výber neruší. Ponuka sa zmestí do viewportu a zavrie sa kliknutím mimo nej, Escape, posunom alebo priblížením plátna. Klávesnica podporuje Shift+F10, šípky, Home/End, Enter a Escape. Výber ani kontextové formuláre automaticky neotvárajú Vlastnosti.
 
@@ -504,7 +504,7 @@ Tlačidlo **Sieť 5 mm** je nezávislé. Jeho vypnutie umožní voľnú polohu, 
 <details>
 <summary><strong>Uložiť výber a vložiť nezávislú podzostavu</strong></summary>
 
-1. Vo vlastnom modeli alebo voľnej kópii vyberte členy pomocou Shift/Ctrl/Cmd + klik. Výber kĺbu zahŕňa obe jeho telesá.
+1. Vo vlastnom modeli alebo voľnej kópii vyberte členy pomocou Shift/Cmd + klik. Výber kĺbu zahŕňa obe jeho telesá.
 2. Otvorte **názov projektu → Vlastné podzostavy → Uložiť aktuálny výber**, prípadne použite kontextovú ponuku výberu.
 3. Pomenujte podzostavu. Uložia sa celé členy, nesení potomkovia, skryté ukotvenia, vnútorné väzby, kóty a trajektórie.
 4. Zvoľte **Vložiť…**, zadajte X/Y a potvrďte **Vložiť kópiu**. Vzniknú nové identifikátory; originál aj knižnica zostanú nezmenené.
@@ -549,7 +549,11 @@ Vačka má vo Vlastnostiach aj v kontextovej ponuke voľbu **Tvar vačky**: pôv
 
 Pridajte pružný prvok a nastavte montážne body A/B v inšpektore. Zadajte minimálnu, maximálnu a voľnú dĺžku, priemer, silu alebo tuhosť, predpätie a osové tlmenie. Piest má aj priemer tyče a pomer progresie 1–3. **F je v N, k v N/mm, osové tlmenie v N·s/m, hmotnosť v kg a zotrvačnosť v kg·m².**
 
-Nenamontovaný koniec A/B môžete v editore samostatne ťahať a prichytávať. Namontovaný koniec sleduje svoje teleso a neprepisuje sa ručným posunom; pred úpravou ho odpojte. Montážna ponuka zahŕňa aj stred/vrch/spodok vozíka C/CT/CB.
+Nenamontovaný koniec A/B môžete v editore samostatne ťahať a prichytávať. Namontovaný koniec sleduje svoje teleso a neprepisuje sa ručným posunom; pred úpravou ho odpojte. Montážna ponuka zahŕňa aj stred/vrch/spodok vozíka C/CT/CB. Pripojenie A neblokuje samostatné ťahanie voľného B a naopak.
+
+**Pracovný rozsah: automaticky pri montáži** prispôsobí príliš krátky rozsah vzdialenosti čapov. Pružina zachová pôvodnú tuhosť aj voľnú dĺžku; piest prispôsobí tiež valec. Ručná zmena minima alebo maxima prepne na **Ručné dorazy**, ktoré sa automaticky nerozširujú. Túto voľbu možno meniť v inšpektore.
+
+V režime Úprava geometrie má vybraný prvok samostatný štvorcový úchyt **hrúbky / priemeru** na spodnej strane. Ťahanie mení priečny rozmer bez zmeny dĺžky alebo montáže, aj na ukotvených členoch. Číselnú hodnotu otvoríte z panela výberu alebo pravým kliknutím cez **Hrúbka / priemer…**. Vlastný polygonálny obrys sa škáluje okolo stredu svojho priečneho rozsahu.
 
 - Tlačná pružina: $F = k \max(0, L_0-L)$.
 - Ťažná pružina: $F = -(F_0+k(L-L_0))$ pri $L \ge L_0$, inak nulová sila.
@@ -558,9 +562,9 @@ Nenamontovaný koniec A/B môžete v editore samostatne ťahať a prichytávať.
 
 **Po pustení v simulácii** sa mechanizmus automaticky vráti silou pružiny alebo plynového piesta. Voľný koniec možno priamo stlačiť alebo natiahnuť; pri držaní a návrate sa uložená geometria nemení. Ručné ťahanie pohonu rešpektuje pracovné dorazy pružných prvkov. V Nastaveniach možno automatický návrat vypnúť a upraviť dodatočné osové tlmenie návratu (predvolene 200 N·s/m). Toto tlmenie sa pripočíta iba počas návratu, nemení uložené katalógové parametre člena. Samotný tlmič bez pružiny alebo plynovej sily sa sám nevracia.
 
-Tlačidlo **Pohyb zo síl** pri projektoch s pružnými prvkami zapne a spustí silovú simuláciu. V **Nastaveniach** môžete tiež vybrať odhadovú dynamiku a nastaviť gravitáciu, tlmenie, trenie, počiatočnú rýchlosť, vonkajšiu silu/moment a trvanie. Hmotnosť, ťažisko a zotrvačnosť patria jednotlivým telesám. Práca síl sa premieta do **jednej nezávislej súradnice** numerickými deriváciami polôh. Zobrazuje sa aj vyrovnávacia sila N alebo moment N·m a časový záznam.
+Tlačidlo **Pohyb zo síl** pri projektoch s pružnými prvkami zapne a spustí silovú simuláciu. V **Nastaveniach** môžete tiež vybrať odhadovú dynamiku a nastaviť gravitáciu, tlmenie, trenie, počiatočnú rýchlosť, vonkajšiu silu/moment a trvanie. Hmotnosť, ťažisko a zotrvačnosť patria jednotlivým telesám. Pri predpísanom pohone sa práca síl premieta do **jednej nezávislej súradnice** numerickými deriváciami polôh. Bez motora možno simulovať aj až 32 pohyblivých tuhých telies pripojených k sieti pružín/piestov cez montáže, kĺby alebo ložisko v kulise. Členy potrebujú kladnú hmotnosť; ich posuv a rotácia sa po malých časových krokoch premietajú späť na geometrické väzby. Voľné teleso môžete chytiť, premiestniť a pustiť; pohyb pokračuje zo síl a nemení návrh. Zobrazuje sa aj vyrovnávacia sila N alebo moment N·m a časový záznam.
 
-Spoločné otočné čapy pružín a piestov sa riešia naraz, nezávisle od poradia prvkov. Voľné čapy majú bodovú hmotnosť (predvolene 0,1 kg na koniec); sila a gravitácia ich rozhýbu aj bez predpísaného pohonu. Pri spoločnom čape sa hmotnosti sčítajú. Príslušné sily sa prenášajú aj na nosné teleso s jedným pohonom. Neurčené voľné tuhé členy, singularita a nepoužiteľná hmotnosť zostávajú odmietnuté. Na doraze, pri neplatnej geometrii alebo pracovnej dĺžke sa zastaví bez modelu nárazu či odrazu. Podrobné limity platia nižšie.
+Spoločné otočné čapy pružín a piestov sa riešia naraz, nezávisle od poradia prvkov. Voľné čapy majú bodovú hmotnosť (predvolene 0,1 kg na koniec); sila a gravitácia ich rozhýbu aj bez predpísaného pohonu. Pri spoločnom čape sa hmotnosti sčítajú. Príslušné sily sa prenášajú aj na nosné teleso s pohonom alebo na voľnú silovú zostavu. Odpojené voľné tuhé členy, singularita a nepoužiteľná hmotnosť zostávajú odmietnuté. Na doraze, pri neplatnej geometrii alebo pracovnej dĺžke sa zastaví bez modelu nárazu či odrazu. Podrobné limity platia nižšie.
 
 Telesá pružín a piestov sú osové silové členy; voľné konce používajú nastaviteľnú bodovú hmotnosť, uložené konce sledujú nosné teleso. Jeho hmotnosť nastavte samostatne. Voľné čapy sa na pracovnom doraze obmedzia bez odrazu; simulácia môže pokračovať po uvoľnení dorazu.
 
@@ -666,7 +670,9 @@ Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusio
 | Myš / gesto | Akcia |
 |---|---|
 | Ľavý klik na objekt | Vybrať bod, kĺb alebo člen |
-| Shift/Ctrl/Cmd + klik | Pridať alebo odobrať položku výberu |
+| Shift/Cmd + klik | Pridať alebo odobrať položku výberu |
+| Ctrl + klik | Prepnúť na ďalší prekrývajúci sa prvok, uzol alebo väzbu |
+| Alt + ťahanie | Vypnúť prichytávanie počas ťahania |
 | Ťahanie vybraného objektu | Posun geometrie alebo skupiny v editačnom režime |
 | Ťahanie X/Y, otočného alebo dĺžkového úchytu | Priama úprava návrhovej geometrie |
 | Klik / Enter / medzerník na úchyte | Presné číselné zadanie |
@@ -777,11 +783,11 @@ CAD obrys môže odmietnuť nulovú či pretínajúcu sa strednicu, prudký náv
 
 ## Hranice simulácie
 
-Kinematika je polohový solver. Voliteľná dynamika je **odhad jedného pohonu a siete osových pružných členov s bodovými hmotnosťami**, nie všeobecná viacstupňová fyzika, pevnostný výpočet či overenie výrobku. Nezahŕňa kontaktné reakcie, pružné deformácie tuhých telies, nárazy, funkciu západky, teplotu plynu ani životnosť ložísk.
+Kinematika je polohový solver. Voliteľná dynamika je **odhad jedného pohonu alebo pohybu pružných čapov a pripojených tuhých telies s projekciou na kĺby**, nie všeobecná viacstupňová fyzika, pevnostný výpočet či overenie výrobku. Nezahŕňa kontaktné reakcie, pružné deformácie tuhých telies, nárazy, funkciu západky, teplotu plynu ani životnosť ložísk.
 
 Geometrické kolízie sa vyhodnocujú v jednej 2D rovine; pri ramenách ide o kríženie stredníc. Vlastné polygonálne obrysy slúžia na kreslenie/CAD, nie na všeobecnú kontaktnú fyziku. Ramená v rôznych rovinách môžu byť v skutočnom výrobku priechodné. 121 diskrétnych polôh nezaručuje kontinuálnu bezkolízovosť.
 
-Predpísané uvoľnenie opory dvojkulisového projektu **nie je dynamicky overené**. Jeho voľná kópia potrebuje doplniť chýbajúce uloženie; pripojenie pružiny samo neodstráni neurčený stupeň voľnosti.
+Predpísané uvoľnenie opory dvojkulisového projektu **nie je dynamicky overené**. Jeho voľná kópia potrebuje doplniť chýbajúce uloženie; pripojenie pružiny samo neodstráni neurčený stupeň voľnosti v polohovom riešení. Silová simulácia pripojených telies je odhad pohybu, nie dôkaz správnosti uloženia.
 
 Pri blokovaní sa pohon zastaví a problém sa zobrazí. Ručným pohonom možno preskúmať aj neplatnú konfiguráciu. Riadené členy šablón zostávajú chránené; na ľubovoľnú zmenu použite samostatnú voľnú kópiu.
 
