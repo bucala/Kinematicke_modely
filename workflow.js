@@ -10,7 +10,7 @@
   }
   function comparePoses(baseCandidates, frames, calibration) {
     const copies = K.copy(baseCandidates), signatures = (c) => ({ length: c.points.length > 1 ? K.distance(c.points[0], c.points.at(-1)) : c.radius * 2, width: c.width || c.radius * 2 });
-    const matches = copies.map(() => []);
+    const matches = copies.map(() => []), matchFrames=copies.map(()=>[]);
     for (const frame of frames) {
       const map = frameTransform(calibration, frame.alignment), scale = K.distance(calibration.a, calibration.b) / K.distance(frame.alignment.a, frame.alignment.b);
       const candidates = frame.candidates.map((c) => ({ ...c, points: c.points.map(map), width: c.width * scale, radius: c.radius * scale })), used = new Set();
@@ -24,7 +24,7 @@
         const best = ranked[0]; used.add(best.index);
         const direct = K.distance(c.points[0], best.v.points[0]) + K.distance(c.points.at(-1), best.v.points.at(-1));
         const reverse = K.distance(c.points[0], best.v.points.at(-1)) + K.distance(c.points.at(-1), best.v.points[0]);
-        matches[i].push(reverse < direct ? [...best.v.points].reverse() : best.v.points);
+        matches[i].push(reverse < direct ? [...best.v.points].reverse() : best.v.points);matchFrames[i].push(frames.indexOf(frame));
       });
     }
     return copies.map((c, i) => {
@@ -32,7 +32,7 @@
       const fixed = poses.length && poses.every((p) => K.distance(a, p[0]) < tolerance && K.distance(b, p.at(-1)) < tolerance);
       const translating = poses.length && poses.every((p) => Math.abs(K.angleOf(p[0], p.at(-1)) - K.angleOf(a, b)) < 3);
       const pivot = poses.length && c.points.length > 1 && (poses.every((p) => K.distance(a, p[0]) < tolerance) ? 'a' : poses.every((p) => K.distance(b, p.at(-1)) < tolerance) ? 'b' : null);
-      c.motionEvidence = { kind: fixed ? 'fixed' : pivot ? 'rotation' : translating ? 'translation' : 'uncertain', pivot: pivot || '', matches: poses.length, total: frames.length };
+      c.motionEvidence = { kind: fixed ? 'fixed' : pivot ? 'rotation' : translating ? 'translation' : 'uncertain', pivot: pivot || '', matches: poses.length, total: frames.length, axis:poses.length?K.angleOf(a,poses[0][0]):0, travel:Math.max(0,...poses.map(p=>K.distance(a,p[0]))),transforms:poses.map((p,j)=>{const angle=((K.angleOf(p[0],p.at(-1))-K.angleOf(a,b)+540)%360)-180,rotated=K.rotate(a,angle);return{frame:matchFrames[i][j],angle,x:p[0].x-rotated.x,y:p[0].y-rotated.y};}) };
       return c;
     });
   }

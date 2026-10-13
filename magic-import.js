@@ -191,7 +191,7 @@
   }
   function applyDetected(project, image, scale, candidates, options = {}) {
     let p = K.copy(K.validateProject(project));
-    const checked = calibration(image, scale?.a, scale?.b, scale?.distance, scale?.axis), added = [], mounting = new Map();
+    const checked = calibration(image, scale?.a, scale?.b, scale?.distance, scale?.axis), added = [], mounting = new Map(), candidateBodies = new Map();
     if (p.kind !== 'custom' || Math.abs(checked.mmPerPixel - scale.mmPerPixel) > 1e-9 || !Array.isArray(candidates) || candidates.length > 60) throw new Error('Detekcia vyžaduje kalibrovanú vlastnú schému a najviac 60 návrhov.');
     const selected = candidates.filter((c) => c.selected);
     if (!selected.length) throw new Error('Vyberte aspoň jeden rozpoznaný prvok alebo preskočte detekciu.');
@@ -222,7 +222,7 @@
       }
       e.drive = false; e.locked = c.type === 'ground'; e.color = /^#[0-9a-fA-F]{6}$/.test(c.color || '') ? c.color : '';
       e.name = `Detekcia · ${K.makeElement(c.type).name} ${added.length + 1}`;
-      p.parameters = parameters; added.push(e.id);
+      p.parameters = parameters; added.push(e.id);candidateBodies.set(c.id,e);
       if (['ground', 'link', 'panel'].includes(c.type) && c.useAnchors !== false && c.anchors?.length) {
         const references = [];
         for (const anchor of c.anchors) {
@@ -234,6 +234,7 @@
         mounting.set(e.id, references);
       }
     }
+    for(const c of selected.filter(c=>c.confirmedMotion)){const e=candidateBodies.get(c.id),proof=c.confirmedMotion;if(!e)continue;const a={x:e.x,y:e.y};if(proof.kind==='fixed')e.locked=true;if(proof.kind==='rotation'){const point=proof.pivot==='b'?'b':'a',at=point==='b'?K.along(a,e.length,e.angle):a,anchor={...K.makeElement('bearing',at.x,at.y),locked:true,name:'Navrhnutý pevný čap · potvrdený'};p.elements.push(anchor);added.push(anchor.id);p.connections.push({id:K.uid(),type:'revolute',name:'Potvrdený pevný čap',value:0,a:{elementId:e.id,point},b:{elementId:anchor.id,point:'a'}});}if(proof.kind==='translation'){const guide={...K.makeElement('rail',a.x,a.y),drive:false,angle:proof.axis||0,length:Math.max(e.length,(proof.travel||100)*scale.mmPerPixel*1.2),stroke:Math.max(1,(proof.travel||100)*scale.mmPerPixel),name:'Navrhnuté posuvné vedenie · potvrdené'};p.elements.push(guide);added.push(guide.id);p.connections.push({id:K.uid(),type:'prismatic',name:'Potvrdený smer posuvu',value:e.angle-guide.angle,a:{elementId:guide.id,point:'curve'},b:{elementId:e.id,point:'a'}});}}
     if (options.connections === true) {
       const tolerance = options.tolerance ?? 4;
       if (!Number.isFinite(tolerance) || tolerance <= 0 || tolerance > 25) throw new Error('Tolerancia detekcie uzlov musí byť 0 až 25 px.');

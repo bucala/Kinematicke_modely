@@ -147,7 +147,7 @@
   // A free extra coordinate means the dynamics cannot be reduced to that input.
   function freedom(project, result) {
     if (project.kind !== 'custom') return { free: 0, driven: true, rank: 0, variables: 0 };
-    const driven = project.elements.filter((e) => e.drive).length === 1;
+    const driven = project.elements.filter((e) => e.drive).length >= 1;
     const bodies = project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'cam', 'bearing', 'node'].includes(e.type));
     const variables = bodies.flatMap((e) => ['x', 'y', ...(['bearing', 'node'].includes(e.type) ? [] : ['angle'])].map((key) => ({ id: e.id, key })));
     const base = K.copy(result.poses);
@@ -158,7 +158,7 @@
         return ((b.x - a.x) * (p.y - n.y) - (b.y - a.y) * (p.x - n.x)) / (K.distance(a, b) || 1);
       };
       for (const j of project.connections) {
-        if (j.builtin || [j.a, j.b].some((r) => K.isElastic(project.elements.find((e) => e.id === r.elementId)))) continue;
+        if (j.builtin || j.contact?.enabled || [j.a, j.b].some((r) => K.isElastic(project.elements.find((e) => e.id === r.elementId)))) continue;
         const pa = poses[j.a.elementId], pb = poses[j.b.elementId];
         const a = pa?.[j.a.point], b = pb?.[j.b.point];
         const type = j.type || (j.a.point === 'curve' || j.b.point === 'curve' ? 'point-path' : 'revolute');

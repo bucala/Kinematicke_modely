@@ -253,7 +253,7 @@
     if (project.kind === 'custom') {
       const drivers = project.elements.filter((e) => e.drive);
       if (!drivers.length && project.elements.length) hints.push(project.elements.some(K.isElastic) ? 'Bez predpísaného pohonu použite Pohyb zo síl; pružné členy môžu rozhýbať pripojené telesá.' : 'Chýba priradený pohon. Statická geometria môže byť platná, ale simulátor nevie, ktorý pohyb má meniť.');
-      if (drivers.length > 1) hints.push('Model má viac pohonov. Tento simulátor podporuje iba jeden nezávislý vstup.');
+      if (drivers.length > 1 && !project.driveProgram) hints.push('Model má viac pohonov. Tento simulátor podporuje iba jeden nezávislý vstup.');
       if (freedom.free) hints.push(`Po určení pohonu zostáva ${freedom.free} voľných súradníc. Doplňte uloženie, ďalší kĺb alebo vedenie. Limity pohybu nenahrádzajú väzbu.`);
       for (const e of project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'cam', 'bearing', 'node'].includes(e.type))) {
         const family = descendants(project, [e.id]);

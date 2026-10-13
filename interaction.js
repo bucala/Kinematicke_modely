@@ -18,6 +18,7 @@
     return e;
   };
   function validateEdit(p) {
+    if(p.driveProgram){p.driveProgram.tracks=p.driveProgram.tracks.filter(t=>p.elements.some(e=>e.id===t.elementId&&e.drive));if(!p.driveProgram.tracks.length)delete p.driveProgram;}
     if (p.motionPlan && (p.motionPlan.unit !== K.driveRange(p).unit || p.kind === 'custom' && !p.elements.some((e) => e.drive))) p.motionPlan = null;
     return K.validateProject(p);
   }
@@ -122,7 +123,7 @@
   function setRailMotion(project, id, moving, result = poseOf(project)) {
     const p = K.copy(project), e = mutable(p.elements.find((v) => v.id === id));
     if (e.type !== 'rail' || e.parentId || p.kind !== 'custom') throw new Error('Režim samostatného vedenia upravte vo vlastnom modeli alebo vo voľnej kópii.');
-    if (p.elements.some((v) => v.drive && v.id !== id)) throw new Error('Vedenie potrebuje jediný lineárny pohon. Najskôr vypnite druhý pohon.');
+    if (!p.driveProgram && p.elements.some((v) => v.drive && v.id !== id)) throw new Error('Vedenie potrebuje jediný lineárny pohon. Najskôr vypnite druhý pohon.');
     storePose(e, result); e.movingRail = !!moving; e.drive = true; e.locked = false;
     // Rebase the drive so switching modes retains the displayed geometry at the current input.
     const range = K.driveRange(p), travel = K.railTravel(p, e, result.motion ?? range.min);
@@ -391,6 +392,7 @@
     if (!linear && !['link', 'panel', 'cam'].includes(e.type)) throw new Error('Otočný pohon vyžaduje rameno, panel alebo vačku.');
     if (linear && e.type === 'cam') throw new Error('Vačka používa otočný pohon.');
     if (linear && min < 0) throw new Error('Začiatok lineárneho zdvihu nesmie byť záporný.');
+    delete p.driveProgram;
     for (const body of p.elements) body.drive = false;
     Object.assign(e, { drive: true, locked: false, driveMode: linear ? 'linear' : 'rotary', drivePivot: linear ? 'a' : r.point, driveSpeed: options.speed, driveAngle: options.angle || 0 });
     if (linear) {

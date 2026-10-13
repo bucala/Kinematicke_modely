@@ -1001,3 +1001,14 @@ a[aria-disabled="true"] { pointer-events: none; opacity: .45; }
 .workflow-position-menu summary::-webkit-details-marker { display: none; }
 .workflow-position-menu[open] summary { color: var(--accent); }
 .workflow-position-menu > div { position: absolute; z-index: 8; top: calc(100% + 5px); left: 0; display: grid; gap: 5px; min-width: 170px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--paper); box-shadow: 0 3px 12px #0002; }
+
+.advanced-row, .advanced-fields { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.advanced-fields > label { flex: 1 1 100px; }
+.variant-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 15px; }
+#measurement-plot circle { fill: #16867b; cursor: pointer; }
+#measurement-plot circle:hover { r: 6; }
+.lesson-panel { position: absolute; right: 15px; top: 90px; z-index: 6; max-width: min(300px,calc(100% - 90px)); padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--paper); font-size: 12px; box-shadow: 0 2px 8px #0002; }
+.lesson-panel[hidden] { display: none; }
+.lesson-panel button { padding: 6px; margin: 4px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 4px; }
+
+#perspective-marks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }

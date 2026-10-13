@@ -86,13 +86,15 @@
     return (element.mass || 0) * (length * length + width * width) / 12;
   }
 
+  function stopForce(context,e,length,velocity){if(!context.config.softStops)return 0;const penetration=length<e.minLength?e.minLength-length:length>e.maxLength?e.maxLength-length:0;const value=context.config.stopStiffness*penetration-context.config.stopDamping*velocity;return penetration>0?Math.max(0,value):penetration<0?Math.min(0,value):0;}
   function bodyPositions(state) {
     return Object.fromEntries(Object.entries(state?.bodies || {}).map(([id, b]) => [id, { x: b.x, y: b.y, angle: b.angle }]));
   }
   function prepareBodies(project, initial, config, profile, freedom, collisions) {
-    if (freedom.driven || !freedom.free || !project.elements.some(K.isElastic)) return null;
+    const contactMode=project.connections.some(j=>j.contact?.enabled);
+    if ((freedom.driven&&!contactMode) || !freedom.free || (!project.elements.some(K.isElastic)&&!contactMode)) return null;
     const rootId = (id) => { let e = project.elements.find((e) => e.id === id); while (e?.parentId) e = project.elements.find((v) => v.id === e.parentId); return e?.id; };
-    const connected = new Set(project.elements.filter(K.isElastic).map((e) => e.id)), edges = project.connections.map((j) => [j.a.elementId, j.b.elementId]);
+    const connected = new Set([...project.elements.filter(K.isElastic).map((e) => e.id),...project.connections.filter(j=>j.contact?.enabled).flatMap(j=>[j.a.elementId,j.b.elementId])]), edges = project.connections.map((j) => [j.a.elementId, j.b.elementId]);
     for (const e of project.elements) { if (e.parentId) edges.push([e.id, e.parentId]); if (e.slotId) edges.push([e.id, e.slotId]); for (const r of [e.mountA, e.mountB]) if (r) edges.push([e.id, r.elementId]); }
     for (let pass = 0; pass < project.elements.length; pass++) { let changed = false; for (const [a,b] of edges) if (connected.has(a) !== connected.has(b)) { connected.add(a); connected.add(b); changed = true; } if (!changed) break; }
     const roots = project.elements.filter((e) => !e.primary && !e.locked && !e.parentId && !e.drive && ['link','panel','cam','node','bearing'].includes(e.type));
@@ -106,6 +108,8 @@
       return { id: root.id, mass, inertia: Math.max(1e-8,moment), localCenter: K.localPoint(initial.poses[root.id], center), oriented: !['node','bearing'].includes(root.type) };
     });
     let maxStep = 1/1000;
+    for(const b of bodies)for(const j of project.connections.filter(j=>j.contact?.enabled))maxStep=Math.min(maxStep,.05*Math.sqrt(b.mass/(j.contact.stiffness*1000)),.1*b.mass/Math.max(1,j.contact.damping));
+    if(config.softStops)for(const b of bodies)maxStep=Math.min(maxStep,.05*Math.sqrt(b.mass/(config.stopStiffness*1000)),.1*b.mass/Math.max(1,config.stopDamping));
     for (const b of [...bodies, ...particles]) {
       const members = project.elements.filter(K.isElastic).filter((e) => ['a','b'].some((key) => { const group = graph.groups.find((g) => g.id === graph.ports[`${e.id}:${key}`]); return group.id === b.id || group.anchors.some((r) => owners[r.elementId] === b.id); }));
       const stiffness = members.reduce((sum,e) => sum + Math.abs(axial(e,initial.poses[e.id].length).rate)*1000,0), damping = members.reduce((sum,e) => sum + Math.max(e.damping,e.dampingCompression||0,e.dampingExtension||0),config.damping);
@@ -114,11 +118,11 @@
     if (maxStep < .00001) throw new Error('Zostava je príliš tuhá alebo silno tlmená. Upravte hmotnosť, tuhosť alebo tlmenie.');
     // A shared elastic port attached to several rigid bodies is one revolute support.
     for (const g of graph.groups) for (const r of g.anchors.slice(1)) project.connections.push({ id: K.uid(), type:'revolute', a:g.anchors[0], b:r, name:'Spoločný pružný čap', value:0 });
-    return { project, config, profile, freedom, range:K.driveRange(project), scale:.001, elastic:project.elements.filter(K.isElastic), graph, particles, network:particles.length?{graph,particles,members:project.elements.filter(K.isElastic).filter((e)=>['a','b'].some((key)=>particles.some((g)=>g.id===graph.ports[`${e.id}:${key}`])))}:null, bodyDynamics:{ bodies, owners }, maxStep, collisions, initial, rows:[], estimated:true };
+    return { project, config, profile, freedom, range:K.driveRange(project), scale:.001, elastic:project.elements.filter(K.isElastic), graph, particles, network:particles.length?{graph,particles,members:project.elements.filter(K.isElastic).filter((e)=>['a','b'].some((key)=>particles.some((g)=>g.id===graph.ports[`${e.id}:${key}`])))}:null, bodyDynamics:{ bodies, owners }, programStart:project.driveProgram?(initial.motion-K.driveRange(project).min)/(K.driveRange(project).max-K.driveRange(project).min)*project.driveProgram.duration:0, maxStep, collisions, initial, rows:[], estimated:true };
   }
   function bodyCenter(body, pose) { return K.worldPoint(pose, body.localCenter); }
   function bodyLoads(context, state) {
-    const result = K.solve(context.project,state.motion,{ profile:context.profile,collisions:false,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state) });
+    const result = K.solve(context.project,state.motion,{ profile:context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0,collisions:false,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state) });
     const loads = Object.fromEntries(context.bodyDynamics.bodies.map((b) => [b.id,{ x:0,y:b.mass*context.config.gravity,torque:0 }]));
     const tipLoads = Object.fromEntries(context.particles.map((g) => [g.id,{ x:0,y:g.mass*context.config.gravity }])), lengthRates = {};
     const endpoint = (e,key) => {
@@ -130,17 +134,20 @@
     };
     for (const e of context.elastic) {
       const a = endpoint(e,'a'), b = endpoint(e,'b'), length = K.distance(a.at,b.at), ux=(b.at.x-a.at.x)/(length||1),uy=(b.at.y-a.at.y)/(length||1);
-      const rate=ux*(b.velocity.x-a.velocity.x)+uy*(b.velocity.y-a.velocity.y), force=axial(e,length,rate).signedForce; lengthRates[e.id]=rate;
+      const rate=ux*(b.velocity.x-a.velocity.x)+uy*(b.velocity.y-a.velocity.y), force=axial(e,length,rate).signedForce+stopForce(context,e,length,rate); lengthRates[e.id]=rate;
       for (const [p,sign] of [[a,-1],[b,1]]) {
         const fx=sign*ux*force,fy=sign*uy*force;
         if(tipLoads[p.id]) { tipLoads[p.id].x+=fx;tipLoads[p.id].y+=fy; }
         if(loads[p.owner]) { loads[p.owner].x+=fx;loads[p.owner].y+=fy;loads[p.owner].torque+=p.ry*fx-p.rx*fy; }
       }
     }
-    return { result,loads,tipLoads,lengthRates };
+    const contacts=[];
+    for(const j of context.project.connections.filter(j=>j.contact?.enabled)){const rollerRef=j.a.point==='curve'?j.b:j.a,camRef=j.a.point==='curve'?j.a:j.b,roller=context.project.elements.find(e=>e.id===rollerRef.elementId),pose=result.poses[roller.id],cam=result.poses[camRef.elementId],owner=context.bodyDynamics.owners[roller.id],s=state.bodies[owner];if(!s)continue;const near=K.nearestOnCam(pose.a,cam,roller.radius),gap=(pose.a.x-near.x)*near.normal.x+(pose.a.y-near.y)*near.normal.y;const motor=context.project.elements.find(e=>e.id===camRef.elementId),omega=!motor.drive?0:(context.project.driveProgram?((global.KinmoAdvanced.at(context.project,motor,state.motion,(context.programStart||0)+state.time+.0001)-global.KinmoAdvanced.at(context.project,motor,state.motion,(context.programStart||0)+state.time))/ .0001):(motor.driveSpeed??60))*K.DEG,r={x:(near.surface.x-cam.a.x)/1000,y:(near.surface.y-cam.a.y)/1000},surface={x:omega*r.y,y:-omega*r.x},vn=(s.vx-surface.x)*near.normal.x+(s.vy-surface.y)*near.normal.y,force=gap<=0?Math.max(0,-j.contact.stiffness*gap-j.contact.damping*vn):0;loads[owner].x+=near.normal.x*force;loads[owner].y+=near.normal.y*force;const body=context.bodyDynamics.bodies.find(b=>b.id===owner),center=bodyCenter(body,result.poses[owner]);loads[owner].torque+=((pose.a.y-center.y)*near.normal.x-(pose.a.x-center.x)*near.normal.y)/1000*force;contacts.push({id:j.id,elementId:roller.id,gap,force,detached:gap>0,a:near.surface,b:pose.a,normal:near.normal});}
+    for(const b of context.bodyDynamics.bodies){const e=context.project.elements.find(e=>e.id===b.id),s=state.bodies[b.id],speed=Math.hypot(s.vx,s.vy),friction=e.guideFriction||context.config.friction;if(speed>1e-8&&friction){loads[b.id].x-=friction*s.vx/speed;loads[b.id].y-=friction*s.vy/speed;}}
+    return { result,loads,tipLoads,lengthRates,contacts };
   }
   function projectBodies(context,state,previous,dt) {
-    const result=K.solve(context.project,state.motion,{ profile:context.profile,collisions:context.collisions,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state) });
+    const result=K.solve(context.project,state.motion,{ profile:context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0,collisions:context.collisions,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state) });
     for(const b of context.bodyDynamics.bodies) {
       const pose=result.poses[b.id],s=state.bodies[b.id], oldPose=previous.poses[b.id], center=bodyCenter(b,pose),before=bodyCenter(b,oldPose);
       Object.assign(s,{x:pose.a.x,y:pose.a.y,angle:pose.angle,vx:(center.x-before.x)/1000/dt,vy:(center.y-before.y)/1000/dt,omega:b.oriented?deltaAngle(oldPose.angle,pose.angle)/dt:0});
@@ -150,10 +157,10 @@
   function stepBodies(context,previous,elapsed) {
     const state=K.copy(previous),count=Math.ceil(elapsed/context.maxStep),dt=elapsed/count;
     if(count>25000) throw new Error('Časový krok je príliš veľký pre tuhosť zostavy.');
-    const outsideStroke = result => context.elastic.some(e => { const length=result.poses[e.id]?.length; return length < e.minLength-1e-6 || length > e.maxLength+1e-6; });
+    const outsideStroke = result => context.elastic.some(e => { const length=result.poses[e.id]?.length; const tolerance=context.config.softStops?2:1e-6;return length < e.minLength-tolerance || length > e.maxLength+tolerance; });
     for(let i=0;i<count;i++) {
       const h=Math.min(dt,context.config.duration-state.time); if(h<=0) break;
-      const before=K.copy(state),value=bodyLoads(context,state);
+      const before=K.copy(state);if(context.project.elements.some(e=>e.drive)){const range=K.driveRange(context.project),program=context.project.driveProgram;state.motion=K.clamp(program?range.min+((context.programStart||0)+state.time+h)/program.duration*(range.max-range.min):state.motion+(context.project.elements.find(e=>e.drive).driveSpeed??60)*h,range.min,range.max);}const value=bodyLoads(context,state);state.contacts=value.contacts;
       for(const b of context.bodyDynamics.bodies) {
         const s=state.bodies[b.id],load=value.loads[b.id],center=bodyCenter(b,value.result.poses[b.id]);
         s.vx+=(load.x-context.config.damping*s.vx)/b.mass*h;s.vy+=(load.y-context.config.damping*s.vy)/b.mass*h;
@@ -169,7 +176,7 @@
         for(let n=0;n<16;n++){const t=(low+high)/2;
           for(const b of context.bodyDynamics.bodies){const a=before.bodies[b.id],z=candidate.bodies[b.id];Object.assign(state.bodies[b.id],{x:K.lerp(a.x,z.x,t),y:K.lerp(a.y,z.y,t),angle:a.angle+deltaAngle(a.angle,z.angle)*t/K.DEG});}
           for(const g of context.particles){const a=before.particles[g.id],z=candidate.particles[g.id];Object.assign(state.particles[g.id],{x:K.lerp(a.x,z.x,t),y:K.lerp(a.y,z.y,t)});}
-          const tested=K.solve(context.project,state.motion,{profile:context.profile,collisions:context.collisions,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state)});
+          const tested=K.solve(context.project,state.motion,{profile:context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0,collisions:context.collisions,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state)});
           if(tested.blocked || outsideStroke(tested))high=t;else{low=t;safe=tested;}
         }
         for(const b of context.bodyDynamics.bodies){const p=safe.poses[b.id];Object.assign(state.bodies[b.id],{x:p.a.x,y:p.a.y,angle:p.angle,vx:0,vy:0,omega:0});}
@@ -184,7 +191,7 @@
   function dragBody(context,previous,id,point,local) {
     if(!context.bodyDynamics||!previous.bodies[id]||![point.x,point.y].every(Number.isFinite))throw new Error('Vyberte pohyblivý člen silovej zostavy.');
     const state=K.copy(previous),s=state.bodies[id],offset=K.rotate(local,s.angle);s.x=point.x-offset.x;s.y=point.y-offset.y;
-    const result=K.solve(context.project,state.motion,{profile:context.profile,collisions:false,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state)});
+    const result=K.solve(context.project,state.motion,{profile:context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0,collisions:false,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state)});
     for(const b of context.bodyDynamics.bodies){const p=result.poses[b.id];Object.assign(state.bodies[b.id],{x:p.a.x,y:p.a.y,angle:p.angle,vx:0,vy:0,omega:0});}
     state.time=0;state.stopped=false;state.reason='';return state;
   }
@@ -195,9 +202,9 @@
       e.damping += p.simulation.returnDamping;
       for (const key of ['dampingCompression', 'dampingExtension']) if (e[key] != null) e[key] += p.simulation.returnDamping;
     }
-    if (p.connections.some((j) => j.type === 'cam-contact')) throw new Error('Vačkový kontakt je kinematický s predpokladom trvalého dotyku. Odhadová dynamika nepočíta kontaktné reakcie, predpätie ani odtrhnutie valčeka.');
+    if (p.connections.some((j) => j.type === 'cam-contact'&&!j.contact?.enabled)) throw new Error('Vačkový kontakt je kinematický s predpokladom trvalého dotyku. Odhadová dynamika nepočíta kontaktné reakcie, predpätie ani odtrhnutie valčeka.');
     const profile = options.profile || K.prepareProject(p);
-    const initial = K.solve(p, options.motion ?? range.min, { profile, collisions: options.collisions !== false, elasticPositions: options.elasticPositions, bodyPositions: options.bodyPositions });
+    const initial = K.solve(p, options.motion ?? range.min, { profile, softContact:p.connections.some(j=>j.contact?.enabled),strokeTolerance:p.simulation.softStops?2:0, collisions: options.collisions !== false, elasticPositions: options.elasticPositions, bodyPositions: options.bodyPositions });
     if (initial.blocked) throw new Error(`Dynamiku nemožno spustiť: ${initial.issues[0]}`);
     const freedom = E.freedom(p, initial);
     const bodies = prepareBodies(p,initial,settings(p),profile,freedom,options.collisions !== false);
@@ -246,6 +253,8 @@
       maxStep = Math.min(maxStep, .1 * Math.sqrt(g.mass / Math.max(1, stiffness)), .2 * g.mass / Math.max(1, damping));
     }
     if (maxStep < 0.00001) throw new Error('Systém je príliš tuhý alebo silno tlmený pre túto odhadovú dynamiku. Znížte tuhosť / tlmenie alebo použite profesionálny dynamický solver.');
+    if(config.softStops)for(const g of network?.particles||[])maxStep=Math.min(maxStep,.05*Math.sqrt(g.mass/(config.stopStiffness*1000)),.1*g.mass/Math.max(1,config.stopDamping));
+    if(maxStep<.00001)throw new Error('Pružný doraz je príliš tuhý pre hmotnosť čapu. Upravte tuhosť, tlmenie alebo hmotnosť.');
     return { project: p, range, scale, profile, rows, config, elastic, maxStep, collisions: options.collisions !== false, freedom, network, returning: !!options.returning, estimated: true };
   }
 
@@ -321,7 +330,7 @@
         let a = state.motion, b = target;
         for (let n = 0; n < 18; n++) {
           const middle = (a + b) / 2;
-          const result = K.solve(context.project, middle, { profile: context.profile, collisions: context.collisions, forces: false });
+          const result = K.solve(context.project, middle, { profile: context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0, collisions: context.collisions, forces: false });
           if (result.blocked) b = middle; else a = middle;
         }
         state.motion = a; state.velocity = 0; state.stopped = true;
@@ -346,7 +355,7 @@
 
   // Free ports share a particle at each revolute joint. Fixed/rigid ports remain exact anchors.
   function networkForces(context, state) {
-    const positions = elasticPositions(state), solve = (q) => K.solve(context.project, q, { profile: context.profile, collisions: false, forces: false, elasticPositions: positions });
+    const positions = elasticPositions(state), solve = (q) => K.solve(context.project, q, { profile: context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0, collisions: false, forces: false, elasticPositions: positions });
     const result = solve(state.motion), span = context.range.max - context.range.min;
     const qa = Math.max(context.range.min, state.motion - span * .00001), qb = Math.min(context.range.max, state.motion + span * .00001);
     const before = context.freedom.driven ? solve(qa) : result, after = context.freedom.driven ? solve(qb) : result, dq = (qb - qa) * context.scale || 1;
@@ -360,7 +369,7 @@
     for (const e of context.network.members) {
       const a = endpoint(e, 'a'), b = endpoint(e, 'b'), length = K.distance(a.at, b.at);
       const ux = (b.at.x - a.at.x) / (length || 1), uy = (b.at.y - a.at.y) / (length || 1);
-      const rate = ux * (b.velocity.x - a.velocity.x) + uy * (b.velocity.y - a.velocity.y), force = axial(e, length, rate).signedForce;
+      const rate = ux * (b.velocity.x - a.velocity.x) + uy * (b.velocity.y - a.velocity.y), force = axial(e, length, rate).signedForce+stopForce(context,e,length,rate);
       lengthRates[e.id] = rate;
       if (loads[a.id]) { loads[a.id].x -= ux * force; loads[a.id].y -= uy * force; }
       if (loads[b.id]) { loads[b.id].x += ux * force; loads[b.id].y += uy * force; }
@@ -373,8 +382,8 @@
     if (!context.network?.particles.some((g) => g.id === id) || ![point.x, point.y].every(Number.isFinite)) throw new Error('Vyberte voľný pružný čap.');
     const state = { ...previous, time: 0, stopped: false, reason: '', velocity: 0, particles: Object.fromEntries(Object.entries(previous.particles).map(([key, p]) => [key, { ...p, vx: 0, vy: 0 }])) };
     const tip = state.particles[id]; tip.x = point.x; tip.y = point.y;
-    for (let pass = 0; pass < 20; pass++) {
-      const result = K.solve(context.project, state.motion, { profile: context.profile, collisions: false, forces: false, elasticPositions: elasticPositions(state), bodyPositions:bodyPositions(state) });
+    for (let pass = 0; pass < (context.config.softStops?0:20); pass++) {
+      const result = K.solve(context.project, state.motion, { profile: context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0, collisions: false, forces: false, elasticPositions: elasticPositions(state), bodyPositions:bodyPositions(state) });
       let error = 0;
       for (const e of context.network.members) {
         const keys = ['a', 'b'], key = keys.find((key) => context.network.graph.ports[`${e.id}:${key}`] === id); if (!key) continue;
@@ -389,7 +398,7 @@
   }
 
   function dynamicForces(context, state, result) {
-    if(context.bodyDynamics)return forces(context.project,result,bodyLoads(context,state).lengthRates);
+    if(context.bodyDynamics){const value=bodyLoads(context,state);return [...forces(context.project,result,value.lengthRates),...value.contacts.map(c=>({id:c.elementId,signedForce:c.force,nominalForce:c.force,dampingForce:0,magnitude:c.force,a:c.a,b:c.b,atA:{x:-c.normal.x*c.force,y:-c.normal.y*c.force},atB:{x:c.normal.x*c.force,y:c.normal.y*c.force},contact:true,detached:c.detached,gap:c.gap}))];}
     const rates = generalized(context, state.motion, state.velocity).lengthRates;
     if (context.network) Object.assign(rates, networkForces(context, state).lengthRates);
     return forces(context.project, result, rates);
@@ -400,6 +409,7 @@
     const count = Math.ceil(elapsed / context.maxStep), baseDt = elapsed / count;
     if (count > 25000) throw new Error('Časový krok je príliš veľký pre nastavenú tuhosť.');
     for (let i = 0; i < count; i++) {
+      const safeState=context.config.softStops?K.copy(state):null;
       const dt = Math.min(baseDt, Math.max(0, context.config.duration - state.time));
       if (dt <= 0) { state.stopped = true; state.reason = 'Uplynul nastavený čas simulácie.'; break; }
       const value = generalized(context, state.motion, state.velocity), network = networkForces(context, state);
@@ -416,8 +426,8 @@
       }
       // Inelastic stroke stops: project length and remove only forbidden radial velocity.
       // Repeated passes handle series links sharing the same particle.
-      for (let pass = 0; pass < 20; pass++) {
-        const result = K.solve(context.project, state.motion, { profile: context.profile, collisions: false, forces: false, elasticPositions: elasticPositions(state) });
+      for (let pass = 0; pass < (context.config.softStops?0:20); pass++) {
+        const result = K.solve(context.project, state.motion, { profile: context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0, collisions: false, forces: false, elasticPositions: elasticPositions(state) });
         let correction = 0;
         for (const e of context.network.members) {
           const pose = result.poses[e.id], length = pose.length;
@@ -442,9 +452,9 @@
         if (state.stopped || correction < .000001) break;
       }
       state.time += dt;
-      const result = K.solve(context.project, state.motion, { profile: context.profile, collisions: context.collisions, forces: false, elasticPositions: elasticPositions(state) });
+      const result = K.solve(context.project, state.motion, { profile: context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0, collisions: context.collisions, forces: false, elasticPositions: elasticPositions(state) });
       if (!Object.values(state.particles).every((p) => [p.x, p.y, p.vx, p.vy].every(Number.isFinite)) || !Number.isFinite(state.velocity)) { state.stopped = true; state.reason = 'Numericky nestabilný výpočet.'; }
-      else if (result.blocked) { state.stopped = true; state.reason = result.issues[0]; }
+      else if (result.blocked) { if(safeState)Object.assign(state,safeState);state.stopped = true; state.reason = result.issues[0]; }
       if (state.time >= context.config.duration - 1e-12) { state.time = context.config.duration; state.stopped = true; state.reason = 'Uplynul nastavený čas simulácie.'; }
       if (state.stopped) break;
     }
