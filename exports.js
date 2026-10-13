@@ -147,7 +147,7 @@
           for (let i = 0; i <= 16; i++) points.push(at(length * (.16 + i / 16 * .68), (i % 2 ? 1 : -1) * e.diameter / 2));
           points.push(at(length * .87), pose.b); poly(e, points);
         } else {
-          poly(e, polygon({ a: pose.a, b: at(Math.max(0, Math.min(length - K.pistonGeometry(e).eye, K.pistonGeometry(e).cylinder))) }, e.diameter), true);
+          poly(e, polygon({ a: pose.a, b: at(Math.max(0, Math.min(length - K.pistonGeometry(e, length).eye, K.pistonGeometry(e, length).cylinder))) }, e.diameter), true);
           poly(e, [pose.a, pose.b]);
         }
       } else if (e.type === 'ground') poly(e, [pose.a, pose.b]);
@@ -420,7 +420,7 @@
     })) : samples;
     for (const s of states) {
       const velocity = s.velocity || 0, value = context ? P.generalized(context, s.motion, velocity) : null;
-      const forces = context && s.particles ? P.dynamicForces(context, s, s) : P.forces(project, s, value?.lengthRates || {});
+      const forces = context && s.particles ? P.dynamicForces(context, s, s) : P.forces(context?.project || project, s, value?.lengthRates || {});
       rows.push([n(s.motion), s.time == null ? '' : n(s.time), s.velocity == null ? '' : n(velocity / (unit === '°' ? K.DEG : .001)), value ? n(value.handForce) : '', s.blocked ? 1 : 0, ...elastic.flatMap((e) => [n(s.poses[e.id]?.length), n(forces.find((f) => f.id === e.id)?.signedForce)])].map(q).join(';'));
     }
     return '\uFEFF' + rows.join('\r\n');

@@ -308,14 +308,14 @@
   });
   add('Pružina je cieľom prichytenia cez montážne body aj svoju os.', () => {
     const node = K.makeElement('node', 0, 0), spring = K.makeElement('spring-extension', 100, 80), p = custom(node, spring);
-    const endpoint = W.findSnap(p, [I.nodeKey(ref(node))], E.design(p, 0), { x: 219, y: 79 }, { enabled: true, tolerance: 3 });
+    const endpoint = W.findSnap(p, [I.nodeKey(ref(node))], E.design(p, 0), { x: 100 + spring.length - 1, y: 79 }, { enabled: true, tolerance: 3 });
     assert(endpoint.kind === 'endpoint' && endpoint.target.ref.elementId === spring.id && endpoint.target.ref.point === 'b');
     const axis = W.findSnap(p, [I.nodeKey(ref(node))], E.design(p, 0), { x: 137, y: 82 }, { enabled: true, tolerance: 3 });
     assert(axis.kind === 'axis'); near(axis.point.y, 80);
   });
   add('Voľný koniec pružiny sa prichytí a potvrdená montáž sleduje nosný bod.', () => {
     const spring = K.makeElement('spring-extension', 0, 0), node = K.makeElement('node', 160, 40), p = custom(spring, node), keys = [I.nodeKey(ref(spring, 'b'))];
-    const snap = W.findSnap(p, keys, E.design(p, 0), { x: 39, y: 39 }, { enabled: true, tolerance: 3 });
+    const snap = W.findSnap(p, keys, E.design(p, 0), { x: node.x - spring.length - 1, y: 39 }, { enabled: true, tolerance: 3 });
     assert(snap.kind === 'endpoint');
     const moved = I.translate(p, keys, snap.delta), connected = W.connectSnap(moved, snap);
     assert(K.elasticMount(connected, connected.elements[0], 'b').elementId === node.id);

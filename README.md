@@ -543,6 +543,8 @@ Limit je **40 verzií naprieč projektmi a 2 MB spolu**, vrátane záloh pred ob
 
 <a id="forces"></a>
 
+Vačka má vo Vlastnostiach aj v kontextovej ponuke voľbu **Tvar vačky**: pôvodný harmonický profil alebo **Pretiahnutá vačka** podľa dvoch kruhových oblúkov spojených dotyčnicami. Nastaviteľné sú základný polomer, výška výstupku, pomer polomeru špičky a natočenie. Os zostáva v strede základného kruhu; rovnaký profil sa používa pre kontakt valčeka aj export.
+
 ## Pružiny, piesty a odhadová dynamika
 
 Pridajte pružný prvok a nastavte montážne body A/B v inšpektore. Zadajte minimálnu, maximálnu a voľnú dĺžku, priemer, silu alebo tuhosť, predpätie a osové tlmenie. Piest má aj priemer tyče a pomer progresie 1–3. **F je v N, k v N/mm, osové tlmenie v N·s/m, hmotnosť v kg a zotrvačnosť v kg·m².**
@@ -554,13 +556,15 @@ Nenamontovaný koniec A/B môžete v editore samostatne ťahať a prichytávať.
 - Tlačný piest rozťahuje, ťažný sťahuje; voliteľná lineárna progresia a osové tlmenie.
 - Hodnota F pružiny je sila pri pracovnej hranici. Pri explicitnej tuhosti rozhoduje k; F je len referenčný údaj.
 
-Tlačidlo **Pohyb zo síl** pri projektoch s pružnými prvkami zapne a spustí silovú simuláciu. V **Nastaveniach** môžete tiež vybrať odhadovú dynamiku a nastavte gravitáciu, tlmenie, trenie, počiatočnú rýchlosť, vonkajšiu silu/moment a trvanie. Hmotnosť, ťažisko a zotrvačnosť patria jednotlivým telesám. Práca síl sa premieta do **jednej nezávislej súradnice** numerickými deriváciami polôh. Zobrazuje sa aj vyrovnávacia sila N alebo moment N·m a časový záznam.
+**Po pustení v simulácii** sa mechanizmus automaticky vráti silou pružiny alebo plynového piesta. Voľný koniec možno priamo stlačiť alebo natiahnuť; pri držaní a návrate sa uložená geometria nemení. Ručné ťahanie pohonu rešpektuje pracovné dorazy pružných prvkov. V Nastaveniach možno automatický návrat vypnúť a upraviť dodatočné osové tlmenie návratu (predvolene 200 N·s/m). Toto tlmenie sa pripočíta iba počas návratu, nemení uložené katalógové parametre člena. Samotný tlmič bez pružiny alebo plynovej sily sa sám nevracia.
+
+Tlačidlo **Pohyb zo síl** pri projektoch s pružnými prvkami zapne a spustí silovú simuláciu. V **Nastaveniach** môžete tiež vybrať odhadovú dynamiku a nastaviť gravitáciu, tlmenie, trenie, počiatočnú rýchlosť, vonkajšiu silu/moment a trvanie. Hmotnosť, ťažisko a zotrvačnosť patria jednotlivým telesám. Práca síl sa premieta do **jednej nezávislej súradnice** numerickými deriváciami polôh. Zobrazuje sa aj vyrovnávacia sila N alebo moment N·m a časový záznam.
 
 Spoločné otočné čapy pružín a piestov sa riešia naraz, nezávisle od poradia prvkov. Voľné čapy majú bodovú hmotnosť (predvolene 0,1 kg na koniec); sila a gravitácia ich rozhýbu aj bez predpísaného pohonu. Pri spoločnom čape sa hmotnosti sčítajú. Príslušné sily sa prenášajú aj na nosné teleso s jedným pohonom. Neurčené voľné tuhé členy, singularita a nepoužiteľná hmotnosť zostávajú odmietnuté. Na doraze, pri neplatnej geometrii alebo pracovnej dĺžke sa zastaví bez modelu nárazu či odrazu. Podrobné limity platia nižšie.
 
 Telesá pružín a piestov sú osové silové členy; voľné konce používajú nastaviteľnú bodovú hmotnosť, uložené konce sledujú nosné teleso. Jeho hmotnosť nastavte samostatne. Voľné čapy sa na pracovnom doraze obmedzia bez odrazu; simulácia môže pokračovať po uvoľnení dorazu.
 
-Piest možno prepnúť na **Tlmič**, ktorý nemá statickú tlačnú/ťažnú silu a odporuje rýchlosti. Tlmenie pri zasúvaní a vysúvaní možno zadať samostatne. Pri zmene návrhovej vysunutej dĺžky (aj ťahaním voľného konca) sa zväčší valec aj pracovný rozsah; pri simulácii sa vysúva tyč zo stáleho valca. Starší neúmerný zdvih upravíte tlačidlom **Prispôsobiť valec a rozsah** v inšpektore.
+Piest možno prepnúť na **Tlmič**, ktorý nemá statickú tlačnú/ťažnú silu a odporuje rýchlosti. Tlmenie pri zasúvaní a vysúvaní možno zadať samostatne. Pri novej montáži sa konštrukcia piesta prispôsobí vzdialenosti čapov, keď pôvodný rozsah nestačí. Pri zmene návrhovej vysunutej dĺžky (aj ťahaním voľného konca) sa zväčší valec aj pracovný rozsah; pri simulácii sa vysúva tyč zo stáleho valca. Valec pojme zdvih aj rezervu na uloženie tyče; jeho dĺžka sa počas platného simulačného zdvihu nemení. Starší neúmerný zdvih alebo montáž upravíte tlačidlom **Prispôsobiť valec montáži** v inšpektore.
 
 Katalógové príklady a zdroje sú v inšpektore pružných prvkov: Gutekunst D-001 a RZ-001I. Predpätie RZ-001I je odvodené, nie samostatne overené. Plynová vzpera 400 N je **modelový príklad, nie identifikovaný katalógový výrobok**. Výber a montáž overte u výrobcu.
 

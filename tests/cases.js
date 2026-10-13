@@ -420,5 +420,21 @@
     }
   });
 
+  add('Pretiahnutá vačka má kruhovú základňu, úzku špičku a hladké dotyčnice.', () => {
+    const e = { ...K.makeElement('cam', 0, 0), camShape: 'pear', camLift: 100, camPhase: 90 }, path = K.camProfile(e), xs = path.map((p) => p.x), ys = path.map((p) => p.y);
+    near(Math.min(...ys), -140, .01); near(Math.max(...ys), 40, .01); assert(Math.max(...xs) - Math.min(...xs) < 80.01);
+    near(K.distance(path[0], path.at(-1)), 0);
+    const outline = path.slice(0, -1), cross = (a, b, c) => (b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x), sign = Math.sign(cross(...outline.slice(0, 3)));
+    assert(outline.every((a, i) => cross(a, outline[(i+1)%outline.length], outline[(i+2)%outline.length]) * sign >= -1e-6));
+    const result = K.solve(custom(e), 0, { collisions: false }), target = K.nearestOnCam({ x: 0, y: -200 }, result.poses[e.id], 10);
+    near(target.x, 0, .05); near(target.y, -150, .05);
+    const mass = global.KinmoPhysics.centerOfMass(e, result.poses[e.id]); assert(Number.isFinite(mass.x) && Number.isFinite(mass.y));
+  });
+  add('Pretiahnutý profil a polomer špičky sa zachovajú pri importe a otočení.', () => {
+    const e = { ...K.makeElement('cam', 10, 20), camShape: 'pear', camLift: 100, camNoseRatio: .3, camPhase: 90 }, p = custom(e), imported = K.validateProject(JSON.parse(JSON.stringify(p))).elements[0];
+    assert(imported.camShape === 'pear'); near(imported.camNoseRatio, .3);
+    const base = K.camProfile(e), turned = K.camProfile({ ...e, angle: 35 });
+    for (let i = 0; i < base.length; i++) near(K.distance(K.worldPoint({ a: { x: 10, y: 20 }, angle: 35 }, { x: base[i].x - 10, y: base[i].y - 20 }), turned[i]), 0);
+  });
   global.KinematicsTestCases = Object.freeze(cases);
 })(globalThis);

@@ -182,6 +182,7 @@
     }
     Object.assign(j, { a: K.copy(r), b: K.copy(other), type: options.type, value: options.value ?? 0, name: E.constraintNames[options.type], builtin: false });
     cleanAnchors(p);
+    K.fitMountedPistons(p, [r.elementId, other.elementId]);
     return validateEdit(p);
   }
   function toggleFixed(project, references, result = poseOf(project)) {

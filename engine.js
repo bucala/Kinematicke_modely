@@ -31,7 +31,7 @@
   };
   const simulationDefaults = {
     mode: 'kinematic', gravity: 9.81, damping: 8, friction: 0, inputForce: 0,
-    initialVelocity: 0, duration: 10,
+    initialVelocity: 0, duration: 10, returnOnRelease: true, returnDamping: 200,
   };
   const rotate = (p, angle) => ({
     x: p.x * Math.cos(angle * DEG) + p.y * Math.sin(angle * DEG),
@@ -67,10 +67,10 @@
     };
     return {
       id: uid(), type, name: names[type] || 'Prvok', x, y, angle: type === 'panel' ? 90 : 0,
-      length: type.startsWith('piston-') ? 240 : type === 'cam' ? 40 : type === 'panel' ? 160 : type === 'rail' ? 240 : 120,
+      length: type === 'piston-pull' ? 144 : type === 'piston-push' ? 240 : type.startsWith('spring-') ? 160 : type === 'cam' ? 40 : type === 'panel' ? 160 : type === 'rail' ? 240 : 120,
       width: type === 'panel' ? 16 : 12, radius: type === 'cam' ? 40 : 6, stroke: 150, carriageOffset: 0, slotWidth: 16,
       carriageWidth: 24, carriageHeight: 30,
-      camLift: 20, camPhase: 0,
+      camLift: 20, camPhase: 0, camShape: 'harmonic', camNoseRatio: .4,
       bearingOffset: 65, curveKind: 'bezier', curveRadius: 100, visible: true,
       locked: type === 'ground', drive: type === 'rail',
       slotId: '', controls: [{ x: 0, y: 0 }, { x: 45, y: 0 }, { x: 75, y: 70 }, { x: 130, y: 70 }],
@@ -78,9 +78,9 @@
       parentId: '', parentPoint: 'a', localC: null, outline: [],
       mass: ['ground', 'slot', 'node'].includes(type) || ELASTIC_TYPES.includes(type) ? 0 : type === 'rail' ? 2 : type === 'bearing' ? 0.1 : 1,
       inertia: 0, com: null,
-      restLength: type.startsWith('piston-') ? 240 : 160, minLength: type.startsWith('piston-') ? 144 : 80, maxLength: 240, diameter: 20,
+      restLength: type === 'piston-pull' ? 144 : type === 'piston-push' ? 240 : 160, minLength: type.startsWith('piston-') ? 144 : 80, maxLength: 240, diameter: 20,
       rodDiameter: 8, wireDiameter: 2, force: 100, stiffness: 1, preload: 0, forceMode: 'rated',
-      damping: 0, dampingCompression: null, dampingExtension: null, actuatorMode: 'gas', tipMass: .1, progression: 1, mountA: null, mountB: null,
+      damping: type.startsWith('piston-') ? 400 : type.startsWith('spring-') ? 200 : 0, dampingCompression: null, dampingExtension: null, actuatorMode: 'gas', tipMass: .1, progression: 1, mountA: null, mountB: null,
     };
   }
 
@@ -287,6 +287,16 @@
   }
   function camProfile(element) {
     const pose = { a: { x: element.x, y: element.y }, angle: element.angle };
+    if (element.camShape === 'pear') {
+      const R = element.radius, r = R * (element.camNoseRatio ?? .4), d = R + element.camLift - r;
+      if (d > R - r + EPS) {
+        const theta = Math.acos((R - r) / d), points = [];
+        for (let i = 0; i <= 160; i++) { const a = lerp(theta, Math.PI * 2 - theta, i / 160); points.push({ x: R * Math.cos(a), y: -R * Math.sin(a) }); }
+        for (let i = 0; i <= 80; i++) { const a = lerp(-theta, theta, i / 80); points.push({ x: d + r * Math.cos(a), y: -r * Math.sin(a) }); }
+        points.push({ ...points[0] });
+        return points.map((point) => worldPoint(pose, rotate(point, element.camPhase)));
+      }
+    }
     return Array.from({ length: 241 }, (_, i) => {
       const theta = i / 240 * Math.PI * 2, radius = element.radius + element.camLift / 2 * (1 - Math.cos(theta - element.camPhase * DEG));
       return worldPoint(pose, { x: radius * Math.cos(theta), y: -radius * Math.sin(theta) });
@@ -587,9 +597,9 @@
     return { groups: [...groups.values()], ports: Object.fromEntries([...ports.keys()].map((id) => [id, root(id)])) };
   }
 
-  function pistonGeometry(element) {
+  function pistonGeometry(element, shownLength = null) {
     const stroke = element.maxLength - element.minLength, eye = Math.min(element.diameter * .4, element.minLength * .08), overlap = Math.max(element.rodDiameter, eye), cylinder = element.minLength - 2 * eye;
-    return { stroke, eye, overlap, cylinder, fits: cylinder >= stroke + overlap - TOLERANCE };
+    return { stroke, eye, overlap, cylinder: shownLength == null ? cylinder : Math.max(cylinder, (shownLength - eye + overlap) / 2), fits: cylinder >= stroke + overlap - TOLERANCE };
   }
 
   function resizePiston(element, length) {
@@ -601,8 +611,22 @@
       next.minLength = Math.min(length * .9, (length + 3 * margin) / 2);
     }
     if (!pistonGeometry(next).fits) throw new Error('Piest je príliš krátky pre zadaný priemer a tyč. Zväčšite dĺžku alebo zmenšite priemery.');
-    Object.assign(element, { length: next.length, maxLength: next.maxLength, restLength: next.restLength, minLength: next.minLength });
+    Object.assign(element, { length: next.length, maxLength: next.maxLength, restLength: element.type === 'piston-pull' ? next.minLength : next.restLength, minLength: next.minLength });
     return element;
+  }
+
+  // A new attachment defines the construction length. Runtime motion never changes it.
+  function fitMountedPistons(project, ids = null, motion = driveRange(project).min) {
+    const result = solve(project, motion, { design: true, collisions: false, forces: false });
+    for (const e of project.elements.filter((e) => e.type.startsWith('piston-') && (!ids || ids.includes(e.id)))) {
+      const pose = result.poses[e.id];
+      if (!pose || pose.length < 1 || (!elasticMount(project, e, 'a') && !elasticMount(project, e, 'b'))) continue;
+      if (pose.length > e.maxLength + TOLERANCE || pose.length < e.minLength - TOLERANCE || !pistonGeometry(e).fits) {
+        e.x = pose.a.x; e.y = pose.a.y; e.angle = pose.angle;
+        resizePiston(e, pose.length);
+      }
+    }
+    return project;
   }
 
   function solveElastic(project, poses, issues, invalid, options) {
@@ -835,6 +859,8 @@
       normalized.movingRail = e.type === 'rail' && !normalized.primary && !!e.movingRail;
       normalized.carriageWidth = number(e.carriageWidth, 24, .1, 5000);
       normalized.carriageHeight = number(e.carriageHeight, 30, .1, 5000);
+      normalized.camShape = e.camShape === 'pear' ? 'pear' : 'harmonic';
+      normalized.camNoseRatio = number(e.camNoseRatio, .4, .1, 1);
       normalized.camLift = number(e.camLift, base.camLift, 0, 5000);
       normalized.camPhase = number(e.camPhase, 0, -360, 360);
       if (normalized.length <= 0 || normalized.width <= 0 || normalized.radius <= 0 || normalized.stroke <= 0 || normalized.slotWidth <= 0 || normalized.bearingOffset <= 0 || normalized.curveRadius <= 0) throw new Error('Rozmery prvkov musia byť kladné.');
@@ -964,7 +990,8 @@
     }), 'trajektórie');
     const simulation = {};
     for (const [key, fallback] of Object.entries(simulationDefaults)) {
-      if (key === 'mode') simulation.mode = input.simulation?.mode === 'dynamic' ? 'dynamic' : 'kinematic';
+      if (key === 'returnOnRelease') simulation.returnOnRelease = input.simulation?.returnOnRelease !== false;
+      else if (key === 'mode') simulation.mode = input.simulation?.mode === 'dynamic' ? 'dynamic' : 'kinematic';
       else {
         const negative = ['inputForce', 'initialVelocity'].includes(key);
         simulation[key] = number(input.simulation?.[key], fallback, negative ? -1000000 : key === 'duration' ? 0.1 : 0, key === 'gravity' ? 100 : key === 'duration' ? 120 : 1000000);
@@ -1000,7 +1027,7 @@
 
   global.Kinematics = Object.freeze({
     DEG, EPS, TOLERANCE, TYPES, KINDS, CURVES, ELASTIC_TYPES, CONSTRAINT_TYPES, defaults, simulationDefaults, clamp, lerp, distance, copy, uid,
-    along, angleOf, preset, makeElement, configuredDriveRange, driveRange, railTravel, pistonGeometry, resizePiston, elasticGraph, designAngle, defaultControls, slotProfile,
+    along, angleOf, preset, makeElement, configuredDriveRange, driveRange, railTravel, pistonGeometry, resizePiston, fitMountedPistons, elasticGraph, designAngle, defaultControls, slotProfile,
     bezier, catmull, arcPoints, circleIntersections, circlePathIntersections, nearestOnSegment,
     nearestOnPath, segmentIntersection, segmentRect, solve, sample, point, inverseDrive, bounds, validateProject,
     registerProject, prepareProject, projectPhases, tracePoint,

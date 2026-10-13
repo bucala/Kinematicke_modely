@@ -7,6 +7,7 @@
   const throws = (fn) => { let failed = false; try { fn(); } catch { failed = true; } assert(failed); };
   const slider = (type = 'spring-compression') => {
     const anchor = K.makeElement('ground', 0, 0), body = K.makeElement('link', 120, 0), spring = K.makeElement(type);
+    spring.damping = 0;
     Object.assign(body, { drive: true, driveMode: 'linear', stroke: 120, length: 50, mass: 1 });
     if (type.startsWith('piston-')) Object.assign(spring, { length: 120, restLength: 160, minLength: 80, maxLength: 240 });
     spring.mountA = { elementId: anchor.id, point: 'a' }; spring.mountB = { elementId: body.id, point: 'a' };
@@ -167,7 +168,7 @@
   });
   add('Spoločný otočný čap pružiny a piesta nezmizne a nezávisí od poradia prvkov.', () => {
     const p = K.preset('custom'), ground = K.makeElement('ground', 0, 0), piston = K.makeElement('piston-push', 0, 0), spring = K.makeElement('spring-compression', 240, 0);
-    piston.mountA = { elementId: ground.id, point: 'a' };
+    spring.length = 120; piston.mountA = { elementId: ground.id, point: 'a' };
     p.elements = [ground, piston, spring];
     p.connections = [{ id: K.uid(), type: 'revolute', a: { elementId: piston.id, point: 'b' }, b: { elementId: spring.id, point: 'a' } }];
     const result = K.solve(K.validateProject(p), 0, { collisions: false });
@@ -194,7 +195,7 @@
   });
   const freeSpring = (damping = 0) => {
     const p = K.preset('custom'), ground = K.makeElement('ground', 0, 0), spring = K.makeElement('spring-compression', 0, 0);
-    spring.mountA = { elementId: ground.id, point: 'a' }; spring.damping = damping; p.elements = [ground, spring];
+    spring.length = 120; spring.mountA = { elementId: ground.id, point: 'a' }; spring.damping = damping; p.elements = [ground, spring];
     Object.assign(p.simulation, { mode: 'dynamic', gravity: 0, damping: 0 });
     return { p, spring };
   };
@@ -231,7 +232,7 @@
   });
   add('Spoločné pružné čapy majú jeden dynamický bod a pružina rozhýbe piest.', () => {
     const p = K.preset('custom'), ground = K.makeElement('ground', 0, 0), piston = K.makeElement('piston-push', 0, 0), spring = K.makeElement('spring-compression', 200, 0);
-    Object.assign(piston, { length: 200, actuatorMode: 'damper', damping: 10 }); piston.mountA = { elementId: ground.id, point: 'a' }; p.elements = [ground, spring, piston];
+    spring.length = 120; Object.assign(piston, { length: 200, actuatorMode: 'damper', damping: 10 }); piston.mountA = { elementId: ground.id, point: 'a' }; p.elements = [ground, spring, piston];
     p.connections = [{ id: K.uid(), type: 'revolute', a: { elementId: piston.id, point: 'b' }, b: { elementId: spring.id, point: 'a' } }]; p.simulation.gravity = 0;
     const c = P.prepare(p, { collisions: false }), s = P.step(c, P.initialState(c), .01), result = K.solve(p, 0, { collisions: false, elasticPositions: P.elasticPositions(s) });
     assert(c.network.graph.ports[`${piston.id}:b`] === c.network.graph.ports[`${spring.id}:a`]); near(K.distance(result.poses[piston.id].b, result.poses[spring.id].a), 0);
@@ -261,13 +262,59 @@
 
   add('Sila z voľného pružného čapu sa prenesie aj na pohyblivé nosné teleso.', () => {
     const p = K.preset('custom'), body = K.makeElement('link', 0, 0), spring = K.makeElement('spring-compression', 60, 0);
-    Object.assign(body, { drive: true, driveMode: 'linear', stroke: 120, mass: 1 }); spring.mountA = { elementId: body.id, point: 'a' };
+    spring.length = 120; Object.assign(body, { drive: true, driveMode: 'linear', stroke: 120, mass: 1 }); spring.mountA = { elementId: body.id, point: 'a' };
     p.elements = [body, spring]; p.parameters.travelMax = 120; Object.assign(p.simulation, { gravity: 0, damping: 0 });
     const c = P.prepare(p, { motion: 60, collisions: false }), initial = P.initialState(c, 60), s = P.step(c, initial, .005);
     assert(s.motion < 60 && s.velocity < 0 && !s.stopped); assert(s.particles[c.network.graph.ports[`${spring.id}:b`]].vx > 0);
     const csv = global.KinmoExport.forceCSV(p, [], c, [initial, s]);
     const rows = csv.split('\r\n'), index = rows[0].split(';').indexOf(`${spring.id}_dlzka_mm`);
     assert(Number(rows[2].split(';')[index].replaceAll('"', '')) > Number(rows[1].split(';')[index].replaceAll('"', '')));
+  });
+  add('Montáž dlhého piesta prispôsobí valec skutočným čapom bez presunu uloženia.', () => {
+    const p = K.preset('custom'), a = K.makeElement('ground', 0, 0), b = { ...K.makeElement('node', 600, 0), locked: true }, piston = K.makeElement('piston-push', 0, 0), I = global.KinmoInteraction;
+    p.elements = [a, b, piston];
+    const first = I.setJoint(p, { elementId: piston.id, point: 'a' }, { type: 'revolute', other: { elementId: a.id, point: 'a' } });
+    const mounted = I.setJoint(first, { elementId: piston.id, point: 'b' }, { type: 'revolute', other: { elementId: b.id, point: 'a' } }), e = mounted.elements.find((e) => e.id === piston.id), result = K.solve(mounted, 0), g = K.pistonGeometry(e);
+    assert(!result.blocked && g.fits); near(e.maxLength, 600); near(result.poses[piston.id].length, 600);
+    assert(600 - g.cylinder <= g.cylinder + g.eye); near(result.poses[a.id].a.x, 0); near(result.poses[b.id].a.x, 600);
+    assert(piston.maxLength === 240 && p.connections.length === 0);
+  });
+  add('Aj neplatný starší piest má viditeľnú tyč, ktorá nie je dlhšia než valec s okom.', () => {
+    const e = K.makeElement('piston-push'), g = K.pistonGeometry(e, 650);
+    assert(650 - g.cylinder <= g.cylinder + g.eye); assert(e.maxLength === 240);
+  });
+  for (const type of ['spring-compression', 'spring-extension', 'piston-push', 'piston-pull']) {
+    add(`${type}: po pustení sa vráti tlmene do prirodzenej východiskovej polohy.`, () => {
+      const p = K.preset('custom'), anchor = K.makeElement('ground', 0, 0), e = K.makeElement(type, 0, 0), body = K.makeElement('node', e.length, 0);
+      const compression = ['spring-compression', 'piston-push'].includes(type), stroke = type.startsWith('piston-') ? 96 : 80;
+      Object.assign(body, { mass: 1, drive: true, driveMode: 'linear', driveAngle: compression ? 180 : 0, stroke });
+      e.mountA = { elementId: anchor.id, point: 'a' }; e.mountB = { elementId: body.id, point: 'a' }; p.elements = [anchor, body, e]; p.parameters.travelMax = stroke; p.simulation.gravity = 0;
+      const c = P.prepare(p, { motion: 40, collisions: false }); let state = P.initialState(c, 40), g = K.pistonGeometry(e).cylinder;
+      state = P.step(c, state, .05); assert(state.motion < 40 && state.motion > 0 && state.velocity < 0);
+      for (let i = 0; i < 80 && !state.stopped; i++) state = P.step(c, state, .05);
+      near(state.motion, 0, .02); near(K.solve(p, state.motion, { collisions: false }).poses[e.id].length, e.length, .02);
+      if (type.startsWith('piston-')) near(K.pistonGeometry(e).cylinder, g);
+    });
+  }
+  add('Priame stlačenie voľného čapu rešpektuje dorazy a po pustení nemení konštrukciu.', () => {
+    const p = K.preset('custom'), anchor = K.makeElement('ground', 0, 0), e = K.makeElement('spring-compression', 0, 0); e.mountA = { elementId: anchor.id, point: 'a' }; p.elements = [anchor, e]; p.simulation.gravity = 0;
+    const json = JSON.stringify(p), c = P.prepare(p), initial = P.initialState(c), id = c.network.graph.ports[`${e.id}:b`], held = P.dragTip(c, initial, id, { x: 20, y: 0 });
+    near(held.particles[id].x, e.minLength); near(initial.particles[id].x, 160);
+    let state = P.dragTip(c, initial, id, { x: 120, y: 0 });
+    state = P.step(c, state, .1); assert(state.particles[id].x > 120 && state.particles[id].x < 160);
+    for (let i = 0; i < 50; i++) state = P.step(c, state, .1);
+    near(state.particles[id].x, 160, .05); assert(JSON.stringify(p) === json);
+  });
+  add('Nové pružiny začínajú v pokoji a ťažný piest v zasunutej polohe.', () => {
+    for (const type of ['spring-compression', 'spring-extension']) { const e = K.makeElement(type); near(e.length, e.restLength); near(P.axial(e, e.length).signedForce, 0); assert(e.damping > 0); }
+    const pull = K.makeElement('piston-pull'); near(pull.length, pull.minLength); assert(K.pistonGeometry(pull).fits);
+  });
+
+  add('Automatický návrat tlmí aj starší nulový odpor, bez prepísania parametrov prvku.', () => {
+    const { project, spring } = slider(); spring.damping = 0; project.simulation.returnDamping = 200; const before = JSON.stringify(project);
+    const ordinary = P.prepare(project), returning = P.prepare(project, { returning: true });
+    const a = P.step(ordinary, P.initialState(ordinary), .03), b = P.step(returning, P.initialState(returning), .03);
+    assert(b.motion < a.motion && b.motion > 0 && returning.returning); near(returning.elastic[0].damping, 200); near(spring.damping, 0); assert(JSON.stringify(project) === before);
   });
   global.KinematicsTestCases = Object.freeze([...global.KinematicsTestCases, ...cases]);
 })(globalThis);

@@ -87,9 +87,13 @@
 
   function prepare(project, options = {}) {
     const p = K.validateProject(project), range = K.driveRange(p), scale = range.unit === '°' ? K.DEG : 0.001;
+    if (options.returning) for (const e of p.elements.filter(K.isElastic)) {
+      e.damping += p.simulation.returnDamping;
+      for (const key of ['dampingCompression', 'dampingExtension']) if (e[key] != null) e[key] += p.simulation.returnDamping;
+    }
     if (p.connections.some((j) => j.type === 'cam-contact')) throw new Error('Vačkový kontakt je kinematický s predpokladom trvalého dotyku. Odhadová dynamika nepočíta kontaktné reakcie, predpätie ani odtrhnutie valčeka.');
     const profile = options.profile || K.prepareProject(p);
-    const initial = K.solve(p, options.motion ?? range.min, { profile, collisions: options.collisions !== false });
+    const initial = K.solve(p, options.motion ?? range.min, { profile, collisions: options.collisions !== false, elasticPositions: options.elasticPositions });
     if (initial.blocked) throw new Error(`Dynamiku nemožno spustiť: ${initial.issues[0]}`);
     const freedom = E.freedom(p, initial);
     const graph = K.elasticGraph(p, initial.poses), particles = graph.groups.filter((g) => !g.anchors.length);
@@ -136,7 +140,7 @@
       maxStep = Math.min(maxStep, .1 * Math.sqrt(g.mass / Math.max(1, stiffness)), .2 * g.mass / Math.max(1, damping));
     }
     if (maxStep < 0.00001) throw new Error('Systém je príliš tuhý alebo silno tlmený pre túto odhadovú dynamiku. Znížte tuhosť / tlmenie alebo použite profesionálny dynamický solver.');
-    return { project: p, range, scale, profile, rows, config, elastic, maxStep, collisions: options.collisions !== false, freedom, network, estimated: true };
+    return { project: p, range, scale, profile, rows, config, elastic, maxStep, collisions: options.collisions !== false, freedom, network, returning: !!options.returning, estimated: true };
   }
 
   function interpolate(context, motion) {
@@ -256,6 +260,25 @@
     return { loads, drive, lengthRates, result };
   }
 
+  function dragTip(context, previous, id, point) {
+    if (!context.network?.particles.some((g) => g.id === id) || ![point.x, point.y].every(Number.isFinite)) throw new Error('Vyberte voľný pružný čap.');
+    const state = { ...previous, time: 0, stopped: false, reason: '', velocity: 0, particles: Object.fromEntries(Object.entries(previous.particles).map(([key, p]) => [key, { ...p, vx: 0, vy: 0 }])) };
+    const tip = state.particles[id]; tip.x = point.x; tip.y = point.y;
+    for (let pass = 0; pass < 20; pass++) {
+      const result = K.solve(context.project, state.motion, { profile: context.profile, collisions: false, forces: false, elasticPositions: elasticPositions(state) });
+      let error = 0;
+      for (const e of context.network.members) {
+        const keys = ['a', 'b'], key = keys.find((key) => context.network.graph.ports[`${e.id}:${key}`] === id); if (!key) continue;
+        const pose = result.poses[e.id], other = pose[key === 'a' ? 'b' : 'a'], length = K.distance(tip, other), target = K.clamp(length, e.minLength, e.maxLength);
+        error = Math.max(error, Math.abs(length - target));
+        const prior = previous.particles[id], fallbackLength = K.distance(prior, other) || 1, ux = length > K.EPS ? (tip.x - other.x) / length : (prior.x - other.x) / fallbackLength, uy = length > K.EPS ? (tip.y - other.y) / length : (prior.y - other.y) / fallbackLength;
+        tip.x = other.x + ux * target; tip.y = other.y + uy * target;
+      }
+      if (error < .000001) break;
+    }
+    return state;
+  }
+
   function dynamicForces(context, state, result) {
     const rates = generalized(context, state.motion, state.velocity).lengthRates;
     if (context.network) Object.assign(rates, networkForces(context, state).lengthRates);
@@ -322,5 +345,5 @@
     return context.rows.map((row) => ({ motion: row.motion, ...generalized(context, row.motion), blocked: row.blocked }));
   }
 
-  global.KinmoPhysics = Object.freeze({ springRate, axial, forces, centerOfMass, inertia, prepare, generalized, initialState, step, forceCurve, elasticPositions, dynamicForces });
+  global.KinmoPhysics = Object.freeze({ springRate, axial, forces, centerOfMass, inertia, prepare, generalized, initialState, step, forceCurve, elasticPositions, dynamicForces, dragTip });
 })(globalThis);

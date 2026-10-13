@@ -61,7 +61,7 @@ function controller(width = 1440) {
     icon: () => '', escape: (value) => String(value), fmt: (value) => String(value), svgNS: 'http://www.w3.org/2000/svg',
     line: (a, b, attributes = '') => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${attributes}/>`,
     ib: (name, action, title, active = false, extra = '') => `<button data-action="${action}" ${extra}></button>`,
-    K, I, E, W: globalThis.KinmoWorkbench, WF: globalThis.KinmoWorkflow, M: { ...globalThis.KinmoMagicImport }, AD: { ...globalThis.KinmoDetection }, AbortController, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo', cam: 'Rotačná vačka' }, typeIcons: { ground: 'ground', cam: 'cam' },
+    K, I, E, P: globalThis.KinmoPhysics, W: globalThis.KinmoWorkbench, WF: globalThis.KinmoWorkflow, M: { ...globalThis.KinmoMagicImport }, AD: { ...globalThis.KinmoDetection }, AbortController, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo', cam: 'Rotačná vačka' }, typeIcons: { ground: 'ground', cam: 'cam' },
     CAD: { ENDPOINT: 'http://127.0.0.1:8765' },
     drawElement() { return '<g class="ghost-body"/>'; }, renderTree() {}, renderInspector() {}, renderScene() {}, renderGraph() {}, fitView() {},
     onChange() {}, onSubmit() {}, onContextMenu() {}, updateHover() {}, updateMotion() {},
@@ -92,7 +92,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -1059,7 +1059,7 @@ test('Cam is discoverable, its profile accepts quantities and a follower is one 
   const { context, state, element } = controller();
   context.buildShell();
   const tile = element('#app').innerHTML.match(/<button[^>]*data-component="cam"[\s\S]*?<\/button>/)[0];
-  assert.match(tile, /<small>Harmonický profil<\/small>/); assert.doesNotMatch(tile, /undefined/);
+  assert.match(tile, /<small>Harmonická \/ pretiahnutá<\/small>/); assert.doesNotMatch(tile, /undefined/);
   context.addElement('cam', { x: 200, y: 180 }); const cam = state.project.elements.at(-1);
   assert.equal(state.traceRef.elementId, cam.id); assert.equal(state.traceRef.point, 'a');
   assert.equal(context.defaultTraceReference().point, 'a');
@@ -1926,4 +1926,41 @@ test('Piston inspector design length resizes its cylinder and stroke together', 
   context.onPropertyChange({ value: '480', min: '1', max: '5000', dataset: { property: 'length', scope: 'element' }, checkValidity: () => true });
   const e = state.project.elements[0]; assert.equal(e.length, 480); assert.equal(e.maxLength, 480); assert(K.pistonGeometry(e).cylinder > before * 1.8 && K.pistonGeometry(e).fits);
   assert.equal(state.history.length, 1);
+});
+
+function elasticController() {
+  const fixture = controller(), { context, state } = fixture, K = context.K;
+  const ground = K.makeElement('ground', 0, 0), spring = K.makeElement('spring-compression', 0, 0); spring.mountA = { elementId: ground.id, point: 'a' };
+  state.project = K.preset('custom'); state.project.elements = [ground, spring]; state.project.simulation.gravity = 0; state.mode = 'simulate'; state.result = K.solve(state.project, 0);
+  for (const name of ['solveCurrent', 'setMotion']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  context.actions = { play() { context.playCalls = (context.playCalls || 0) + 1; state.playing = true; state.dynamic ||= context.P.initialState(state.forceContext, state.motion); } };
+  return { ...fixture, spring };
+}
+test('Releasing a directly compressed spring automatically starts force return without changing design', () => {
+  const { context, state, spring } = elasticController(), original = JSON.stringify(state.project.elements);
+  assert(context.beginElasticDrag({ elementId: spring.id, point: 'b' }, 1));
+  context.onPointerMove({ pointerId: 1, clientX: 120, clientY: 0, preventDefault() {}, target: { closest: () => null } });
+  assert.equal(state.result.poses[spring.id].length, 120);
+  context.onPointerUp({ pointerId: 1 }); assert.equal(context.playCalls, 1); assert(state.playing && state.project.simulation.mode === 'dynamic');
+  const after = context.P.step(state.forceContext, state.dynamic, .1), id = state.forceContext.network.graph.ports[`${spring.id}:b`]; assert(after.particles[id].x > 120);
+  assert.equal(JSON.stringify(state.project.elements), original);
+});
+test('Return opt-out and pointer cancellation do not start force playback', () => {
+  for (const cancel of [true, false]) {
+    const { context, state, spring } = elasticController(); state.project.simulation.returnOnRelease = cancel;
+    context.beginElasticDrag({ elementId: spring.id, point: 'b' }, 1);
+    context.onPointerMove({ pointerId: 1, clientX: 120, clientY: 0, preventDefault() {}, target: { closest: () => null } });
+    context.onPointerUp({ pointerId: 1, cancelled: cancel }); assert.equal(context.playCalls || 0, 0);
+    assert.equal(state.result.poses[spring.id].length, cancel ? 160 : 120);
+  }
+});
+
+test('Manual simulation drag stops at piston stroke instead of drawing an impossible rod', () => {
+  const { context, state } = elasticController(), K = context.K;
+  const anchor = K.makeElement('ground', 0, 0), body = K.makeElement('node', 240, 0), piston = K.makeElement('piston-push', 0, 0);
+  Object.assign(body, { mass: 1, drive: true, driveMode: 'linear', driveAngle: 180, stroke: 180 });
+  piston.mountA = { elementId: anchor.id, point: 'a' }; piston.mountB = { elementId: body.id, point: 'a' };
+  state.project.elements = [anchor, body, piston]; state.project.parameters.travelMax = 180; state.result = K.solve(state.project, 0, { collisions: false });
+  context.setMotion(180); assert(!state.result.blocked); assert(state.motion < 97);
+  assert(state.result.poses[piston.id].length >= piston.minLength - K.TOLERANCE);
 });
