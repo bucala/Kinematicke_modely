@@ -8,6 +8,7 @@ import '../workbench.js';
 import '../magic-import.js';
 import '../exports.js';
 import '../workflow.js';
+import '../physics.js';
 const K = globalThis.Kinematics, E = KinmoEditor, I = KinmoInteraction, F = KinmoWorkflow, M = KinmoMagicImport;
 const near = (a, b) => assert(Math.abs(a - b) < .001, `${a} != ${b}`);
 const custom = (...elements) => K.validateProject({ ...K.preset('custom'), elements });
@@ -112,4 +113,53 @@ test('Invalid trial inputs cannot return NaN geometry or enter a solver loop', (
 test('Trial checks sampled blocked positions narrower than its uniform scan interval', () => {
   const solve = (motion) => ({ motion, blocked: motion > 50.2 && motion < 50.4, poses: {}, invalid: [], collisions: [], issues: ['Kolízia'] });
   const result = F.trial(custom(), 0, 100, { solve, samples: [{ motion: 50.3 }] }); assert(result.blocked); assert(result.motion <= 50.2 && result.motion > 50.19);
+});
+
+test('Node connection gesture ranks all overlapping supports and excludes its own body and existing joints', () => {
+  const a=K.makeElement('link',0,0),b=K.makeElement('ground',200,0),c=K.makeElement('node',200,0),p=custom(a,b,c),r={elementId:a.id,point:'a'},pose=E.design(p,0);
+  const choices=F.connectionChoices(p,r,pose,{x:200,y:1},8,true);assert.equal(choices.length,2);assert(choices.every(v=>v.direct&&v.source.ref.elementId===a.id));
+  const moved=I.translate(p,[I.elementKey(a.id)],choices[0].delta,pose),joined=KinmoWorkbench.connectSnap(moved,choices[0],'revolute');assert.equal(joined.connections.length,1);assert.equal(p.connections.length,0);
+  assert(!F.connectionChoices(joined,r,E.design(joined,0),{x:200,y:0},8).some(v=>v.target.elementId===choices[0].target.elementId));
+});
+test('Applying a simulated rail pose to the draft preserves both rail ends and carriage in either mounting mode', () => {
+  for(const movingRail of [false,true]){const rail=K.makeElement('rail',0,0);Object.assign(rail,{drive:true,movingRail,length:300,stroke:120,carriageOffset:30,angle:30});const p=custom(rail),pose=K.solve(p,100,{collisions:false}),next=F.bakePose(p,pose),after=E.design(next,0);for(const key of ['a','b','c'])near(K.distance(pose.poses[rail.id][key],after.poses[rail.id][key]),0);assert.equal(rail.carriageOffset,30);}
+});
+test('Baking force-driven elastic runtime length preserves joints and original spring properties', () => {
+  const anchor=K.makeElement('ground',0,0),e=K.makeElement('spring-compression',0,0);e.mountA={elementId:anchor.id,point:'a'};const p=custom(anchor,e),context=KinmoPhysics.prepare(p),s=KinmoPhysics.initialState(context),id=context.network.graph.ports[e.id+':b'],held=KinmoPhysics.dragTip(context,s,id,{x:120,y:0}),pose=K.solve(p,0,{elasticPositions:KinmoPhysics.elasticPositions(held)}),next=F.bakePose(p,pose);
+  near(next.elements.find(v=>v.id===e.id).length,120);near(next.elements.find(v=>v.id===e.id).restLength,160);assert.equal(p.elements[1].length,160);assert.throws(()=>F.bakePose(p,{...pose,blocked:true}));
+});
+test('Reference calibration anchors A and optionally scales all geometry and dimensions once', () => {
+  const e=K.makeElement('link',20,30),p=custom(e);p.importReference={kind:'magic',visible:true,opacity:.35,active:0,frames:[{name:'Test',dataURL:raster,rect:{x:0,y:0,width:400,height:200}}]};
+  const a={x:100,y:50},b={x:200,y:50},image=F.calibrateReference(p,a,b,200),model=F.calibrateReference(p,a,b,200,true);
+  near(image.importReference.frames[0].rect.x,-100);near(image.importReference.frames[0].rect.width,800);near(image.elements[0].length,e.length);
+  near(model.importReference.frames[0].rect.width,800);near(model.elements[0].x,-60);near(model.elements[0].y,10);near(model.elements[0].length,e.length*2);assert.equal(p.importReference.frames[0].rect.width,400);
+  assert.throws(()=>F.calibrateReference(p,a,a,100));
+});
+test('Piston and spring-arm kits remap every internal mount, simulate without a motor and leave the host unchanged', () => {
+  for(const type of ['piston','spring-arm']) {const host=custom(),inserted=F.insertKit(host,type,{x:300,y:80},160,20,false),ids=new Set(inserted.added);assert.equal(host.elements.length,0);
+    for(const e of inserted.project.elements.filter(K.isElastic))for(const r of [e.mountA,e.mountB])assert(ids.has(r.elementId));
+    const pose=K.solve(inserted.project,0,{collisions:false});assert(!pose.blocked);assert.doesNotThrow(()=>KinmoPhysics.prepare(inserted.project,{collisions:false}));
+  }
+});
+test('Return response separates slow settling from oscillation and never edits the element', () => {
+  const e=K.makeElement('spring-compression'),before=JSON.stringify(e),slow=F.response(e,1,500),oscillating=F.response(e,1,1);
+  assert(slow.rows.length>50&&oscillating.rows.length>50);assert(slow.rows.at(-1).length>slow.rows[0].length);assert(oscillating.rows.some(r=>r.length>e.restLength));assert.equal(JSON.stringify(e),before);assert.throws(()=>F.response(e,0,5));
+});
+test('Diagnostic repair suggestions identify redundant joints and elastic stroke issues precisely', () => {
+  const a=K.makeElement('link'),b=K.makeElement('ground'),e=K.makeElement('spring-extension');e.mountA={elementId:b.id,point:'a'};e.mountB={elementId:a.id,point:'b'};const p=custom(a,b,e);a.length=400;p.elements[0].length=400;
+  const j={id:K.uid(),type:'revolute',name:'Čap',value:0,a:{elementId:a.id,point:'a'},b:{elementId:b.id,point:'a'}};p.connections=[j,{...j,id:K.uid()}];const fixes=F.repairSuggestions(p,E.design(p,0));assert(fixes.some(f=>f.action==='remove-duplicate'&&f.key===I.jointKey(p.connections[1].id)));assert(fixes.some(f=>f.action==='elastic-range'&&f.key===I.elementKey(e.id)));
+});
+test('Freedom directions satisfy the linearized joints of a coupled two-arm chain',()=>{
+  const ground=K.makeElement('ground',0,0),a=K.makeElement('link',0,0),b=K.makeElement('link',120,0),p=custom(ground,a,b);p.connections=[{id:K.uid(),type:'revolute',value:0,a:{elementId:ground.id,point:'a'},b:{elementId:a.id,point:'a'}},{id:K.uid(),type:'revolute',value:0,a:{elementId:a.id,point:'b'},b:{elementId:b.id,point:'a'}}];const pose=E.design(p,0),freedom=E.freedom(p,pose);assert.equal(freedom.free,2);
+  for(let i=0;i<2;i++){const shifted=K.copy(pose),step=1e-5;for(const e of [a,b]){const v=freedom.directions.find(d=>d.elementId===e.id).vectors[i]||{x:0,y:0,angle:0},old=pose.poses[e.id];shifted.poses[e.id]={...old,a:{x:old.a.x+v.x*step,y:old.a.y+v.y*step},angle:old.angle+v.angle*step/K.DEG};shifted.poses[e.id].b=K.worldPoint(shifted.poses[e.id],K.localPoint(old,old.b));}for(const j of p.connections)assert(K.distance(K.point(shifted,j.a),K.point(shifted,j.b))<.00001);}
+});
+
+test('Small spring-arm and piston kits have physically usable dimensions and active force',()=>{
+  for(const type of ['spring-arm','piston']){const p=F.kit(type,30,5,false),pose=K.solve(p,0,{collisions:false}),e=p.elements.find(K.isElastic);assert(!pose.blocked);assert(Math.abs(KinmoPhysics.axial(e,pose.poses[e.id].length).nominalForce)>0);if(type==='piston')assert(K.pistonGeometry(e).fits);}
+});
+
+test('Low damping with an explicit opposing load produces repeated spring oscillations',()=>{
+  const e=K.makeElement('spring-compression'),plot=F.response(e,1,1,2,10),equilibrium=e.restLength-10/KinmoPhysics.springRate(e);let crossings=0;
+  for(let i=1;i<plot.rows.length;i++)if((plot.rows[i-1].length-equilibrium)*(plot.rows[i].length-equilibrium)<0)crossings++;
+  assert(crossings>3);assert.throws(()=>F.response(e,1,1,2,-1));
 });

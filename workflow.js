@@ -113,19 +113,76 @@
     const duration = phases.reduce((sum, p) => sum + p.duration, 0), time = K.clamp(seconds, 0, duration); let offset = 0;
     for (let i = 0; i < phases.length; i++) { const p = phases[i]; if (time <= offset + p.duration || i === phases.length - 1) { let t = K.clamp((time - offset) / p.duration, 0, 1); if (p.easing === 'smooth') t = t * t * (3 - 2 * t); return { motion: K.lerp(p.from, p.to, t), index: i, name: p.name, duration }; } offset += p.duration; }
   }
+  function connectionChoices(project, reference, result, at, tolerance = 8, wholeBody = false) {
+    const source = project.elements.find(e => e.id === reference.elementId), origin = K.point(result, reference);
+    if (!source || !origin || !finitePoint(at) || !Number.isFinite(tolerance) || tolerance <= 0) return [];
+    const root = I.root(project, source), out = [];
+    for (const target of project.elements.filter(e => e.visible && I.root(project,e)?.id !== root?.id)) {
+      for (const key of [...I.pointKeys(target), ...(['rail','slot','cam'].includes(target.type) ? ['curve'] : [])]) {
+        if (key === 'curve' && K.isElastic(source)) continue;
+        const pose = result.poses[target.id], point = key === 'curve' ? pose?.path?.length && (target.type === 'cam' && source.type === 'bearing' ? K.nearestOnCam(at,pose,source.radius) : K.nearestOnPath(at,pose.path)) : pose?.[key];
+        if (!point || K.distance(point,at) > tolerance || project.connections.some(j => [j.a,j.b].some(r=>r.elementId===reference.elementId&&r.point===reference.point)&&[j.a,j.b].some(r=>r.elementId===target.id&&r.point===key))) continue;
+        const kind = key === 'curve' ? target.type === 'cam' ? 'cam-contact' : 'guide' : 'endpoint';
+        if (kind === 'cam-contact' && source.type !== 'bearing') continue;
+        out.push({ kind, direct: true, wholeBody, motion: result.motion, source:{elementId:source.id,ref:K.copy(reference),at:K.copy(origin)}, target:{elementId:target.id,ref:{elementId:target.id,point:key},at:{x:point.x,y:point.y}}, point:{x:point.x,y:point.y}, delta:{x:point.x-origin.x,y:point.y-origin.y}, distance:K.distance(at,point), label:`${target.name} · ${K.pointName(key)}` });
+      }
+    }
+    return out.sort((a,b)=>a.distance-b.distance).slice(0,16);
+  }
+  function bakePose(project, result) {
+    if (project.kind !== 'custom' || result.blocked) throw new Error('Polohu možno uložiť len v platnom vlastnom modeli.');
+    const p = K.copy(project), range = K.driveRange(p);
+    for (const e of p.elements.filter(e=>!e.primary&&!e.parentId)) {
+      const pose=result.poses[e.id];if(!pose)continue;
+      const at=pose.controlOrigin||pose.a; e.x=at.x;e.y=at.y;e.angle=pose.angle;
+      if(K.isElastic(e)){e.length=pose.length;if(e.type.startsWith('piston-')&&(pose.length<e.minLength||pose.length>e.maxLength))K.resizePiston(e,pose.length);}
+      if(e.type==='rail') {const travel=e.drive?K.railTravel(p,e,result.motion):0;e.carriageOffset+=travel;}
+      else if(e.drive&&e.driveMode!=='linear')e.angle-=range.min;
+    }
+    return K.validateProject(p);
+  }
+  function repairSuggestions(project, result) {
+    const analysis=W.diagnose(project,result), fixes=[];
+    for(const pair of analysis.duplicates)fixes.push({key:I.jointKey(pair[1]),action:'remove-duplicate',label:'Odstrániť nadbytočnú kópiu väzby'});
+    for(const pair of analysis.conflicts)fixes.push({key:I.jointKey(pair[1]),action:'edit-joint',label:'Upraviť konfliktnú väzbu'});
+    for(const e of project.elements.filter(K.isElastic)) {const length=result.poses[e.id]?.length;if(length<e.minLength-K.TOLERANCE||length>e.maxLength+K.TOLERANCE)fixes.push({key:I.elementKey(e.id),action:'elastic-range',label:`${e.name}: upraviť rozsah pre ${Math.round(length)} mm`});}
+    for(const check of analysis.checks.filter(c=>['connect','support'].includes(c.action)))fixes.push({key:check.key,action:check.action,label:check.action==='connect'?'Doplniť spojenie vybraného člena':'Vybrať bod na ukotvenie'});
+    return fixes;
+  }
+  function calibrateReference(project, a, b, distance, model = false) {
+    if(!project.importReference||![a,b].every(finitePoint)||!Number.isFinite(distance)||distance<.1||distance>5000||K.distance(a,b)<.1)throw new Error('Vyberte dva odlišné body predlohy a rozmer 0,1 až 5000 mm.');
+    const ratio=distance/K.distance(a,b);
+    let p=model?global.KinmoMagicImport.rescale(project,{a:{x:0,y:0},mmPerPixel:1},{a:{x:a.x*(ratio-1)/ratio,y:a.y*(ratio-1)/ratio},mmPerPixel:ratio}):K.copy(project);
+    // Geometry rescaling already transforms all image rectangles.
+    const ref=p.importReference;for(const frame of (model?[]:[ref.frames[ref.active]])){const r=frame.rect;r.x=a.x+(r.x-a.x)*ratio;r.y=a.y+(r.y-a.y)*ratio;r.width*=ratio;r.height*=ratio;}
+    return K.validateProject(p);
+  }
+  function response(element, mass, damping, seconds=2, load=0) {
+    const P=global.KinmoPhysics;
+    if(!P||!K.isElastic(element)||![mass,damping,seconds,load].every(Number.isFinite)||mass<=0||damping<0||seconds<=0||seconds>10||load<0||load>1000000)throw new Error('Náhľad potrebuje pružný prvok, kladnú hmotnosť a nezáporné tlmenie.');
+    const e={...element,damping,dampingCompression:damping,dampingExtension:damping}, compression=['spring-compression','piston-push'].includes(e.type), rest=e.type.startsWith('spring-')?e.restLength:compression?e.maxLength:e.minLength;
+    let length=K.clamp(rest+(compression?-1:1)*Math.min(40,(e.maxLength-e.minLength)/3),e.minLength,e.maxLength), velocity=0,time=0;
+    const stiffness=P.axial(e,length).rate*1000, step=Math.min(.001,.08*Math.sqrt(mass/Math.max(1,stiffness)),.08*mass/Math.max(1,damping));
+    if(step<1e-5)throw new Error('Náhľad je príliš tuhý pre zadanú hmotnosť.');
+    const rows=[{time,length}], count=Math.ceil(seconds/step), dt=seconds/count;
+    for(let i=0;i<count;i++){velocity+=(P.axial(e,length,velocity).signedForce-(compression?1:-1)*load)/mass*dt;length+=velocity*dt*1000;const clamped=K.clamp(length,e.minLength,e.maxLength);if(clamped!==length){length=clamped;velocity=0;}time+=dt;if(i%Math.ceil(count/180)===0||i===count-1)rows.push({time,length});}
+    return {rows,rest};
+  }
   function kit(type, length = 120, width = 25, drive = false) {
-    if (!['rail', 'link', 'slot', 'panel'].includes(type) || ![length, width].every((v) => Number.isFinite(v) && v >= 5 && v <= 1000)) throw new Error('Vyberte zostavu a rozmery 5 až 1000 mm.');
+    if (!['rail', 'link', 'slot', 'panel', 'piston', 'spring-arm'].includes(type) || ![length, width].every((v) => Number.isFinite(v) && v >= 5 && v <= 1000)) throw new Error('Vyberte zostavu a rozmery 5 až 1000 mm.');
     const p = K.preset('custom'), add = (type, x, y, data = {}) => { const e = { ...K.makeElement(type, x, y), drive: false, ...data }; p.elements.push(e); return e; }, ref = (e, point = 'a') => ({ elementId: e.id, point }), joint = (a, b, type) => p.connections.push({ id: K.uid(), a, b, type, value: 0, name: E.constraintNames[type] });
     if (type === 'rail') { const rail = add('rail', 0, 0, { length, stroke: length, drive, carriageHeight: width, name: 'Vedenie zostavy' }), plate = add('panel', 0, 0, { length: width * 2, width, bearingOffset: width, name: 'Doska vozíka' }); joint(ref(rail, 'c'), ref(plate), 'fixed'); }
     if (type === 'link' || type === 'panel') { const bearing = add('bearing', 0, 0, { locked: true, radius: 5, name: 'Pevný čap' }), arm = add(type, 0, 0, { length, width, bearingOffset: length / 2, drive, driveMode: 'rotary', name: type === 'link' ? 'Rameno s čapom' : 'Sklápacie čelo' }); joint(ref(bearing), ref(arm), 'revolute'); }
     if (type === 'slot') { const slot = add('slot', 0, 0, { length, curveKind: 'polyline', controls: [{ x: 0, y: 0 }, { x: length, y: 0 }], slotWidth: width, name: 'Kulisa zostavy' }), bearing = add('bearing', 0, 0, { radius: Math.min(5, width / 3), name: 'Čap v kulise' }), arm = add('link', 0, 0, { length: width * 2, name: 'Pripojovacie rameno' }); joint(ref(slot, 'curve'), ref(bearing), 'point-path'); joint(ref(bearing), ref(arm), 'revolute'); }
+    if(type==='piston') {const a=add('bearing',0,0,{locked:true,name:'Montáž A'}),b=add('node',length,0,{mass:.1,name:'Voľný montážny čap B'}),e=add('piston-push',0,0,{name:'Piest medzi čapmi',diameter:width,rodDiameter:Math.min(8,width*.4)});K.resizePiston(e,length);e.mountA=ref(a);e.mountB=ref(b);}
+    if(type==='spring-arm') {const a=add('bearing',0,0,{locked:true,name:'Pevný čap ramena'}),anchor=add('bearing',0,length,{locked:true,name:'Montáž pružiny A'}),arm=add('link',0,0,{length,width,name:'Rameno pružiny',drive,driveMode:'rotary'}),spring=add('spring-extension',0,length,{name:'Pružina ramena',diameter:width,length:length*Math.SQRT2,restLength:length*Math.SQRT2*.8,minLength:length*Math.SQRT2*.5,maxLength:length*Math.SQRT2*1.1});spring.mountA=ref(anchor);spring.mountB=ref(arm,'b');joint(ref(a),ref(arm),'revolute');K.fitElasticRanges(p);}
     return K.validateProject(p);
   }
   function insertKit(project, type, at, length, width, drive) {
     const p = K.copy(project), source = kit(type, length, width, drive && !project.elements.some((e) => e.drive)), ids = new Map(source.elements.map((e) => [e.id, K.uid()]));
-    const added = source.elements.map((e) => ({ ...e, id: ids.get(e.id), x: e.x + at.x, y: e.y + at.y })); p.elements.push(...added);
+    const added = source.elements.map((e) => ({ ...e, id: ids.get(e.id), x: e.x + at.x, y: e.y + at.y, mountA:e.mountA?{...e.mountA,elementId:ids.get(e.mountA.elementId)}:null, mountB:e.mountB?{...e.mountB,elementId:ids.get(e.mountB.elementId)}:null })); p.elements.push(...added);
     p.connections.push(...source.connections.map((j) => ({ ...j, id: K.uid(), a: { ...j.a, elementId: ids.get(j.a.elementId) }, b: { ...j.b, elementId: ids.get(j.b.elementId) } })));
     return { project: K.validateProject(p), added: added.map((e) => e.id) };
   }
-  global.KinmoWorkflow = Object.freeze({ frameTransform, comparePoses, candidate, mergeCandidates, splitCandidate, impact, keepPose, trial, planAt, kit, insertKit });
+  global.KinmoWorkflow = Object.freeze({ frameTransform, comparePoses, candidate, mergeCandidates, splitCandidate, impact, keepPose, trial, planAt, connectionChoices, bakePose, repairSuggestions, calibrateReference, response, kit, insertKit });
 })(globalThis);

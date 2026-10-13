@@ -545,6 +545,30 @@ Limit je **40 verzií naprieč projektmi a 2 MB spolu**, vrátane záloh pred ob
 
 Vačka má vo Vlastnostiach aj v kontextovej ponuke voľbu **Tvar vačky**: pôvodný harmonický profil alebo **Pretiahnutá vačka** podľa dvoch kruhových oblúkov spojených dotyčnicami. Nastaviteľné sú základný polomer, výška výstupku, pomer polomeru špičky a natočenie. Os zostáva v strede základného kruhu; rovnaký profil sa používa pre kontakt valčeka aj export.
 
+## Rýchle spojenia, diagnostika a poloha simulácie
+
+V Úprave geometrie potiahnite voľný uzol na uzol iného telesa. Objaví sa náhľad a voľba **Otočne / Napevno**; pri vedení sa ponúknu vhodné posuvné alebo dráhové väzby. Toto gesto funguje aj pri vypnutom globálnom inteligentnom snappingu. Ak sa cieľové uzly prekrývajú, vyberte konkrétny **Cieľ spojenia**. Väzba vznikne až po výbere typu. Pohyb a potvrdené spojenie sa vrátia jedným Späť. **Alt** potlačí aj tento náhľad. Spoje v rámci jedného tuhého telesa a už existujúce väzby sa neponúkajú.
+
+Na lineárnom vedení zvoľte **Pevné vedenie · hýbe sa vozík** alebo **Pevný vozík · hýbe sa vedenie**. Zvýraznenie ukáže pohyblivú časť a rozsah zdvihu. Panel spojení automaticky volí polohu tak, aby neprekrýval vybraný prvok.
+
+**Diagnostika** ponúka cielené opravy: odstrániť nadbytočnú kópiu väzby, upraviť konfliktnú väzbu, doplniť spojenie, vybrať bod na ukotvenie alebo skontrolovať navrhnutý pracovný rozsah pružného člena. Kliknutie vyberie a priblíži dotknutý bod alebo spoj. Pri zostave s pružnými členmi sa namiesto povinného motora ponúkne **Pohyb zo síl**. Tlačidlo **Voľnosť** zobrazuje lokálne povolené smery; ak je poloha určená, zvýrazní obmedzujúce väzby. Numerický odhad smerov nemusí zaručovať veľký pohyb cez singularitu.
+
+Dĺžkový úchyt je modrý, priečny úchyt zelený kosoštvorec a otočný úchyt oranžový. Počas ťahania sa zobrazuje hodnota. Pri držaní dĺžkového, priečneho alebo otočného úchytu napíšte číslo (aj s desatinnou čiarkou) a stlačte **Enter**. Presná hodnota sa potvrdí ako jediná operácia Späť; pri chybe možno údaj opraviť alebo ťahanie zrušiť.
+
+V simulácii otvorte **Poloha simulácie**:
+
+- **Pozastaviť tu** zachová aktuálnu simulačnú polohu.
+- **Vrátiť do návrhu** obnoví uloženú geometriu a zruší priebežnú dynamickú polohu.
+- **Poloha → návrh** prenesie platnú polohu vlastného modelu do editácie. Zachová montáže a uloženie vozíka aj pri pohyblivom vedení. Voľná dĺžka pružiny a pracovné dorazy zostanú fyzikálnymi parametrami; nová geometria ich nenuluje. Chránená šablóna potrebuje voľnú kópiu.
+
+Vlastnosti pružného člena oddeľujú **pružnú / plynovú silu**, **odpor tlmenia** a výslednú silu. Pri vybranom prvku plátno ukazuje aj deformáciu alebo zdvih a dosiahnutý doraz. **Náhľad návratu a tlmenia** vykreslí dvojsekundovú reakciu samostatného osového prvku s nastaviteľnou hmotnosťou. Voľby Rýchly návrat, Pomalý návrat a Kmitanie so zaťažením upravia náhľad; jednosmerná pružina kmitá proti skúšobnej protisile. Pri pieste sa ponúka nízke tlmenie. Protisila sa do mechanizmu neukladá; tlačidlo Použiť tlmenie uloží koeficient na prvok. Náhľad nezahŕňa kĺby celej zostavy ani dodatočné tlmenie automatického návratu z Nastavení.
+
+**Zostavy** obsahujú aj piest medzi dvoma čapmi a pružinu na ramene. Vkladajú sa s reálnymi montážami, premapovanými identifikátormi a rozmermi z formulára; celý krok možno vrátiť. Vonkajšie pripojenia doplňte na označených bodoch.
+
+Magic import oddeľuje kontrolu obrysov od **návrhu väzieb**. Pred vložením preverí body, rozmery a montážne body. Ďalší náhľad očísluje navrhnuté otočné spoje; neisté väzby sú predvolene odznačené. Vložia sa len výslovne potvrdené spoje. Samotný obrys ani farba nedokazujú kinematickú funkciu.
+
+V **Predloha → nastavenia → Kalibrovať podľa známeho rozmeru** kliknite na A a B v obrázku a zadajte skutočnú dĺžku. Bod A zostane ukotvený. Predvolene sa mení len mierka aktuálneho obrázka; voliteľne možno prepočítať celý vlastný model spolu s kótami, dĺžkovými väzbami, fázami a ostatnými predlohami. Kalibráciu možno vrátiť jedným Späť.
+
 ## Pružiny, piesty a odhadová dynamika
 
 Pridajte pružný prvok a nastavte montážne body A/B v inšpektore. Zadajte minimálnu, maximálnu a voľnú dĺžku, priemer, silu alebo tuhosť, predpätie a osové tlmenie. Piest má aj priemer tyče a pomer progresie 1–3. **F je v N, k v N/mm, osové tlmenie v N·s/m, hmotnosť v kg a zotrvačnosť v kg·m².**
@@ -553,7 +577,7 @@ Nenamontovaný koniec A/B môžete v editore samostatne ťahať a prichytávať.
 
 **Pracovný rozsah: automaticky pri montáži** prispôsobí príliš krátky rozsah vzdialenosti čapov. Pružina zachová pôvodnú tuhosť aj voľnú dĺžku; piest prispôsobí tiež valec. Ručná zmena minima alebo maxima prepne na **Ručné dorazy**, ktoré sa automaticky nerozširujú. Túto voľbu možno meniť v inšpektore.
 
-V režime Úprava geometrie má vybraný prvok samostatný štvorcový úchyt **hrúbky / priemeru** na spodnej strane. Ťahanie mení priečny rozmer bez zmeny dĺžky alebo montáže, aj na ukotvených členoch. Číselnú hodnotu otvoríte z panela výberu alebo pravým kliknutím cez **Hrúbka / priemer…**. Vlastný polygonálny obrys sa škáluje okolo stredu svojho priečneho rozsahu.
+V režime Úprava geometrie má vybraný prvok samostatný úchyt v tvare kosoštvorca pre **hrúbku / priemer** na spodnej strane. Ťahanie mení priečny rozmer bez zmeny dĺžky alebo montáže, aj na ukotvených členoch. Číselnú hodnotu otvoríte z panela výberu alebo pravým kliknutím cez **Hrúbka / priemer…**. Vlastný polygonálny obrys sa škáluje okolo stredu svojho priečneho rozsahu.
 
 - Tlačná pružina: $F = k \max(0, L_0-L)$.
 - Ťažná pružina: $F = -(F_0+k(L-L_0))$ pri $L \ge L_0$, inak nulová sila.

@@ -228,7 +228,7 @@
     const basis = [];
     for (let column = 0; column < variables.length; column++) if (!pivots.includes(column)) {
       const v = Array(variables.length).fill(0); v[column] = 1;
-      pivots.forEach((pivot, row) => { v[pivot] = -matrix[row][column]; }); basis.push(v);
+      for (let row = pivots.length - 1; row >= 0; row--) { const pivot=pivots[row]; v[pivot] = -matrix[row].reduce((sum,coefficient,c)=>sum+(c>pivot?coefficient*v[c]:0),0); } basis.push(v);
     }
     const directions = bodies.map((e) => ({ elementId: e.id, vectors: basis.map((v) => {
       const get = (key) => { const index = variables.findIndex((a) => a.id === e.id && a.key === key); return index < 0 ? 0 : v[index]; };

@@ -92,7 +92,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['positionBindingTools','elementContextItems','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -1091,9 +1091,9 @@ test('Connecting a roller to a cam creates contact; a nonroller fails without a 
   assert.match(context.lastToast, /Vačkový kontakt/);
 });
 
-test('Disabled intelligent snap does not offer a joint after an ordinary drag', () => {
+test('Alt suppresses direct node connection even when a destination is nearby', () => {
   const { context, state } = controller(); context.selectTarget('n:body:a');
-  context.onPointerDown(pointer(10, 20)); context.onPointerMove(pointer(10, 59)); context.onPointerUp({ pointerId: 1 });
+  context.onPointerDown(pointer(10, 20,{altKey:true})); context.onPointerMove(pointer(10, 59,{altKey:true})); context.onPointerUp({ pointerId: 1 });
   assert.equal(state.project.elements[0].y, 59); assert(!state.pendingSnap && !state.project.connections.length);
   assert(!context.dialog);
 });
@@ -1686,6 +1686,8 @@ test('Detection preview leaves the draft unchanged; applying it is one undoable 
   assert.equal(JSON.stringify(state.project), before); assert.equal(state.history.length, 0);
   assert.match(context.magicDetectionSVG(1), /magic-detection/);
   context.applyMagicDetection();
+  assert.equal(state.magic.step,2.5);assert.equal(state.project.elements.length,0);assert(state.magic.review);
+  context.commitDetectedReview(new FormData());
   assert.equal(state.magic.step, 3); assert.equal(state.project.elements.length, 1);
   assert.equal(state.project.elements[0].length, 200); assert(!state.project.elements[0].drive);
   assert.equal(state.history.length, 1);
@@ -1702,6 +1704,7 @@ test('An invalid detection identifies the failing row and deselecting it allows 
   assert.match(state.magic.error, /Návrh 2/); assert.match(state.magic.error, /Odznačte/);
   context.onMagicSetting({ dataset: { magicSetting: 'detect-selected', detection: 'detect-2' }, checked: false });
   context.nextMagicStep();
+  assert.equal(state.magic.step,2.5);context.commitDetectedReview(new FormData());
   assert.equal(state.magic.step, 3); assert.equal(state.project.elements.length, 1); assert.equal(state.history.length, 1);
 });
 test('Mounting-point preview and opt-out are reviewable and the complete insertion is undoable', async () => {
@@ -1716,6 +1719,7 @@ test('Mounting-point preview and opt-out are reviewable and the complete inserti
   assert.doesNotMatch(context.magicDetectionSVG(1), /data-detection-anchor/);
   context.onMagicSetting({ dataset: { magicSetting: 'detect-anchors', detection: candidate.id }, checked: true });
   context.applyMagicDetection();
+  assert.equal(state.project.elements.length,0);context.commitDetectedReview(new FormData());
   assert.equal(state.project.elements.length, 2); assert.equal(state.history.length, 1);
   context.undo(); assert.equal(state.project.elements.length, 0);
 });
@@ -1999,4 +2003,25 @@ test('Right menus cover every library body, node, and an actual joint without in
   }
   const a=K.makeElement('link',0,0),b=K.makeElement('link',120,0),j={id:'menu-joint',type:'revolute',a:{elementId:a.id,point:'b'},b:{elementId:b.id,point:'a'}};state.project.elements=[a,b];state.project.connections=[j];
   const menu=context.contextItems(context.I.target(state.project,context.I.jointKey(j.id)));assert(menu.some(i=>i.id==='edit-joint'));assert(menu.some(i=>i.id==='delete'&&i.label.includes('iba túto väzbu')));
+});
+
+test('Direct node drag offers overlapping destinations without global smart snap and creates one undoable joint',()=>{
+  const {context,state}=controller(),K=context.K,a=K.makeElement('link',0,0),b=K.makeElement('ground',200,0),c=K.makeElement('node',200,0);state.project=K.validateProject({...K.preset('custom'),elements:[a,b,c]});state.result=context.E.design(state.project,0);
+  context.onPointerDown(pointer(0,0));context.onPointerMove(pointer(200,0));context.onPointerUp({pointerId:1});assert(state.pendingSnap?.direct);assert.equal(state.pendingSnap.alternatives.length,2);assert.equal(state.history.length,1);
+  context.chooseConnectionTarget(1);context.submitSnapConnection(new Map([['type','revolute']]));assert.equal(state.project.connections[0].b.elementId,c.id);assert.equal(state.history.length,1);context.undo();assert.equal(state.project.connections.length,0);assert.equal(state.project.elements[0].x,0);
+});
+test('Typing a numeric transverse dimension while holding its handle commits the exact value once',()=>{
+  const {context,state}=controller();context.selectTarget('e:body');const target={closest:s=>s==='[data-edit-handle]'?{dataset:{editHandle:'thickness'}}:null};context.onPointerDown(pointer(60,30,{target}));context.onPointerMove(pointer(60,35));
+  for(const key of ['2','5',',','5','Enter'])context.onKeyboard({key,target:{closest:()=>null},preventDefault(){}});
+  assert.equal(state.project.elements[0].width,25.5);assert.equal(state.history.length,1);assert.equal(state.drag,null);context.undo();assert.equal(state.project.elements[0].width,12);
+});
+test('Magic review inserts only explicitly confirmed inferred joints and supports undo',()=>{
+  const {context,state}=tracingWizard();state.magic.detectEnabled=true;context.setMagicStep(2.5);state.magic.detectCandidates=[{id:'a',type:'link',selected:true,points:[{x:100,y:80},{x:300,y:80}],width:10,radius:5,confidence:.8},{id:'b',type:'link',selected:true,points:[{x:300,y:80},{x:500,y:80}],width:10,radius:5,confidence:.8}];
+  context.applyMagicDetection();assert.equal(state.project.elements.length,0);assert.equal(state.magic.review.joints.length,1);assert.match(context.dialog.html,/neistý otočný spoj/);
+  context.commitDetectedReview({getAll:()=>[]});assert.equal(state.project.elements.length,2);assert.equal(state.project.connections.length,0);context.undo();assert.equal(state.project.elements.length,0);
+  context.setMagicStep(2.5);context.applyMagicDetection();const id=state.magic.review.joints[0].id;context.commitDetectedReview({getAll:()=>[id]});assert.equal(state.project.connections.length,1);assert.equal(state.project.connections[0].id,id);
+});
+test('Locked movement shows the actual restricting joints and rail preview names its fixed member',()=>{
+  const {context,state}=controller(),K=context.K,g=K.makeElement('ground',0,0),e=K.makeElement('link',0,0);state.project=K.validateProject({...K.preset('custom'),elements:[g,e],connections:[{id:'fixed-qa',type:'fixed',name:'Pevné spojenie',value:0,a:{elementId:g.id,point:'a'},b:{elementId:e.id,point:'a'}}]});state.result=context.E.design(state.project,0);context.selectTarget(context.I.elementKey(e.id));state.showFreedom=true;assert.match(context.freedomSVG(1),/Pevné spojenie/);
+  const rail=K.makeElement('rail');rail.movingRail=true;state.project.elements=[rail];state.project.connections=[];state.result=context.E.design(state.project,0);context.selectTarget(context.I.elementKey(rail.id));state.showFreedom=false;assert.match(context.freedomSVG(1),/Vozík je pevný/);
 });

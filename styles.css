@@ -975,3 +975,29 @@ a[aria-disabled="true"] { pointer-events: none; opacity: .45; }
 .phase-switcher { max-width: calc(100% - 40px); overflow-x: auto; }
 .phase-button { flex-shrink: 0; }
 .phase-button strong { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Geometry handles and reviewable mechanism workflows. */
+.edit-handle.length { cursor: ew-resize; }
+.edit-handle.thickness { cursor: ns-resize; }
+.edit-handle.rotate { cursor: crosshair; }
+.edit-handle.length rect { fill: #edf5ff; stroke: #477fb2; }
+.edit-handle.thickness rect { fill: #edf8f3; stroke: #16867b; transform-box: fill-box; transform-origin: center; transform: rotate(45deg); }
+.edit-handle.rotate circle { fill: #fff2df; stroke: #bd812c; }
+.handle-value { fill: var(--ink); stroke: var(--paper); paint-order: stroke; stroke-width: 3px; stroke-linejoin: round; }
+.workflow-tools { flex-wrap: wrap; max-width: calc(100% - 180px); }
+.snap-choices label { display: grid; gap: 5px; margin: 8px 0; }
+.calibration-picture { position: relative; }
+.reference-calibration-image { display: block; width: 100%; max-height: none; }
+#reference-calibration-marks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.response-chart, .detection-review-preview { display: block; width: 100%; max-height: 280px; background: var(--canvas); border: 1px solid var(--border); border-radius: 5px; margin: 12px 0; }
+.response-presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.detection-joint-review { max-height: 220px; overflow: auto; }
+.repair-button { border-color: var(--accent); }
+@media (max-width: 760px) { .workflow-tools { max-width: calc(100% - 30px); gap: 4px; } .workflow-tools button { padding: 5px 7px; font-size: 11px; } }
+
+.workflow-tools { overflow: visible; }
+.workflow-position-menu { position: relative; flex: 0 0 auto; }
+.workflow-position-menu summary { list-style: none; cursor: pointer; padding: 7px 10px; font-size: 11px; border: 1px solid var(--border); border-radius: 5px; background: var(--paper); }
+.workflow-position-menu summary::-webkit-details-marker { display: none; }
+.workflow-position-menu[open] summary { color: var(--accent); }
+.workflow-position-menu > div { position: absolute; z-index: 8; top: calc(100% + 5px); left: 0; display: grid; gap: 5px; min-width: 170px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--paper); box-shadow: 0 3px 12px #0002; }

@@ -252,13 +252,13 @@
     }
     if (project.kind === 'custom') {
       const drivers = project.elements.filter((e) => e.drive);
-      if (!drivers.length && project.elements.length) hints.push('Chýba priradený pohon. Statická geometria môže byť platná, ale simulátor nevie, ktorý pohyb má meniť.');
+      if (!drivers.length && project.elements.length) hints.push(project.elements.some(K.isElastic) ? 'Bez predpísaného pohonu použite Pohyb zo síl; pružné členy môžu rozhýbať pripojené telesá.' : 'Chýba priradený pohon. Statická geometria môže byť platná, ale simulátor nevie, ktorý pohyb má meniť.');
       if (drivers.length > 1) hints.push('Model má viac pohonov. Tento simulátor podporuje iba jeden nezávislý vstup.');
       if (freedom.free) hints.push(`Po určení pohonu zostáva ${freedom.free} voľných súradníc. Doplňte uloženie, ďalší kĺb alebo vedenie. Limity pohybu nenahrádzajú väzbu.`);
       for (const e of project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'cam', 'bearing', 'node'].includes(e.type))) {
         const family = descendants(project, [e.id]);
         const linked = project.connections.some((j) => family.has(j.a.elementId) !== family.has(j.b.elementId));
-        if (!linked && !(e.type === 'bearing' && e.slotId)) hints.push(`„${e.name}“ nemá väzbu na iné teleso. Voľný bod potrebuje polohové uloženie; tuhý člen aj určenie orientácie.`);
+        if (!linked && !project.elements.filter(K.isElastic).some(v=>[v.mountA,v.mountB].some(r=>r&&family.has(r.elementId))) && !(e.type === 'bearing' && e.slotId)) hints.push(`„${e.name}“ nemá väzbu na iné teleso. Voľný bod potrebuje polohové uloženie; tuhý člen aj určenie orientácie.`);
       }
     }
     if (duplicates.length) hints.push('Opakované väzby medzi rovnakými uzlami sú nadbytočné. Odstránenie kópie nemení ich požadovanú hodnotu.');
@@ -268,10 +268,10 @@
     if (rows.some((r) => r.prescribed)) hints.push('Bodové väzby chránenej šablóny riadi parametrický zákon. Ich samostatné rezíduá sa neodhadujú zo symbolických dvojíc bodov.');
     const checks = [];
     const movable = project.elements.filter((e) => !e.parentId && !e.locked && !['ground', 'slot'].includes(e.type));
-    if (project.kind === 'custom' && movable.length && !project.elements.some((e) => e.drive)) checks.push({ key: I.elementKey(movable[0].id), message: 'Chýba pohon. Vyberte prvok a priraďte mu pohyb.', action: 'motor' });
+    if (project.kind === 'custom' && movable.length && !project.elements.some((e) => e.drive)) checks.push(project.elements.some(K.isElastic) ? { key:I.elementKey(movable[0].id),message:'Bez motora: spustiť Pohyb zo síl pripojených pružných členov.',action:'forces' } : { key: I.elementKey(movable[0].id), message: 'Chýba pohon. Vyberte prvok a priraďte mu pohyb.', action: 'motor' });
     for (const e of movable.filter((e) => !e.drive && !K.isElastic(e))) {
       const family = descendants(project, [e.id]), joints = project.connections.filter((j) => family.has(j.a.elementId) !== family.has(j.b.elementId));
-      if (!joints.length && !(e.type === 'bearing' && e.slotId)) checks.push({ key: I.elementKey(e.id), message: `${e.name}: chýba spojenie s ďalším prvkom.`, action: 'connect' });
+      if (!joints.length && !project.elements.filter(K.isElastic).some(v=>[v.mountA,v.mountB].some(r=>r&&family.has(r.elementId))) && !(e.type === 'bearing' && e.slotId)) checks.push({ key: I.elementKey(e.id), message: `${e.name}: chýba spojenie s ďalším prvkom.`, action: 'connect' });
       else if (joints.length === 1 && joints[0].type === 'revolute' && ['link', 'panel', 'cam'].includes(e.type)) checks.push({ key: I.elementKey(e.id), message: `${e.name}: jeden otočný spoj ešte umožňuje voľné otáčanie.`, action: 'support' });
     }
     for (const pair of conflicts) checks.push({ key: I.jointKey(pair[0]), otherKey: I.jointKey(pair[1]), message: 'Tieto dve väzby si odporujú. Skontrolujte ich hodnoty.', action: 'joint' });
