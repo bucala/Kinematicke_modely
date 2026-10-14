@@ -1101,3 +1101,67 @@ a[aria-disabled="true"] { pointer-events: none; opacity: .45; }
 .elastic-lengths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .elastic-lengths > div { display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
 .elastic-lengths span { color: var(--secondary); }
+
+/* A consistent surface system for every skin, including native form controls. */
+:root { --shadow-soft: 0 4px 18px #2222220a; --shadow-panel: 0 12px 40px #22222214; --focus-ring: var(--accent); }
+:root[data-theme="dark"] { --shadow-soft: 0 4px 18px #00000030; --shadow-panel: 0 12px 40px #00000055; }
+body { color: var(--ink); background: var(--canvas); }
+input, select, textarea { color-scheme: inherit; }
+select option { color: var(--ink); background: var(--paper); }
+input:-webkit-autofill { -webkit-text-fill-color: var(--ink); box-shadow: 0 0 0 1000px var(--paper) inset; caret-color: var(--ink); }
+[data-theme] :is(.inspector-tabs, .property-section, .inspector-selection, .modal-actions, .context-separator, .panel-toggles, .sidebar-heading, .tree-row, .analysis-header) { border-color: var(--border); }
+[data-theme] :is(.workflow-position-menu > div, .canvas-context-menu, .selection-summary, .manipulation-tools, .snap-choices, .placement-tools, .model-checks, .lesson-panel) { background: var(--paper); color: var(--ink); border-color: var(--border); box-shadow: var(--shadow-soft); }
+[data-theme] :is(.workflow-position-menu button, .properties-overview button, .binding-dialog button, .main-dimensions-toggle) { color: var(--ink); background: var(--paper); border-color: var(--border); }
+[data-theme] :is(.workflow-position-menu button:hover, .properties-overview button:hover, .binding-dialog button:hover) { background: var(--surface-subtle); }
+[data-theme] :is(.component-category, .selection-type, .eyebrow, .section-live-dot, .inspector-tabs button > span, .modal-heading > .icon-button) { color: var(--muted); }
+[data-theme] :is(.canvas-tools, .phase-switcher, .zoom-control, .component-card, .selection-summary, .manipulation-tools) { border-radius: 8px; }
+.component-card { transition: background-color .12s, border-color .12s; }
+.component-card:hover { box-shadow: var(--shadow-soft); }
+.property-select, .text-field, .number-field { border-radius: 6px; }
+.property-select, .text-field { min-height: 38px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+[data-theme] .canvas-context-menu { box-shadow: var(--shadow-panel); }
+.canvas-context-menu button:hover:not(:disabled) { background: var(--surface-subtle); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+dialog { border-radius: 14px; box-shadow: var(--shadow-panel); }
+dialog::backdrop { background: #10182066; backdrop-filter: blur(4px); }
+.modal-heading h2 { line-height: 1.3; }
+.modal-heading { padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.modal-actions { gap: 8px; }
+#settings-form .settings-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; padding-top: 4px; }
+#settings-form .property-field { margin: 0; min-width: 0; }
+#settings-form .property-field > span { font-size: 11px; line-height: 1.5; margin-bottom: 6px; }
+#settings-form .check-row { grid-column: 1 / -1; margin: 0; font-size: 12px; line-height: 1.5; gap: 9px; }
+#settings-form .check-row input { width: 16px; height: 16px; flex-shrink: 0; }
+#settings-form .section-description { grid-column: 1 / -1; margin: 0; font-size: 11px; line-height: 1.6; }
+#settings-form > .modal-actions { position: sticky; bottom: -27px; background: var(--paper); padding: 16px 0 4px; margin-top: 18px; }
+.skin-picker { grid-column: 1 / -1; margin: 0 0 4px; padding: 0; border: 0; min-width: 0; }
+.skin-picker legend { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 10px; }
+.skin-picker > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.skin-choice { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--paper); cursor: pointer; }
+.skin-choice:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.skin-choice:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.skin-choice input { position: absolute; right: 10px; top: 10px; accent-color: var(--accent); width: 15px; height: 15px; }
+.skin-choice strong { font-size: 11px; font-weight: 600; line-height: 1.5; }
+.skin-samples { display: flex; gap: 3px; width: 70%; height: 30px; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.skin-samples i { flex: 1; }
+[data-skin="mono"] .skin-samples i:nth-child(1) { background: #ffffff; }
+[data-skin="mono"] .skin-samples i:nth-child(2) { background: #eeeeee; }
+[data-skin="mono"] .skin-samples i:nth-child(3) { background: #232323; }
+[data-skin="orange"] .skin-samples i:nth-child(1) { background: #ffffff; }
+[data-skin="orange"] .skin-samples i:nth-child(2) { background: #f4f3ee; }
+[data-skin="orange"] .skin-samples i:nth-child(3) { background: #c15f3c; }
+[data-skin="dark"] .skin-samples i:nth-child(1) { background: #30302e; }
+[data-skin="dark"] .skin-samples i:nth-child(2) { background: #262624; }
+[data-skin="dark"] .skin-samples i:nth-child(3) { background: #f4f3ee; }
+.skin-picker p { margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: var(--secondary); }
+@media (max-width: 640px) {
+  #settings-form .settings-fields { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .skin-picker > div { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .skin-choice { flex-direction: row; align-items: center; min-height: 56px; padding-right: 36px; }
+  .skin-samples { width: 72px; flex-shrink: 0; }
+  .skin-choice input { top: 19px; }
+  #settings-form > .modal-actions { bottom: -18px; padding-bottom: 8px; flex-wrap: wrap; }
+  #settings-form > .modal-actions .button { min-height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) { .component-card { transition: none; } }

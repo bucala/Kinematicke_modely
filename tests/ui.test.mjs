@@ -2080,3 +2080,11 @@ test('Rerender capture loss keeps an active drag, but release or a dialog cancel
  context.onLostPointerCapture({pointerId:7,buttons:0});assert.equal(cancelled,1);assert.equal(state.drag,null);
  state.drag={pointerId:7};element('#modal').open=true;context.onLostPointerCapture({pointerId:7,buttons:1});assert.equal(cancelled,2);assert.equal(recaptured,1);
 });
+
+test('Changing the skin applies immediately without committing simulation fields or editing the mechanism',()=>{
+ const {context,state}=controller(),before=JSON.stringify(state.project);let applied=null;
+ context.applyPreferences=(value,persist)=>{applied={theme:value.theme,persist};state.theme=value.theme;};
+ context.onChange({target:{name:'theme',value:'dark',checked:true,dataset:{},closest:selector=>selector==='#settings-form'?{}:null}});
+ assert.deepEqual(applied,{theme:'dark',persist:true});assert.equal(JSON.stringify(state.project),before);assert.equal(state.history.length,0);
+ context.onChange({target:{name:'theme',value:'mono',checked:false,dataset:{},closest:()=>({})}});assert.equal(state.theme,'dark');
+});

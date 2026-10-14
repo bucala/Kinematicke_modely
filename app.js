@@ -3672,7 +3672,7 @@
   function settingsModal() {
     const s = { ...K.simulationDefaults, ...state.project.simulation }, unit = K.driveRange(state.project).unit === '°' ? 'N·m' : 'N';
     modal('Pracovný priestor, vzhľad a simulácia', `<form id="settings-form"><div class="settings-fields">
-      <label class="property-field"><span>Vzhľad aplikácie</span><select name="theme" class="property-select">${[['mono', 'Biela / čierna'], ['orange', 'Krémová / terakota'], ['dark', 'Teplá tmavá / biela']].map(([value, name]) => `<option value="${value}"${state.theme === value ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
+      <fieldset class="skin-picker"><legend>Vzhľad aplikácie</legend><div>${[['mono', 'Biela / čierna'], ['orange', 'Krémová / terakota'], ['dark', 'Teplá tmavá / biela']].map(([value, name]) => `<label class="skin-choice" data-skin="${value}"><input type="radio" name="theme" value="${value}"${state.theme === value ? ' checked' : ''}/><span class="skin-samples" aria-hidden="true"><i></i><i></i><i></i></span><strong>${name}</strong></label>`).join('')}</div><p>Vzhľad sa zmení a uloží hneď. Parametre simulácie potvrďte tlačidlom nižšie.</p></fieldset>
       <label class="property-field"><span>Spôsob simulácie</span><select name="simulation-mode" class="property-select"><option value="kinematic"${s.mode !== 'dynamic' ? ' selected' : ''}>Kinematika · predpísaný pohyb</option><option value="dynamic"${s.mode === 'dynamic' ? ' selected' : ''}>Odhadová dynamika · pohyb zo síl</option></select></label>
       <label class="check-row"><input name="return-on-release" type="checkbox"${s.returnOnRelease !== false ? ' checked' : ''}/>Po pustení v simulácii vrátiť mechanizmus silou pružín / piestov</label><label class="property-field"><span>Čas kinematického zdvihu (s)</span><input name="cycle" class="text-field" type="number" min="1" max="60" step=".5" value="${state.cycle}" required/></label>
       ${[['returnDamping', 'Dodatočné osové tlmenie pri návrate (N·s/m)', 0, 100000, .1], ['gravity', 'Gravitácia (m/s²)', 0, 100, .01], ['damping', `Tlmenie pohonu (${unit}·s/${unit === 'N' ? 'm' : 'rad'})`, 0, 1000000, .1], ['friction', `Suché trenie pohonu (${unit})`, 0, 1000000, .1], ['inputForce', `Vonkajšia sila / moment pohonu (${unit})`, -1000000, 1000000, .1], ['initialVelocity', `Počiatočná rýchlosť (${K.driveRange(state.project).unit}/s)`, -1000000, 1000000, .1], ['duration', 'Čas odhadovej dynamiky (s)', .1, 120, .1]].map(([name, label, min, max, step]) => `<label class="property-field"><span>${label}</span><input class="text-field" name="${name}" type="number" min="${min}" max="${max}" step="${step}" value="${s[name]}" required/></label>`).join('')}
@@ -4262,6 +4262,7 @@
     if(event.target.dataset?.setting==='connection-target'){try{chooseConnectionTarget(Number(event.target.value));}catch(error){toast(error.message,true);}return;}
     const input = event.target;
     if (state.gifExport) return;
+    if (input.name==='theme' && input.closest?.('#settings-form')) { if(input.checked)applyPreferences({...state,theme:input.value},true);return; }
     if (input.closest?.('#gif-form')) { updateGIFEstimate(); return; }
     if (input.closest?.('#dimension-form')) {
       const form = input.closest('#dimension-form');
