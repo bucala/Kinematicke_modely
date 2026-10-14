@@ -1,5 +1,9 @@
 """Loopback-only, opt-in transport. Fusion calls happen in the main-thread handler."""
 import json
+import os
+import re
+from pathlib import Path
+import sys
 import math
 import secrets
 import threading
@@ -81,6 +85,47 @@ def validate_snapshot(data):
     return {"name": name.strip(), "entities": entities, "estimated": data.get("estimated") is True}
 
 
+def pairing_path():
+    if sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+    return base / "KinematikaStudio" / "KinmoFusion" / "pairing.json"
+
+
+def load_pairing(path):
+    try:
+        with Path(path).open("r", encoding="utf-8") as file:
+            value = json.loads(file.read(4097))
+        if not isinstance(value, dict) or not re.fullmatch(r"[A-Za-z0-9_-]{20,100}", value.get("key", "")):
+            return None
+        return {"origin": normalize_origin(value["origin"]), "key": value["key"]}
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+
+
+def save_pairing(path, origin, key):
+    origin = normalize_origin(origin)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{20,100}", key):
+        raise ValueError("Invalid pairing key.")
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = path.with_name(path.name + "." + secrets.token_hex(8) + ".tmp")
+    try:
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as file:
+            json.dump({"origin": origin, "key": key}, file)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def forget_pairing(path):
+    Path(path).unlink(missing_ok=True)
+
+
 class Jobs:
     def __init__(self, notify):
         self.notify = notify
@@ -106,6 +151,10 @@ class Jobs:
             self.finish(job_id, False)
             raise RuntimeError("Fusion did not accept the main-thread event.")
         return job_id
+
+    def is_busy(self):
+        with self.lock:
+            return any(job["state"] == "pending" for job in self.records.values())
 
     def take(self, job_id):
         with self.lock:
@@ -221,7 +270,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorized():
             return
         if self.path == "/status":
-            self.reply(200, {"app": "KinmoFusion", "version": 1, "referenceOnly": True}, True)
+            self.reply(200, {"app": "KinmoFusion", "version": 1, "referenceOnly": True, "busy": self.server.jobs.is_busy()}, True)
         elif self.path.startswith("/jobs/"):
             value = self.server.jobs.status(self.path.removeprefix("/jobs/"))
             self.reply(200 if value else 404, value or {"error": "Unknown job."}, True)

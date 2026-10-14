@@ -8,7 +8,7 @@ Doplnok importuje aktuálnu 2D geometriu zo štúdia do **nového, neuloženého
 2. Vo Fusion otvorte **Utilities → Scripts and Add-Ins → Add-Ins**. Otvorte **šípku vedľa + → Script or add-in from device** a vyberte priečinok obsahujúci `KinmoFusion.py`, `bridge.py` a `KinmoFusion.manifest`. V niektorých verziách otvorí výber priečinka priamo tlačidlo **+**. Nevytvárajte novú prázdnu šablónu doplnku.
 3. Vyberte **KinmoFusion → Run** a spustite ho ručne. Voľba automatického spúšťania zostáva vypnutá. Kód vytvorí tento doplnok, nie iný používateľom vytvorený doplnok.
 4. Predvoľba je `https://kinematicke-modely.marcel-bucala.workers.dev`. Overte, že zodpovedá adrese vášho štúdia. Pre inú inštaláciu zadajte jej presnú adresu pôvodu, napríklad `http://127.0.0.1:5173` alebo vašu nasadenú `https://…workers.dev` adresu. Bez podadresára, prihlasovacích údajov alebo parametrov.
-5. Vo štúdiu otvorte **Exportovať → Autodesk Fusion**. Do poľa vložte dočasný párovací kľúč z Fusion. Kľúč sa v štúdiu neukladá do localStorage ani do projektu / exportu.
+5. Vo štúdiu otvorte **Exportovať → Autodesk Fusion**. Do poľa vložte párovací kľúč z Fusion. Po úspešnom overení ho možno voliteľne zapamätať v localStorage tohto webu. Do projektu ani exportov sa nevkladá.
 6. Stlačte **Overiť spojenie**, označte súhlas a potom **Odoslať nový referenčný výkres**. Týmto výslovne povoľujete vytvorenie nového dokumentu v bežiacom Fusion.
 7. Povoľte prístup k lokálnej sieti, ak ho prehliadač vyžiada. Po práci zastavte doplnok vo Fusion.
 
@@ -23,7 +23,7 @@ Otvorená drážka má polygonové zaoblenia, nie presné Fusion oblúky. Obrysy
 ## Bezpečnosť a obmedzenia
 
 - Server sa viaže len na `127.0.0.1:8765`, nikdy na `0.0.0.0` ani vzdialené rozhranie. Nie je potrebná zmena firewallu.
-- Každé spustenie vytvorí nový náhodný kľúč. Vyžaduje sa aj presný povolený Origin, bez wildcard CORS.
+- Bez zapamätania sa vytvára nový náhodný kľúč. Zapamätané párovanie možno pri ďalšom spustení znovu použiť alebo zrušiť. Vyžaduje sa aj presný povolený Origin, bez wildcard CORS.
 - Nie sú potrebné prihlasovacie údaje Autodesk, osobný API token ani cloudový účet v štúdiu.
 - Požiadavky sú ohraničené na 2 MB / 2 000 entít / 30 000 bodov, jedna polyline najviac 1 001 bodov. Naraz čaká iba jeden import. Import prebieha v hlavnom Fusion vlákne cez custom event, nie z HTTP vlákna.
 - Doplnok nevykonáva kód z projektu. Prijíma len číselné polylines, kružnice a krátke popisy.
@@ -51,4 +51,9 @@ Rozhrania boli porovnané s lokálne nainštalovanými Fusion API definíciami. 
 - Referenčné polylines, kružnice a popisy, prevod mm → cm a ochrana už otvorených CAD dokumentov.
 - Izolované transportné a mock API testy; živý Fusion zostáva manuálnou akceptáciou.
 
-Pri zmene pôvodu alebo po aktualizácii doplnku zastavte iba **KinmoFusion** a spustite ho znova. Nové spustenie vytvorí nový párovací kľúč; starý už neplatí. Chrome musí pre stránku povoliť prístup k lokálnej sieti. Tlačidlo **Overiť spojenie** iba overí doplnok a nevytvorí dokument; vytvorenie výkresu spustí až **Odoslať nový referenčný výkres**.
+Pri zmene pôvodu alebo po aktualizácii doplnku zastavte iba **KinmoFusion** a spustite ho znova. Pri spustení môžete použiť zapamätané párovanie; voľba nového párovania vytvorí nový kľúč a odvolá starý. Chrome musí pre stránku povoliť prístup k lokálnej sieti. Tlačidlo **Overiť spojenie** iba overí doplnok a nevytvorí dokument; vytvorenie výkresu spustí až **Odoslať nový referenčný výkres**.
+
+
+Od verzie **1.1.0** môžete v doplnku potvrdiť zapamätanie párovania. Pôvod a kľúč sa uložia do používateľského profilu (`KinematikaStudio/KinmoFusion/pairing.json` v AppData, Application Support alebo .config). Pri ďalšom Run zvoľte **Áno** pre rovnaké párovanie; **Nie** odstráni uloženie a vytvorí nové párovanie. V prehliadači označte **Zapamätať overený kľúč** a overte spojenie. Uloženie funguje len pre rovnaký web a profil prehliadača. **Zabudnúť kľúč v prehliadači** odstráni iba prehliadačové uloženie; odvolanie starého kľúča vykonajte novým párovaním v doplnku. Kľúč nie je súčasťou ZIPu, projektu ani exportov.
+
+Chyba **409** označuje prebiehajúci import alebo odmietnutú udalosť Fusion, nie neplatný kľúč. Po kopírovaní kľúča zavrite jeho dialóg aj **Scripts and Add-Ins**. Pred ďalším odoslaním overte, či už nevznikol nový dokument. Novší doplnok hlási stav `busy`; aplikácia počas neho ďalší výkres neodošle.

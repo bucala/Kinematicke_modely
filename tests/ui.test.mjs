@@ -63,7 +63,7 @@ function controller(width = 1440) {
     line: (a, b, attributes = '') => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${attributes}/>`,
     ib: (name, action, title, active = false, extra = '') => `<button data-action="${action}" ${extra}></button>`,
     K, I, E, P: globalThis.KinmoPhysics, W: globalThis.KinmoWorkbench, WF: globalThis.KinmoWorkflow, M: { ...globalThis.KinmoMagicImport }, AD: { ...globalThis.KinmoDetection }, AbortController, X: globalThis.KinmoExport, G: globalThis.KinmoGIF, SC: globalThis.KinmoScene, typeNames: { ground: 'Rám', link: 'Rameno', node: 'Bod', rail: 'Vedenie', panel: 'Čelo', cam: 'Rotačná vačka' }, typeIcons: { ground: 'ground', cam: 'cam' },
-    CAD: { ENDPOINT: 'http://127.0.0.1:8765' },
+    CAD: { ENDPOINT: 'http://127.0.0.1:8765', rememberedKey:()=>'',rememberPairing(){} },
     drawElement() { return '<g class="ghost-body"/>'; }, renderTree() {}, renderInspector() {}, renderScene() {}, renderGraph() {}, fitView() {},
     onChange() {}, onSubmit() {}, onContextMenu() {}, updateHover() {}, updateMotion() {},
     worldPoint: (event) => ({ x: event.clientX, y: event.clientY }), solveCurrent: () => E.design(state.project, state.motion),

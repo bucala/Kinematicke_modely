@@ -687,7 +687,7 @@ Nulové, pretínajúce sa, prekrývajúce sa alebo príliš široké profily sa 
 
 ## Autodesk Fusion
 
-Otvorte **Exportovať → Autodesk Fusion**, stiahnite ZIP a doplnok spustite ručne vo Fusion. Povoľte presný pôvod aplikácie, vložte dočasný kľúč, overte spojenie, označte súhlas a odošlite výkres. Kľúč sa neukladá.
+Otvorte **Exportovať → Autodesk Fusion**, stiahnite ZIP a doplnok spustite ručne vo Fusion. Povoľte presný pôvod aplikácie, vložte kľúč, overte spojenie, označte súhlas a odošlite výkres. Voliteľné zapamätanie overeného kľúča je oddelené od projektu a exportov.
 
 <details>
 <summary><strong>Inštalácia doplnku a párovací kód krok za krokom</strong></summary>
@@ -988,4 +988,7 @@ tests/browser.html     Test runner priamo v prehliadači
 Na mobile je horná lišta rozdelená na **Prvky** (knižnica) a **Ponuka** (nastavenia, inšpektor, história a zobrazenie plátna). **Nástroje** otvoria pohyb, zostavy a kontrolu modelu; tlačidlo s názvom vybraného prvku otvorí jeho úpravy. Nástroje plátna sú v jednom spodnom rade, bez automatického informačného panelu nad mechanizmom. Geometrické úchyty sa na mobile zapínajú až cez **Zobraziť úchyty na plátne** v úpravách výberu; presné číselné úpravy sú dostupné aj bez nich. Svetlé sekundárne plochy a ikony majú čisté biele pozadie, texty používajú kontrastné odtiene aktuálneho skinu. Build verzuje odkazy na CSS a skripty podľa ich obsahu, aby prehliadač po aktualizácii nekombinoval staré a nové súbory.
 
 
-Šírka samostatného lineárneho vedenia a hrúbka rámu sa vykresľujú podľa ich rozmeru, vrátane zmien úchytom a číselným zadaním. Pri vedení sa upravuje `slotWidth` (šírka vedenia); rozmery vozíka ostávajú samostatné. Fusion zobrazuje priebeh overenia, úspech a chybu priamo v dialógu. Overenie spojenia nevytvorí dokument. Doplnok 1.0.1 predvolene ponúka nasadený pôvod aplikácie; pri inom webe alebo lokálnom serveri ho zmeňte na presnú adresu. Po aktualizácii alebo zmene pôvodu zastavte a znovu spustite KinmoFusion a použite nový párovací kľúč.
+Šírka samostatného lineárneho vedenia a hrúbka rámu sa vykresľujú podľa ich rozmeru, vrátane zmien úchytom a číselným zadaním. Pri vedení sa upravuje `slotWidth` (šírka vedenia); rozmery vozíka ostávajú samostatné. Fusion zobrazuje priebeh overenia, úspech a chybu priamo v dialógu. Overenie spojenia nevytvorí dokument. Doplnok predvolene ponúka nasadený pôvod aplikácie; pri inom webe alebo lokálnom serveri ho zmeňte na presnú adresu. Po aktualizácii alebo zmene pôvodu zastavte a znovu spustite KinmoFusion. Môžete znovu použiť uložené párovanie alebo vytvoriť nové.
+
+
+Pre stabilné Fusion párovanie použite doplnok **1.1.0**, potvrďte uloženie párovania v doplnku a v aplikácii začiarknite **Zapamätať overený kľúč v tomto prehliadači**. Kľúč sa uloží až po úspešnom overení a po obnovení stránky sa predvyplní. Neotvára sa automatické spojenie a geometria sa odosiela iba cez explicitné Odoslať so súhlasom. Prehliadačové uloženie možno zabudnúť; nový kľúč v doplnku odvolá pôvodné párovanie. Kľúč ostáva mimo projektov, exportov a diagnostických balíkov.

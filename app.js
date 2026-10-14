@@ -3729,11 +3729,12 @@
   }
 
   function fusionModal() {
-    const available = ['http:', 'https:'].includes(location.protocol);
+    const available = ['http:', 'https:'].includes(location.protocol), savedKey = CAD.rememberedKey();
     modal('Lokálne prepojenie · Autodesk Fusion', `<p class="modal-description">Doplnok vytvorí nový, neuložený referenčný dokument. Existujúce návrhy nemení. Krivky sú fixované úsečky, kulisy majú strednice a voliteľné uzavreté referenčné obrysy; kóty sú referenčné popisy. Nejde o výrobný profil, 3D zostavu ani Fusion joints.</p>
-      <ol class="fusion-steps"><li>Stiahnite a rozbaľte doplnok. Vo Fusion: Utilities → Scripts and Add-Ins → Add-Ins → šípka pri + → Script or add-in from device → priečinok KinmoFusion. Nevytvárajte nový prázdny doplnok.</li><li>Vyberte KinmoFusion a stlačte Run. Ak už beží s inou adresou, zastavte ho a spustite znova; dostanete nový kľúč. Povoľte presný pôvod <code>${escape(available ? location.origin : 'HTTP(S) adresa aplikácie')}</code>.</li><li>Vložte nižšie dočasný párovací kľúč z Fusion. Povoľte lokálnu sieť, ak si ju prehliadač vyžiada.</li></ol>
+      <ol class="fusion-steps"><li>Stiahnite a rozbaľte doplnok. Vo Fusion: Utilities → Scripts and Add-Ins → Add-Ins → šípka pri + → Script or add-in from device → priečinok KinmoFusion. Nevytvárajte nový prázdny doplnok.</li><li>Vyberte KinmoFusion a stlačte Run. Ak už beží s inou adresou, zastavte ho a spustite znova; môžete použiť uložené párovanie alebo vytvoriť nový kľúč. Povoľte presný pôvod <code>${escape(available ? location.origin : 'HTTP(S) adresa aplikácie')}</code>.</li><li>Pri prvom párovaní vložte nižšie kľúč z Fusion. Pre opätovné použitie ho zapamätajte v doplnku aj prehliadači. Povoľte lokálnu sieť, ak si ju prehliadač vyžiada.</li></ol>
       <a class="button button-secondary" href="./cad/KinmoFusion.zip" download${!available ? ' aria-disabled="true"' : ''}>Stiahnuť doplnok KinmoFusion (ZIP)</a>
-      <form id="fusion-form"><label class="property-field"><span>Dočasný párovací kľúč (neukladá sa)</span><input class="text-field" name="key" type="password" autocomplete="off" minlength="20" maxlength="100" required/></label>
+      <form id="fusion-form"><label class="property-field"><span>Párovací kľúč z doplnku Fusion</span><input class="text-field" name="key" type="password" autocomplete="off" minlength="20" maxlength="100" value="${escape(savedKey)}" required/></label>
+      <label class="check-row"><input name="remember-pairing" type="checkbox"${savedKey ? ' checked' : ''}/><span>Zapamätať overený kľúč v tomto prehliadači</span></label><p class="section-description">V doplnku Fusion tiež zvoľte zapamätanie párovania. Kľúč zostane iba v úložisku tohto webu; nie je súčasťou projektu ani exportov.</p><button type="button" class="button button-secondary" data-action="fusion-forget">Zabudnúť kľúč v prehliadači</button>
       <label class="check-row"><input id="cad-slot-outlines" type="checkbox"${state.cadSlotOutlines ? ' checked' : ''}/><span>Pridať uzavreté referenčné obrysy drážok podľa šírky</span></label><p class="section-description">Obrysy sa vložia do vrstiev SLOT_REFERENCE_OUTLINE / INNER. Strednice ostávajú vo vrstve SLOT. Pretínajúce sa alebo zrútené obrysy sa neodosielajú.</p>
       <label class="check-row"><input type="checkbox" name="consent" required/><span>Súhlasím s odoslaním viditeľnej geometrie do nového dokumentu v bežiacom Fusion.</span></label>
       <p class="section-description">Spojenie: <code>${escape(CAD.ENDPOINT)}</code>, iba toto zariadenie. Po práci zastavte doplnok. ${available ? 'Nie sú potrebné prihlasovacie údaje Autodesk.' : 'file:// nemôže použiť priame spojenie. Spustite lokálny server alebo použite DXF; doplnok je tiež v priečinku cad/KinmoFusion.'}</p>
@@ -3753,7 +3754,9 @@
     button.disabled = true;
     fusionFeedback('Overujem spojenie s doplnkom na tomto zariadení… Ak Chrome požiada o prístup k lokálnej sieti, povoľte ho.', 'busy', target);
     try {
-      await CAD.status(form.elements.key.value.trim());
+      const ready = await CAD.status(form.elements.key.value.trim());
+      CAD.rememberPairing(form.elements.key.value, !!form.elements['remember-pairing']?.checked);
+      if (ready.busy) { fusionFeedback('Doplnok je pripojený, ale ešte spracúva predchádzajúci výkres. Zavrite dialógy vo Fusion a počkajte na dokončenie.', 'idle', target); return; }
       fusionFeedback('Spojenie s KinmoFusion je overené. Na vytvorenie dokumentu potvrďte súhlas a kliknite na Odoslať nový referenčný výkres.', 'ready', target);
     } catch (error) { fusionFeedback(error.message, 'error', target); }
     finally { if (button.isConnected) button.disabled = false; }
@@ -4102,6 +4105,7 @@
     'angle-snap': toggleAngleSnap,
     'cam-follower': () => { const e = currentElement(); if (e?.type === 'cam') try { editCanvas(I.addCamFollower(state.project, e.id, state.result), 'Vedený valček bol pridaný. Priraďte vačke otočný pohon.'); } catch (error) { toast(error.message, true); } },
     'fusion': fusionModal,
+    'fusion-forget': () => { CAD.rememberPairing('', false); const form=$('#fusion-form');form.elements.key.value='';form.elements['remember-pairing'].checked=false;fusionFeedback('Kľúč v prehliadači bol zabudnutý. Uloženie v doplnku Fusion môžete zrušiť voľbou nového párovania pri jeho spustení.'); },
     'fusion-check': checkFusionConnection,
     'elastic-sources': elasticSourcesModal,
     'edit-com': centerOfMassModal,
@@ -4339,6 +4343,7 @@
       point.innerHTML = tracePointOptions(state.project.elements.find((e) => e.id === input.value), point.value);
       return;
     }
+    if (input.name === 'remember-pairing' && !input.checked) { CAD.rememberPairing('', false); return; }
     if (input.id === 'cad-slot-outlines') { state.cadSlotOutlines = input.checked; return; }
     if (input.id === 'revision-scope') { revisionsModal(input.value); return; }
     if (input.closest('#transform-form')) {
@@ -4508,7 +4513,7 @@
       fusionFeedback('Overujem doplnok a pripravujem referenčný výkres…', 'busy', feedback);
       try {
         const snapshot = X.cadSnapshot(state.project, state.result, { dimensions: state.dimensions, trajectories: state.trace, samples: state.samples, references: traceReferences(), traceSpace: state.traceSpace, slotOutlines: state.cadSlotOutlines });
-        await CAD.send(snapshot, String(data.get('key')).trim(), (message) => fusionFeedback(message, 'busy', feedback));
+        await CAD.send(snapshot, String(data.get('key')).trim(), (message, phase) => { if(phase==='paired')CAD.rememberPairing(String(data.get('key')),data.has('remember-pairing'));fusionFeedback(message, 'busy', feedback); });
         fusionFeedback('Fusion potvrdil vytvorenie nového referenčného výkresu.', 'ready', feedback);
         toast('Nový referenčný výkres bol vytvorený vo Fusion.');
       } catch (error) { fusionFeedback(error.message, 'error', feedback); }

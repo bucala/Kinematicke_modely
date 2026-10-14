@@ -3,7 +3,7 @@ import secrets
 import threading
 import adsk.core
 import adsk.fusion
-from .bridge import Jobs, LocalServer, normalize_origin
+from .bridge import Jobs, LocalServer, normalize_origin, pairing_path, load_pairing, save_pairing, forget_pairing
 
 EVENT_ID = "kinematika.studio.reference-import.v1"
 _server = None
@@ -91,14 +91,34 @@ def run(_context):
         if _server:
             ui.messageBox("KinmoFusion already runs. Stop it before pairing again.")
             return
-        origin, cancelled = ui.inputBox(
-            "Enter the exact Kinematika Studio origin (scheme + host + optional port).\nOnly this website will be allowed. file:// is not supported.",
-            "KinmoFusion · allow application", "https://kinematicke-modely.marcel-bucala.workers.dev",
-        )
-        if cancelled:
-            return
-        origin = normalize_origin(origin)
-        key = secrets.token_urlsafe(32)
+        path = pairing_path()
+        saved = load_pairing(path)
+        if saved:
+            choice = ui.messageBox(
+                "Použiť zapamätané párovanie pre " + saved["origin"] + "?\nÁno: rovnaký kľúč. Nie: zrušiť starý kľúč a vytvoriť nové párovanie.",
+                "KinmoFusion · párovanie", adsk.core.MessageBoxButtonTypes.YesNoCancelButtonType,
+            )
+            if choice == adsk.core.DialogResults.DialogCancel:
+                return
+            if choice != adsk.core.DialogResults.DialogYes:
+                forget_pairing(path)
+                saved = None
+        remember = bool(saved)
+        if saved:
+            origin, key = saved["origin"], saved["key"]
+        else:
+            origin, cancelled = ui.inputBox(
+                "Enter the exact Kinematika Studio origin (scheme + host + optional port).\nOnly this website will be allowed. file:// is not supported.",
+                "KinmoFusion · allow application", "https://kinematicke-modely.marcel-bucala.workers.dev",
+            )
+            if cancelled:
+                return
+            origin = normalize_origin(origin)
+            key = secrets.token_urlsafe(32)
+            remember = ui.messageBox(
+                "Zapamätať pôvod a kľúč v používateľskom profile tohto počítača?\nPo ďalšom spustení môžete použiť rovnaké párovanie.",
+                "KinmoFusion · zapamätať párovanie", adsk.core.MessageBoxButtonTypes.YesNoButtonType,
+            ) == adsk.core.DialogResults.DialogYes
         jobs = Jobs(lambda job_id: app.fireCustomEvent(EVENT_ID, job_id))
         _event = app.registerCustomEvent(EVENT_ID)
         if not _event:
@@ -108,12 +128,18 @@ def run(_context):
         _server = LocalServer(origin, key, jobs)
         _thread = threading.Thread(target=_server.serve_forever, name="KinmoFusion-loopback", daemon=True)
         _thread.start()
+        if remember:
+            try:
+                save_pairing(path, origin, key)
+            except OSError:
+                remember = False
+                ui.messageBox("Párovanie sa nepodarilo uložiť. Doplnok beží s dočasným kľúčom.")
         ui.messageBox(
             "KinmoFusion is listening ONLY on http://127.0.0.1:8765.\n"
             "Allowed application: " + origin + "\n\n"
-            "Paste this temporary pairing key into Kinematika Studio > Export > Autodesk Fusion:\n\n" + key +
-            "\n\nEach explicit Send creates a NEW unsaved reference drawing. No existing design is edited, deleted or saved.\n"
-            "Stop the add-in to close the connection. A new run generates a new key.",
+            "Paste this pairing key into Kinematika Studio > Export > Autodesk Fusion:\n\n" + key +
+            "\n\nAfter copying the key, close this dialog AND Scripts and Add-Ins before sending a drawing.\nEach explicit Send creates a NEW unsaved reference drawing. No existing design is edited, deleted or saved.\n"
+            "Stop the add-in to close the connection. " + ("Remembered pairing can be reused on the next run." if remember else "A new run generates a new key."),
             "KinmoFusion · local pairing",
         )
     except Exception:

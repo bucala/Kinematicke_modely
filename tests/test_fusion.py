@@ -391,5 +391,28 @@ class ImportTests(unittest.TestCase):
             self.assertTrue(all(name.startswith("KinmoFusion/") and ".." not in name for name in archive.namelist()))
 
 
+class PairingPersistenceTests(unittest.TestCase):
+    def test_saved_pairing_survives_restart_and_can_be_revoked(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "private" / "pairing.json"
+            self.assertIsNone(bridge.load_pairing(path))
+            bridge.save_pairing(path, ORIGIN, MOCK_KEY)
+            self.assertEqual(bridge.load_pairing(path), {"origin": ORIGIN, "key": MOCK_KEY})
+            if sys.platform != "win32":
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            bridge.forget_pairing(path)
+            self.assertIsNone(bridge.load_pairing(path))
+            bridge.forget_pairing(path)
+
+    def test_corrupted_or_invalid_saved_pairing_is_not_trusted(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "pairing.json"
+            for value in ["invalid", json.dumps({"origin": ORIGIN, "key": 5}), json.dumps({"origin": "file:///tmp", "key": MOCK_KEY})]:
+                path.write_text(value)
+                self.assertIsNone(bridge.load_pairing(path))
+
+
 if __name__ == "__main__":
     unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))

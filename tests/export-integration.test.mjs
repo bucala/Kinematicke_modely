@@ -73,7 +73,7 @@ test('CAD sends only through explicit send and waits for main-thread completion'
   assert.equal(result.state, 'done'); assert.equal(calls.length, 4);
   assert.equal(calls[1].options.method, 'POST'); assert.deepEqual(JSON.parse(calls[1].options.body), snapshot);
   assert.equal(calls[1].options.headers['Content-Type'], 'application/json');
-  assert.equal(calls[2].url, `http://127.0.0.1:8765/jobs/${job}`); assert.equal(progress.length, 1);
+  assert.equal(calls[2].url, `http://127.0.0.1:8765/jobs/${job}`); assert.equal(progress.length, 2);
 });
 test('CAD rejects invalid job identifiers before polling', async () => {
   const { api, calls } = cad([ready(), { body: { job: '../arbitrary-path' } }]);
@@ -173,4 +173,19 @@ test('Canvas modules and regression cases are in the public build and explicit p
 test('CAD accepts a key pasted with surrounding spaces and reports a rejected origin separately',async()=>{
  const {api,calls}=cad([ready()]);await api.status('  '+mockKey+'  ');assert.equal(calls[0].options.headers['X-Kinmo-Key'],mockKey);
  const rejected=cad([{ok:false,status:403}]);await assert.rejects(rejected.api.status(mockKey),/403.*pôvod/);
+});
+
+
+test('Remembered Fusion pairing survives reload only by opt-in and can be forgotten',()=>{
+ const values=new Map(),storage={getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)};
+ const first=cad([], 'https:', {localStorage:storage});assert.equal(first.api.rememberedKey(),'');assert.equal(first.calls.length,0);
+ first.api.rememberPairing(mockKey,true);const restarted=cad([], 'https:', {localStorage:storage});assert.equal(restarted.api.rememberedKey(),mockKey);assert.equal(restarted.calls.length,0);
+ restarted.api.rememberPairing('',false);assert.equal(first.api.rememberedKey(),'');assert.equal(values.size,0);
+ first.api.rememberPairing(mockKey,false);assert.equal(values.size,0);
+ values.set('kinematika.fusion-pairing.v1','bad json');assert.equal(first.api.rememberedKey(),'');
+});
+
+test('Busy Fusion does not receive another drawing and 409 is distinguished from a pairing error',async()=>{
+ const busy=cad([{body:{...ready().body,busy:true}}]);await assert.rejects(busy.api.send({},mockKey),/predchádzajúci/);assert.equal(busy.calls.length,1);
+ const rejected=cad([ready(),{ok:false,status:409}]);await assert.rejects(rejected.api.send({},mockKey),/409.*Scripts and Add-Ins/);assert.equal(rejected.calls.length,2);
 });
