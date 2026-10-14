@@ -67,3 +67,7 @@ Ak Fusion odmietne automatickú udalosť, aktualizovaný doplnok ponechá odosla
 Import sa potvrdí až po vytvorení dokumentu na hlavnom vlákne. Rovnakú úlohu možno prevziať iba raz; rozpracovaný import blokuje ďalší. `/status` a debug balík obsahujú verziu doplnku, stav úloh a bounded záznam udalostí bez párovacieho kľúča či geometrie.
 
 Windows aplikácia používa vlastný pôvod **https://kinematika.desktop.local**; pri párovaní ho zadajte namiesto webovej adresy. Na Android zariadení lokálny Fusion na počítači nie je dostupný; použite DXF.
+
+### 1.2.1: čitateľné obrysy exportu
+
+Aktualizovaný web exportuje spojitý korpus, L profil zásuvky, celú zadnú oporu a trojuholníkový držiak podľa editora. Trajektórie do Fusion zapnite iba ak chcete pomocné dráhy. Doplnok 1.2.1 skryje jednotlivé body skíc, ak Fusion API túto voľbu podporuje. Už importovaný dokument sa spätne nemení; vykonajte nový export. Pre opravené obrysy stačí aktualizovaný web; nový doplnok navyše zlepší čitateľnosť.

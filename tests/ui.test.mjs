@@ -475,6 +475,7 @@ test('CAD export has a shared width-outline switch without changing the model', 
   context.exportModal(); assert.match(context.dialog.html, /id="cad-slot-outlines"[^>]* checked/);
   context.onChange({ target: { id: 'cad-slot-outlines', checked: false } });
   context.fusionModal(); assert.match(context.dialog.html, /id="cad-slot-outlines" type="checkbox"\/>/);
+  assert.match(context.dialog.html,/name="trajectories"\/>/);
   assert.match(context.dialog.html, /Script or add-in from device/);
   assert.match(context.dialog.html, /SLOT_REFERENCE_OUTLINE/);
   context.onChange({ target: { id: 'cad-slot-outlines', checked: true } });

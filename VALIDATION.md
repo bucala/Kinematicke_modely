@@ -398,3 +398,10 @@ Zoznam publikovaných súborov v `push-github.ps1` zahŕňa nové moduly, testy,
 - Windows x64: .NET cross build samostatného PE32+ EXE. Samotné Windows UI/WebView2 tu nebežali; `--self-test` vykoná Windows runner v CI.
 - Android: JDK21/Gradle8.10.2/SDK35 release build, APK Signature Scheme v2 overený cez apksigner. UI, ukladanie na fyzickom zariadení a aktualizácia APK zostávajú zariadením overiteľnou akceptáciou.
 - Cloudflare: Wrangler dry run zbalil Worker a assets, rozpoznal ASSETS a RELEASES binding. Produkčné nasadenie a vzdialený Actions run zatiaľ neoverené; signing/Cloudflare secrets nastavuje používateľ.
+
+## 2026-10-14 · Fusion obrysy 2.1.1
+
+- Deväť regresií: obrysy dvojitej zásuvky pri 0/60/300 mm, nové voľné kópie, samostatné vedenie otočené o 90° s hrúbkou 80 mm a vozíkom, hrúbka rámu a obe telesá parametrického výsuvu, valec aj obrys piestnice oboch typov piesta.
+- Chromium/CDP porovnal vrcholy skutočne vykreslených dielov s CAD snapshotom a overil predvolene vypnutú voľbu trajektórií.
+- Náhradné Fusion API importovalo aktuálny dvojkulisový export: 20 hrán korpusu/stola/opory, 6 hrán zásuvky a 7 hrán panelu/držiaka. Bez fiktívneho vozíka či trajektórií.
+- Celý balík: 763 JS testov a 30 Python testov; syntax a statický build. Živý import Fusion zostáva manuálnou akceptáciou na používateľovom zariadení.

@@ -105,6 +105,13 @@
       { x: pose.b.x - ox, y: pose.b.y - oy }, { x: pose.a.x - ox, y: pose.a.y - oy },
     ];
   }
+  function capsule(pose, width) {
+    const r=width/2,angle=K.angleOf(pose.a,pose.b)*K.DEG,points=[];
+    for(const [center,start] of [[pose.b,angle-Math.PI/2],[pose.a,angle+Math.PI/2]]) {
+      for(let i=0;i<=12;i++){const a=start+i*Math.PI/12;points.push({x:center.x+r*Math.cos(a),y:center.y+r*Math.sin(a)});}
+    }
+    return points;
+  }
   const rectangle = (r) => [{ x: r.x, y: r.y }, { x: r.x + r.w, y: r.y }, { x: r.x + r.w, y: r.y + r.h }, { x: r.x, y: r.y + r.h }];
   const point = (p) => ({ x: n(p.x), y: n(p.y) });
 
@@ -118,18 +125,15 @@
     for (const e of project.elements.filter((v) => v.visible)) {
       const pose = result.poses[e.id];
       if (!pose) continue;
-      if (pose.rects) for (const r of pose.rects) poly(e, rectangle(r), true);
+      const template = K.templateOutlines(project,e,pose,result.motion);
+      if(template.length) for(const outline of template) poly(e,outline,true);
+      else if (pose.rects) for (const r of pose.rects) poly(e, rectangle(r), true);
       else if (pose.outline?.length) poly(e, pose.outline, true);
-      else if (e.primary && e.role === 'frame' && ['drawer', 'double-drawer'].includes(project.kind)) {
-        const y = project.kind === 'drawer' ? p.pivotY : p.tableY, top = y - p.frameHeight;
-        poly(e, rectangle({ x: -12, y: top - 12, w: 12, h: p.frameHeight + 30 }), true);
-        poly(e, rectangle({ x: 0, y: top - 12, w: p.frameLength, h: 12 }), true);
-        if (project.kind === 'double-drawer') poly(e, rectangle({ x: p.frameLength, y: top, w: 8, h: p.frameHeight - p.frontOpening }), true);
-      } else if (['bearing', 'node'].includes(e.type)) entities.push({
+      else if (['bearing', 'node'].includes(e.type)) entities.push({
         kind: 'circle', elementId: e.id, name: e.name, layer: e.type === 'node' ? 'NODE' : 'BEARING', center: point(pose.a),
         radius: n(e.primary ? p.bearingRadius : e.radius), color: stroke(e),
       });
-      else if (pose.path) {
+      else if (pose.path && e.type !== 'rail') {
         poly(e, pose.path);
         if (e.type === 'slot' && !e.guideOnly && options.slotOutlines === true) {
           const width = e.primary ? e.role === 'rearSlot' ? 8 : p.slotWidth : e.slotWidth;
@@ -147,13 +151,14 @@
           for (let i = 0; i <= 16; i++) points.push(at(length * (.16 + i / 16 * .68), (i % 2 ? 1 : -1) * e.diameter / 2));
           points.push(at(length * .87), pose.b); poly(e, points);
         } else {
-          poly(e, polygon({ a: pose.a, b: at(Math.max(0, Math.min(length - K.pistonGeometry(e, length).eye, K.pistonGeometry(e, length).cylinder))) }, e.diameter), true);
-          poly(e, [pose.a, pose.b]);
+          const geometry=K.pistonGeometry(e,length),rod=at(Math.max(0,Math.min(length-geometry.eye,geometry.cylinder)));
+          poly(e,polygon({a:pose.a,b:rod},e.diameter),true);
+          poly(e,capsule({a:rod,b:pose.b},e.rodDiameter),true,'PISTON_ROD');
         }
-      } else if (e.type === 'ground') poly(e, [pose.a, pose.b]);
+      } else if (['ground','rail','link'].includes(e.type)) poly(e,capsule(pose,e.type==='rail'?e.slotWidth:e.width),true);
       else poly(e, polygon(pose, e.primary && e.type === 'panel' ? p.panelThickness : e.width), true);
       if (e.type === 'cam') entities.push({ kind: 'circle', elementId: e.id, name: `${e.name} · os`, layer: 'CAM_AXIS', center: point(pose.a), radius: 3, color: stroke(e) });
-      if (pose.carriageOutline?.length) poly(e, pose.carriageOutline, true, 'RAIL_CARRIAGE');
+      if (pose.carriageOutline?.length && !e.primary) poly(e, pose.carriageOutline, true, 'RAIL_CARRIAGE');
       if (options.labels !== false) text(e.name, { x: (pose.a.x + pose.b.x) / 2, y: (pose.a.y + pose.b.y) / 2 - 12 }, 'LABELS', e.id);
     }
     const dimensions = [...(project.dimensions || [])];

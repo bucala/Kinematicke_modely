@@ -304,7 +304,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorized():
             return
         if self.path == "/status":
-            self.reply(200, {"app": "KinmoFusion", "version": 1, "referenceOnly": True, "busy": self.server.jobs.is_busy(), "addonVersion": "1.2.0", "diagnostics": self.server.jobs.diagnostics()}, True)
+            self.reply(200, {"app": "KinmoFusion", "version": 1, "referenceOnly": True, "busy": self.server.jobs.is_busy(), "addonVersion": "1.2.1", "diagnostics": self.server.jobs.diagnostics()}, True)
         elif self.path.startswith("/jobs/"):
             value = self.server.jobs.status(self.path.removeprefix("/jobs/"))
             self.reply(200 if value else 404, value or {"error": "Unknown job."}, True)

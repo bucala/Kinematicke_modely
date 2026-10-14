@@ -648,20 +648,21 @@
   function drawDoubleDrawer(e, pose, selected, bad) {
     const p = state.project.parameters;
     const stroke = (color) => bad ? '#df5e59' : selected ? 'var(--accent)' : color;
+    const outline=K.templateOutlines(state.project,e,pose,state.motion)[0], points=outline?.map(v=>`${v.x},${v.y}`).join(' ') || '';
     if (e.role === 'frame') {
-      const top = p.tableY - p.frameHeight, frontBottom = p.tableY - p.frontOpening;
-      return `<path d="M${p.frameLength + 8} ${frontBottom}V${top - 8}H-8V${p.tableY}H0V${top}H${p.frameLength}V${frontBottom}Z" fill="#e7f3e8" stroke="${stroke('#6a9b76')}" stroke-width="1.4"/><text x="${p.frameLength / 2}" y="${top - 23}" text-anchor="middle" class="part-label">PEVNÝ KORPUS · ODHAD</text>`;
+      const top = p.tableY - p.frameHeight;
+      return `<polygon points="${points}" fill="#e7f3e8" stroke="${stroke('#6a9b76')}" stroke-width="1.4"/><text x="${p.frameLength / 2}" y="${top - 23}" text-anchor="middle" class="part-label">PEVNÝ KORPUS · ODHAD</text>`;
     }
     if (e.role === 'table') return `${pose.rects.map((rect) => `<rect x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" fill="${bad ? '#f4c6c4' : '#e0e5e7'}" stroke="${stroke('#49535a')}" stroke-width="2"/>`).join('')}<text x="18" y="${p.tableY + p.tableThickness + 19}" class="part-label">PLATFORMA STOLA · FIX</text><text x="${(p.cutoutStart + p.cutoutEnd) / 2}" y="${p.tableY + p.tableThickness + 19}" text-anchor="middle" class="part-sublabel">Pevný výrez · odhad pre celý zdvih</text>`;
-    if (e.role === 'stop') return `<rect x="${pose.a.x - 3}" y="${pose.a.y}" width="6" height="${pose.b.y - pose.a.y}" fill="#fff" stroke="${stroke('#49535a')}" stroke-width="2"/><text x="${pose.a.x - 10}" y="${pose.a.y - 12}" text-anchor="end" class="part-sublabel">Zadná opora</text>`;
-    if (e.role === 'carrier') return `<path d="M${pose.a.x} ${p.drawerY}H${pose.b.x - 6}V${p.drawerY - 38}H${pose.b.x}V${p.drawerY + p.drawerHeight}H${pose.a.x}Z" fill="#e5f0d7" fill-opacity=".65" stroke="${stroke('#95af51')}" stroke-width="1.5"/><text x="${(pose.a.x + pose.b.x) / 2}" y="${p.drawerY - 10}" text-anchor="middle" class="part-label">ZÁSUVKA · POHYBLIVÁ</text>`;
+    if (e.role === 'stop') return `<polygon points="${points}" fill="#fff" stroke="${stroke('#49535a')}" stroke-width="2"/><text x="${pose.a.x - 10}" y="${pose.a.y - 12}" text-anchor="end" class="part-sublabel">Zadná opora</text>`;
+    if (e.role === 'carrier') return `<polygon points="${points}" fill="#e5f0d7" fill-opacity=".65" stroke="${stroke('#95af51')}" stroke-width="1.5"/><text x="${(pose.a.x + pose.b.x) / 2}" y="${p.drawerY - 10}" text-anchor="middle" class="part-label">ZÁSUVKA · POHYBLIVÁ</text>`;
     if (['guide1', 'guide2', 'rearSlot'].includes(e.role)) {
       const width = e.role === 'rearSlot' ? 8 : p.slotWidth;
       const color = e.role === 'guide1' ? '#d2b62a' : '#d69d43', fill = e.role === 'guide1' ? '#f7e89a' : '#f8ddb0';
       return `<path d="${pathD(pose.path)}" fill="none" stroke="${bad ? '#f4c6c4' : fill}" stroke-width="${width + 9}" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathD(pose.path)}" fill="none" stroke="${stroke(color)}" stroke-width="${width + 2}" stroke-linecap="round" stroke-linejoin="round"/><path d="${pathD(pose.path)}" fill="none" stroke="#fffdf5" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
     }
     if (e.role === 'rocker') return `${line(pose.a, pose.b, `stroke="${stroke('#7193c0')}" stroke-width="12" stroke-linecap="round"`)}${line(pose.a, pose.b, 'stroke="#e5edf6" stroke-width="7" stroke-linecap="round"')}<text x="${(pose.a.x + pose.b.x) / 2}" y="${(pose.a.y + pose.b.y) / 2 - 17}" text-anchor="middle" class="arm-label">Tuhé rameno · ${fmt(p.armLength)} mm</text>`;
-    if (e.role === 'bracket') return `<polygon points="${pose.a.x},${pose.a.y} ${pose.b.x},${pose.b.y} ${pose.c.x},${pose.c.y}" fill="#f7dcbb" fill-opacity=".35" stroke="${stroke('#d4a266')}" stroke-width="2.3" stroke-linejoin="round"/>`;
+    if (e.role === 'bracket') return `<polygon points="${points}" fill="#f7dcbb" fill-opacity=".35" stroke="${stroke('#d4a266')}" stroke-width="2.3" stroke-linejoin="round"/>`;
     if (e.role === 'front') return `<polygon points="${panelPolygon(pose, p.panelThickness)}" fill="#f5d8d0" stroke="${stroke('#c87567')}" stroke-width="1.8" stroke-linejoin="round"/><text x="${pose.b.x + 13}" y="${pose.b.y + 10}" class="angle-label">${fmt(pose.angle)}°</text>`;
     if (['pinA', 'pinB', 'rearPin'].includes(e.role)) {
       const r = e.role === 'rearPin' ? 4 : p.bearingRadius;
@@ -3753,6 +3754,7 @@
       <form id="fusion-form"><label class="property-field"><span>Párovací kľúč z doplnku Fusion</span><input class="text-field" name="key" type="password" autocomplete="off" minlength="20" maxlength="100" value="${escape(savedKey)}" required/></label>
       <label class="check-row"><input name="remember-pairing" type="checkbox"${savedKey ? ' checked' : ''}/><span>Zapamätať overený kľúč v tomto prehliadači</span></label><p class="section-description">V doplnku Fusion tiež zvoľte zapamätanie párovania. Kľúč zostane iba v úložisku tohto webu; nie je súčasťou projektu ani exportov.</p><button type="button" class="button button-secondary" data-action="fusion-forget">Zabudnúť kľúč v prehliadači</button>
       <label class="check-row"><input id="cad-slot-outlines" type="checkbox"${state.cadSlotOutlines ? ' checked' : ''}/><span>Pridať uzavreté referenčné obrysy drážok podľa šírky</span></label><p class="section-description">Obrysy sa vložia do vrstiev SLOT_REFERENCE_OUTLINE / INNER. Strednice ostávajú vo vrstve SLOT. Pretínajúce sa alebo zrútené obrysy sa neodosielajú.</p>
+      <label class="check-row"><input type="checkbox" name="trajectories"/><span>Pridať pomocné trajektórie pohybu</span></label><p class="section-description">Trajektórie sú pomocné krivky, nie súčiastky. Predvolene sa neposielajú.</p>
       <label class="check-row"><input type="checkbox" name="consent" required/><span>Súhlasím s odoslaním viditeľnej geometrie do nového dokumentu v bežiacom Fusion.</span></label>
       <p class="section-description">Spojenie: <code>${escape(CAD.ENDPOINT)}</code>, iba toto zariadenie. Po práci zastavte doplnok. ${available ? 'Nie sú potrebné prihlasovacie údaje Autodesk.' : globalThis.KinmoNative?.platform==='android'?'Na Android zariadení použite DXF pre počítač.':'file:// nemôže použiť priame spojenie. Spustite lokálny server alebo použite DXF; doplnok je tiež v priečinku cad/KinmoFusion.'}</p>
       <div id="fusion-status" class="fusion-feedback" data-state="idle" role="status" aria-live="polite" aria-atomic="true">Najskôr overte spojenie. Overenie nevytvorí dokument vo Fusion; výkres odošle až druhé tlačidlo.</div>
@@ -4534,7 +4536,7 @@
       const feedback = $('#fusion-status');
       fusionFeedback('Overujem doplnok a pripravujem referenčný výkres…', 'busy', feedback);
       try {
-        const snapshot = X.cadSnapshot(state.project, state.result, { dimensions: state.dimensions, trajectories: state.trace, samples: state.samples, references: traceReferences(), traceSpace: state.traceSpace, slotOutlines: state.cadSlotOutlines });
+        const snapshot = X.cadSnapshot(state.project, state.result, { dimensions: state.dimensions, trajectories: data.has('trajectories'), samples: state.samples, references: traceReferences(), traceSpace: state.traceSpace, slotOutlines: state.cadSlotOutlines });
         await CAD.send(snapshot, String(data.get('key')).trim(), (message, phase) => { if(phase==='paired')CAD.rememberPairing(String(data.get('key')),data.has('remember-pairing'));fusionFeedback(message, 'busy', feedback); });
         fusionFeedback('Fusion potvrdil vytvorenie nového referenčného výkresu.', 'ready', feedback);
         toast('Nový referenčný výkres bol vytvorený vo Fusion.');

@@ -6,7 +6,7 @@ const custom=(...elements)=>K.validateProject({...K.preset('custom'),elements});
 test('Main dimensions ignore hidden geometry, dimensions and labels and retain exact mm extents',()=>{
  const a=K.makeElement('link',10,20);Object.assign(a,{length:100,width:20,angle:0,drive:false});const hidden=K.makeElement('link',4000,4000);hidden.visible=false;
  const p=custom(a,hidden),d=U.mainDimensions(p,K.solve(p,0,{design:true}));
- assert.equal(d.width,100);assert.equal(d.height,20);assert.equal(d.members.length,1);assert.equal(d.members[0].length,100);assert.equal(U.mainDimensions(custom(),K.solve(custom(),0)),null);
+ assert.equal(d.width,120);assert.equal(d.left,0);assert.equal(d.height,20);assert.equal(d.members.length,1);assert.equal(d.members[0].length,100);assert.equal(U.mainDimensions(custom(),K.solve(custom(),0)),null);
 });
 test('Main dimensions use circular outlines and carriage bodies rather than only node centres',()=>{
  const e=K.makeElement('bearing',30,40);e.radius=15;const p=custom(e),d=U.mainDimensions(p,K.solve(p,0));assert.equal(d.width,30);assert.equal(d.height,30);

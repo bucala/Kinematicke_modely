@@ -32,6 +32,8 @@ def import_drawing(app, snapshot):
                 sketch = root.sketches.add(root.xYConstructionPlane)
                 sketch.name = "Kinmo · " + layer
                 sketch.isComputeDeferred = True
+                if hasattr(sketch, "arePointsShown"):
+                    sketch.arePointsShown = False
                 groups[layer] = sketch
             sketch = groups[layer]
             # Fusion API lengths are centimetres. Snapshot Y is already CAD-up.

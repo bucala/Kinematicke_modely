@@ -54,6 +54,28 @@
       carriageOutline: [{ x: -w / 2, y: -h / 2 }, { x: w / 2, y: -h / 2 }, { x: w / 2, y: h / 2 }, { x: -w / 2, y: h / 2 }].map((p) => worldPoint(frame, p)),
     };
   }
+  // Shared physical outlines for template rendering, editable copies and CAD export.
+  function templateOutlines(project, element, pose, motion = 0) {
+    if (!element.primary) return [];
+    const p = project.parameters, rect = (x,y,w,h) => [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
+    if (project.kind === 'double-drawer') {
+      if (element.role === 'frame') {
+        const top=p.tableY-p.frameHeight,bottom=p.tableY-p.frontOpening;
+        return [[{x:p.frameLength+8,y:bottom},{x:p.frameLength+8,y:top-8},{x:-8,y:top-8},{x:-8,y:p.tableY},{x:0,y:p.tableY},{x:0,y:top},{x:p.frameLength,y:top},{x:p.frameLength,y:bottom}]];
+      }
+      if(element.role==='stop') return [rect(pose.a.x-3,pose.a.y,6,pose.b.y-pose.a.y)];
+      if(element.role==='carrier') return [[{x:pose.a.x,y:p.drawerY},{x:pose.b.x-6,y:p.drawerY},{x:pose.b.x-6,y:p.drawerY-38},{x:pose.b.x,y:p.drawerY-38},{x:pose.b.x,y:p.drawerY+p.drawerHeight},{x:pose.a.x,y:p.drawerY+p.drawerHeight}]];
+      if(element.role==='bracket') return [[pose.a,pose.b,pose.c].map(v=>({...v}))];
+    }
+    if(project.kind==='drawer') {
+      if(element.type==='ground') {
+        const top=p.pivotY-p.frameHeight,right=p.frameLength-18;
+        return [[{x:right,y:top-12},{x:-12,y:top-12},{x:-12,y:p.pivotY+26},{x:right,y:p.pivotY+26},{x:right,y:p.pivotY+14},{x:0,y:p.pivotY+14},{x:0,y:top},{x:right,y:top}]];
+      }
+      if(element.type==='rail') return [rect(0,p.pivotY-9,p.frameLength,18),rect(motion,p.pivotY-6,p.frameLength+p.panelOffsetX,12)];
+    }
+    return [];
+  }
   const hasOrientation = (project, reference) => {
     let e = project.elements.find((v) => v.id === reference.elementId);
     while (e?.parentId) e = project.elements.find((v) => v.id === e.parentId);
@@ -1059,6 +1081,6 @@
     nearestOnPath, segmentIntersection, segmentRect, solve, sample, point, inverseDrive, bounds, validateProject,
     registerProject, prepareProject, projectPhases, tracePoint,
     rotate, localPoint, worldPoint, isElastic, hasOrientation, bodyPose, genericPath, elasticMount,
-    pointKeys, pointName, defaultTracePoint, carriagePoints, carriageGeometry, pointInPolygon, camProfile, nearestOnCam, validateOutline,
+    pointKeys, pointName, defaultTracePoint, carriagePoints, carriageGeometry, templateOutlines, pointInPolygon, camProfile, nearestOnCam, validateOutline,
   });
 })(globalThis);

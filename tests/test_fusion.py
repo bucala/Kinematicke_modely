@@ -363,6 +363,18 @@ class ImportTests(unittest.TestCase):
             self.assertTrue(all(line.isFixed for line in sketch.lines))
         self.assertTrue(app.old_design.untouched)
 
+    def test_double_drawer_import_has_closed_frame_stop_and_actual_carrier_without_fake_carriage(self):
+        source = js_reference_snapshot("double-drawer")
+        module, app = load_mock_addin(), App()
+        module.import_drawing(app, bridge.validate_snapshot(source))
+        layers = {sketch.name.removeprefix("Kinmo · "): sketch for sketch in app.sketches}
+        self.assertEqual(len(layers["GROUND"].lines), 20)
+        self.assertEqual(len(layers["RAIL"].lines), 6)
+        self.assertEqual(len(layers["PANEL"].lines), 7)
+        self.assertNotIn("RAIL_CARRIAGE", layers)
+        self.assertNotIn("TRAJECTORIES", layers)
+        self.assertTrue(app.old_design.untouched)
+
     def test_new_document_mm_to_cm_and_fixed_reference_geometry(self):
         module, app = load_mock_addin(), App()
         document = module.import_drawing(app, bridge.validate_snapshot(snapshot()))

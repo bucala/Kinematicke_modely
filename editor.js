@@ -44,7 +44,8 @@
         if (e.type === 'slot') e.slotWidth = source.role === 'rearSlot' ? 8 : original.parameters.slotWidth;
       }
       if (e.type === 'panel' && pose.c) e.localC = K.localPoint(poses[e.id], pose.c);
-      if (pose.outline) e.outline = pose.outline.map((v) => K.localPoint(poses[e.id], v));
+      const templateOutline = original.kind==='drawer' && source.type==='rail' ? null : K.templateOutlines(original,source,pose,motion)[0];
+      if (pose.outline || templateOutline) e.outline = (pose.outline || templateOutline).map((v) => K.localPoint(poses[e.id], v));
       if (e.type === 'slot') {
         e.angle = 0; e.curveKind = 'polyline';
         e.controls = pose.path.map((v) => ({ x: v.x - e.x, y: v.y - e.y }));

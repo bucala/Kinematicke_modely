@@ -151,3 +151,10 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 - Voliteľný debug režim v menu: priebežný IndexedDB záznam, JS chyby, akcie a snímky projektu, export JSON, obmedzenie veľkosti a redakcia kľúčov. Predloha Magic importu len na výslovný výber.
 - Windows x64 EXE (.NET/WebView2) a podpísaný Android APK (WebView), lokálny editor, zachovanie profilu pri aktualizáciách a Android výber/ukladanie súborov.
 - Automatické platformové buildy a verzie cez Actions; Cloudflare Worker/R2 download endpointy, kontrolné súčty a publikovanie oboch balíkov pred aktualizáciou latest manifestu. Aktivácia vyžaduje súkromné signing a Cloudflare secrets.
+
+## 2026-10-14 · 2.1.1: správne obrysy Fusion exportu
+
+- Korpus dvojitej zásuvky je jeden spojitý uzavretý obrys bez prekrývajúcich sa rohov; zadná opora zachová šírku 6 mm, zásuvka svoj L profil a držiak trojuholník.
+- Obrysy template dielov zdieľajú editor, export aj nové voľné kópie. Samostatné vedenie zachová slotWidth a vozík; rám a ramená exportujú fyzickú hrúbku aj zaoblené konce. Piestnica má samostatný uzavretý obrys podľa rodDiameter. Parametrická zásuvka neexportuje fiktívny štandardný vozík.
+- Pomocné trajektórie do Fusion sú samostatná predvolene vypnutá voľba. Kóty a referenčné kulisové dráhy ostávajú voliteľné.
+- KinmoFusion 1.2.1 vypína zobrazovanie jednotlivých bodov skíc, ak túto vlastnosť podporuje API. Jednotky, párovanie a referencia v novom dokumente zostávajú zachované.
