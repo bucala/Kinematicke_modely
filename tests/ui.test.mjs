@@ -24,7 +24,7 @@ const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8')
 // Run the actual UI controller and drawing functions; browser layout is stubbed.
 function controller(width = 1440) {
   const elements = new Map(), listeners = new Map(), storage = new Map();
-  const document = { activeElement: null, body: { classList: { add() {}, remove() {} } }, addEventListener: (name, handler) => listeners.set(name, handler) };
+  const document = { querySelectorAll: () => [], activeElement: null, body: { classList: { add() {}, remove() {} } }, addEventListener: (name, handler) => listeners.set(name, handler) };
   const element = (selector) => {
     if (!elements.has(selector)) {
       const classes = new Set(), attributes = new Map();
@@ -92,7 +92,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['automaticVersion','readAutomaticVersions','captureMeasurement','positionBindingTools','elementContextItems','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -810,7 +810,7 @@ test('Clickable model checks select the named body and start connecting its moun
   assert.equal(state.selected, 'body'); assert.equal(state.tool, 'connect'); assert.equal(state.pendingJoint.elementId, 'body');
   assert.equal(state.view.x, -90); assert.equal(state.view.y, -80);
   context.selectTarget('n:body:b'); context.renderBindingTools();
-  assert.match(element('#binding-tools').innerHTML, /bod k rámu/); assert.match(element('#binding-tools').innerHTML, /Spojenia/); assert.match(element('#binding-tools').innerHTML, /Pohon/);
+  assert.equal(element('#binding-tools').hidden, true, 'selection never opens connection controls'); assert.match(element('#binding-tools').innerHTML, /bod k rámu/); assert.match(element('#binding-tools').innerHTML, /Spojenia/); assert.match(element('#binding-tools').innerHTML, /Pohon/);
 });
 test('Alt bypasses 5mm rounding when resizing with the separate dimension handle', () => {
   const { context, state } = controller(); state.snap = true; context.selectTarget('e:body');
@@ -2024,4 +2024,14 @@ test('Magic review inserts only explicitly confirmed inferred joints and support
 test('Locked movement shows the actual restricting joints and rail preview names its fixed member',()=>{
   const {context,state}=controller(),K=context.K,g=K.makeElement('ground',0,0),e=K.makeElement('link',0,0);state.project=K.validateProject({...K.preset('custom'),elements:[g,e],connections:[{id:'fixed-qa',type:'fixed',name:'Pevné spojenie',value:0,a:{elementId:g.id,point:'a'},b:{elementId:e.id,point:'a'}}]});state.result=context.E.design(state.project,0);context.selectTarget(context.I.elementKey(e.id));state.showFreedom=true;assert.match(context.freedomSVG(1),/Pevné spojenie/);
   const rail=K.makeElement('rail');rail.movingRail=true;state.project.elements=[rail];state.project.connections=[];state.result=context.E.design(state.project,0);context.selectTarget(context.I.elementKey(rail.id));state.showFreedom=false;assert.match(context.freedomSVG(1),/Vozík je pevný/);
+});
+
+test('Mobile context menus keep all commands reachable in a compact menu', () => {
+  const { context, state } = controller(390);
+  const target = context.I.target(state.project, 'e:body');
+  const desktop = controller().context.contextItems(target);
+  const mobile = context.contextItems(target);
+  const commands = items => items.flatMap(i => i.items ? commands(i.items) : i.id ? [i.id] : []);
+  assert.deepEqual([...commands(mobile)].sort(), [...commands(desktop)].sort());
+  assert(mobile.length <= 6); assert(mobile.some(i => i.label === 'Ďalšie možnosti…'));
 });

@@ -405,12 +405,14 @@
             <div class="phase-switcher" id="phase-switcher"></div>
             <div class="zoom-control">${ib('minus', 'zoom-out', 'Oddialiť')}<span id="zoom-value">100%</span>${ib('plus', 'zoom-in', 'Priblížiť')}<span class="zoom-divider"></span>${ib('expand', 'fit', 'Zobraziť celý mechanizmus')}</div>
             <div class="canvas-instruction" id="canvas-instruction" hidden></div>
-            <div class="selection-summary" id="selection-summary" aria-live="polite" hidden></div>
             <div id="snap-choices" class="snap-choices" role="group" aria-label="Vybrať spojenie prichytených bodov" hidden></div>
             <div id="placement-tools" class="placement-tools" aria-live="polite" hidden></div>
             <div id="binding-tools" class="binding-tools" aria-label="Spojenie, uloženie a pohon výberu" hidden></div>
-            <div id="model-checks" class="model-checks" aria-label="Kontrola modelu" hidden></div>
-            <div class="manipulation-tools" id="manipulation-tools" aria-label="Priame úpravy vybraných členov" hidden></div>
+            <div class="selection-dock">
+              <div class="manipulation-tools" id="manipulation-tools" aria-label="Priame úpravy vybraných členov" hidden></div>
+              <div class="selection-summary" id="selection-summary" aria-live="polite" hidden></div>
+              <div id="model-checks" class="model-checks" aria-label="Kontrola modelu" hidden></div>
+            </div>
           </div>
           <section class="analysis-dashboard" id="analysis-workspace" aria-label="Analýza celého rozsahu pohybu" hidden></section>
           <section class="diagnostics-panel" id="diagnostics-panel" aria-label="Diagnostika väzieb" hidden></section>
@@ -1177,7 +1179,8 @@
   function updateSelectionSummary() {
     const el = $('#selection-summary');
     el.hidden = !state.selectedElementIds.length;
-    el.textContent = `${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'} · Shift: výber · Ctrl: prekrývajúce sa prvky · Alt: voľné ťahanie`;
+    const target = I.target(state.project, state.selectedElementIds.at(-1)), editable = target?.element && !target.element.primary && state.mode === 'edit';
+    el.innerHTML = `<span>${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'}</span><button data-action="selection-settings"${editable ? '' : ' disabled'}>Spojenia / uloženie…</button><button data-action="toggle-inspector">Vlastnosti…</button>`;
   }
 
   function jointPoints(joint, result = state.result) {
@@ -1288,23 +1291,14 @@
 
   function renderBindingTools() {
     const el = $('#binding-tools'), target = I.target(state.project, state.selectedElementIds.at(-1)), e = target?.element;
-    if (!el) return; el.hidden = !e || e.primary || state.mode !== 'edit' || !!state.drag || state.insertingType || !!state.draggedPaletteType || !!state.magic?.placementType || !!state.pendingSnap || !!state.magic && !magicWorking();
-    if (el.hidden) return;
+    if (!el) return; el.hidden = true; el.innerHTML = '';
+    if (!e || e.primary || state.mode !== 'edit') return;
     const r = selectionReference(), linked = state.project.connections.filter((j) => [j.a, j.b].some((r) => r.elementId === e.id)).length;
     const fixed = target.type === 'node' ? I.fixed(state.project, r) : e.locked || e.type === 'ground';
     el.innerHTML = `<strong>${escape(e.name)}${target.type === 'node' ? ` · ${r.point.toUpperCase()}` : ''}</strong><div><span>Spojenia · bod môžete potiahnuť na iný bod</span><button data-action="selection-connect">Spojiť bod · ${linked}</button><span>Uloženie</span>${e.type === 'rail' ? `<button data-action="selection-rail" data-moving="false" aria-pressed="${!e.movingRail}">Pevné vedenie · hýbe sa vozík</button><button data-action="selection-rail" data-moving="true" aria-pressed="${!!e.movingRail}">Pevný vozík · hýbe sa vedenie</button>` : `<button data-action="selection-support"${K.isElastic(e) ? ' disabled' : ''}>${fixed ? 'Uvoľniť' : 'Ukotviť'} ${target.type === 'node' ? 'bod k rámu' : 'teleso k rámu'}</button>`}<span>Pohon</span><button data-action="selection-motor"${['ground', 'slot'].includes(e.type) || e.parentId || K.isElastic(e) ? ' disabled' : ''}>${e.drive ? 'Upraviť pohon' : 'Priradiť pohon'}</button></div>`;
-    positionBindingTools(el,e);
+
   }
 
-  function positionBindingTools(el,e) {
-    const matrix=$('#mechanism-canvas').getScreenCTM(),area=$('#canvas-area').getBoundingClientRect(),box=el.getBoundingClientRect(),pose=state.result.poses[e.id];if(!matrix||!pose)return;
-    const points=[pose.a,pose.b,pose.c,...(pose.outline||[])].filter(Boolean).map(p=>({x:p.x*matrix.a+p.y*matrix.c+matrix.e-(area.left||0),y:p.x*matrix.b+p.y*matrix.d+matrix.f-(area.top||0)})),pad=80;
-    const occupied={left:Math.min(...points.map(p=>p.x))-pad,right:Math.max(...points.map(p=>p.x))+pad,top:Math.min(...points.map(p=>p.y))-pad,bottom:Math.max(...points.map(p=>p.y))+pad};
-    const width=Math.min(box.width,area.width-90),height=box.height,right=Math.max(65,area.width-width-15),bottom=Math.max(100,area.height-height-135);
-    const candidates=[{x:65,y:100},{x:65,y:bottom},{x:right,y:100},{x:right,y:bottom}];
-    const overlap=p=>Math.max(0,Math.min(p.x+width,occupied.right)-Math.max(p.x,occupied.left))*Math.max(0,Math.min(p.y+height,occupied.bottom)-Math.max(p.y,occupied.top));
-    candidates.sort((a,b)=>overlap(a)-overlap(b));el.style ||= {};el.style.left=candidates[0].x+'px';el.style.top=candidates[0].y+'px';
-  }
   function beginSelectedConnection() {
     const r = selectionReference(); if (!r) return;
     setTool('connect'); state.pendingJoint = r; updateToolbar(); renderScene();
@@ -1549,6 +1543,10 @@
     const items=elementContextItems(t),priority=['inspect','joint-revolute','selection-connect','fix','fix-body','disconnect','disconnect-body'];
     if(t?.element&&!t.element.primary&&!['control','outline'].includes(t.type))items.unshift({id:'selection-connect',label:'Spojiť vybraný bod…'}, {separator:true});
     const first=items.filter(i=>priority.includes(i.id)),rest=items.filter(i=>!priority.includes(i.id));
+    if (window.innerWidth <= 640 && items.filter(i => !i.separator).length > 7) {
+      const common = items.filter(i => !i.separator && (priority.includes(i.id) || i.id === 'rail-motion')).slice(0, 5);
+      return [...common, { label: 'Ďalšie možnosti…', items: items.filter(i => !common.includes(i)) }];
+    }
     return first.length?[...first,{separator:true},...rest]:items;
   }
   function elementContextItems(t) {
@@ -1627,6 +1625,7 @@
 
   function openContextMenu(event, key = canvasHit(event)) {
     if (state.drag) onPointerUp({ pointerId: state.drag.pointerId, cancelled: true });
+    document.querySelectorAll('#workflow-tools details[open], #model-checks details[open]').forEach((el) => { el.open = false; });
     const t = I.target(state.project, key), hits = canvasHit(event, true);
     if (key && t?.elementId && memberSelected(t.elementId)) { state.selected = t.elementId; renderTree(); renderInspector(); renderScene(); updateToolbar(); }
     else if (key) selectTarget(key, false, true);
@@ -2290,6 +2289,7 @@
 
   function modal(title, content, wide = false) {
     closeContextMenu();
+    document.querySelectorAll('#workflow-tools details[open], #model-checks details[open]').forEach((el) => { el.open = false; });
     state.playing = false; updateMotion();
     const el = $('#modal');
     el.className = wide ? 'modal-wide' : '';
@@ -2627,7 +2627,7 @@
     if (!state.magic || action.startsWith('magic-') || action.startsWith('detect-') || action === 'pose-pick') return true;
     if (['help', 'close-modal', 'fit', 'zoom-in', 'zoom-out', 'tool-pan', 'toggle-sidebar', 'close-inspector'].includes(action)) return true;
     if (!magicWorking()) return false;
-    return ['undo', 'redo', 'tool-select', 'tool-connect', 'tool-measure', 'smart-snap', 'grid-snap', 'angle-snap', 'selection-connect', 'selection-support', 'selection-rail', 'selection-motor', 'snap-connect', 'snap-position', 'placement-mount', 'placement-cancel', 'check-model', 'grid', 'dimensions', 'select', 'visibility', 'sidebar-elements', 'sidebar-joints', 'toggle-inspector', 'inspector-geometry', 'inspector-joints', 'new-joint', 'edit-joint', 'delete-joint', 'new-dimension', 'edit-dimension', 'dimension-pick', 'delete-dimension', 'edit-numbers', 'edit-rotation', 'edit-pivot', 'edit-length', 'edit-thickness', 'add-menu', 'add-component', 'duplicate', 'delete', 'confirm-canvas-delete', 'canvas-add-guide', 'lock-selected', 'drive-selected', 'element-menu', 'edit-outline', 'edit-path', 'edit-com'].includes(action);
+    return ['undo', 'redo', 'tool-select', 'tool-connect', 'tool-measure', 'smart-snap', 'grid-snap', 'angle-snap', 'selection-settings', 'selection-connect', 'selection-support', 'selection-rail', 'selection-motor', 'snap-connect', 'snap-position', 'placement-mount', 'placement-cancel', 'check-model', 'grid', 'dimensions', 'select', 'visibility', 'sidebar-elements', 'sidebar-joints', 'toggle-inspector', 'inspector-geometry', 'inspector-joints', 'new-joint', 'edit-joint', 'delete-joint', 'new-dimension', 'edit-dimension', 'dimension-pick', 'delete-dimension', 'edit-numbers', 'edit-rotation', 'edit-pivot', 'edit-length', 'edit-thickness', 'add-menu', 'add-component', 'duplicate', 'delete', 'confirm-canvas-delete', 'canvas-add-guide', 'lock-selected', 'drive-selected', 'element-menu', 'edit-outline', 'edit-path', 'edit-com'].includes(action);
   }
 
   function startMagicImport() {
@@ -3887,6 +3887,7 @@
     'edit-thickness': () => transformModal('thickness'),
     'edit-length': () => transformModal('length'),
     'smart-snap': toggleSmartSnap,
+    'selection-settings': () => { renderBindingTools(); const content = $('#binding-tools').innerHTML; if (content) modal('Spojenia a uloženie', `<div class="binding-dialog">${content}</div>`); },
     'selection-connect': beginSelectedConnection,
     'selection-support': () => { const target = I.target(state.project, state.selectedElementIds.at(-1)); if (!target?.element) return; try { const next = target.type === 'node' ? I.toggleFixed(state.project, [I.reference(target)], state.result) : I.toggleBodyFixed(state.project, target.elementId, state.result); reviewImpact(next, 'Uloženie bolo zmenené.'); } catch (error) { toast(error.message, true); } },
     'selection-rail': (el) => { const r = selectionReference(); if (r) try { editCanvas(I.setRailMotion(state.project, r.elementId, el.dataset.moving === 'true', state.result), 'Uloženie vedenia bolo zmenené. Lineárny pohon riadi zvolenú časť.'); } catch (error) { toast(error.message, true); } },
@@ -4497,10 +4498,14 @@
   function wireEvents() {
     document.addEventListener('click', (event) => {
       if (event.target.closest('a[data-kinmo-download]')?.href?.startsWith('blob:')) return;
+      const summary = event.target.closest('summary');
+      if (summary) document.querySelectorAll('#workflow-tools details[open], #model-checks details[open]').forEach((el) => { if (el !== summary.parentElement) el.open = false; });
       const button = event.target.closest('[data-action]');
       if (state.gifExport && (!button || !['cancel-gif', 'close-modal'].includes(button.dataset.action))) { event.preventDefault(); return; }
       if (button && !button.disabled) {
         if (!magicActionAllowed(button.dataset.action)) { toast('Najskôr dokončite alebo zrušte Magic import.', true); return; }
+        document.querySelectorAll('#workflow-tools details[open], #model-checks details[open]').forEach((el) => { el.open = false; });
+        if (button.closest('.binding-dialog')) $('#modal').close();
         actions[button.dataset.action]?.(button, event); return;
       }
       const component = event.target.closest('[data-component]');
