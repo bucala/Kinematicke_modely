@@ -75,6 +75,11 @@ test('CAD sends only through explicit send and waits for main-thread completion'
   assert.equal(calls[1].options.headers['Content-Type'], 'application/json');
   assert.equal(calls[2].url, `http://127.0.0.1:8765/jobs/${job}`); assert.equal(progress.length, 2);
 });
+test('CAD guides manual Fusion fallback without sending the drawing twice',async()=>{
+ const {api,calls}=cad([ready(),{body:{job}},{body:{state:'pending',dispatchMode:'manual'}},{body:{state:'done'}}]);const progress=[];
+ await api.send({},mockKey,message=>progress.push(message));
+ assert.ok(progress.some(message=>message.includes('importovať čakajúci')));assert.equal(calls.filter(c=>c.options.method==='POST').length,1);
+});
 test('CAD rejects invalid job identifiers before polling', async () => {
   const { api, calls } = cad([ready(), { body: { job: '../arbitrary-path' } }]);
   await assert.rejects(api.send({}, mockKey), /identifikátor/); assert.equal(calls.length, 2);
@@ -85,8 +90,16 @@ test('CAD reports import errors as partial NEW documents', async () => {
 });
 test('CAD polling times out without sending a second snapshot', async () => {
   let tick = 0;
-  const { api, calls } = cad([ready(), { body: { job } }], 'https:', { Date: { now: () => (tick++ ? 61000 : 0) } });
+  const { api, calls } = cad([ready(), { body: { job } }], 'https:', { Date: { now: () => tick++ * 61000 } });
   await assert.rejects(api.send({}, mockKey), /pred ďalším odoslaním/); assert.equal(calls.length, 2);
+});
+test('CAD distinguishes rejected event from busy import and captures safe diagnostics', async () => {
+  const records=[],protectedKeys=[];
+  const { api } = cad([{ ok:false, status:409, body:{code:'fusion_event_rejected',diagnostics:{busy:false,events:[{event:'dispatch-rejected'}]}} }], 'https:', {KinmoDebug:{protect:key=>protectedKeys.push(key),record:(kind,data)=>records.push({kind,data})}});
+  await assert.rejects(api.status(mockKey), /odmietol udalosť/);
+  assert.deepEqual(protectedKeys,[mockKey]);
+  assert.equal(records.find(r=>r.kind==='fusion-response').data.code,'fusion_event_rejected');
+  assert.ok(!JSON.stringify(records).includes(mockKey));
 });
 test('Fusion ZIP is deterministic and contains only the four public add-in files', async () => {
   const bytes = await fusionArchive(root); assert.deepEqual(bytes, await fusionArchive(root));

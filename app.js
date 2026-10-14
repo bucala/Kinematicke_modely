@@ -129,6 +129,7 @@
   let toastTimer, autosaveTimer, lastFrame = 0, lastInspector = 0, latestSVG = '', contextMenu;
 
   function toast(message, warning = false) {
+    globalThis.KinmoDebug?.record(warning?'warning':'notice',{message});
     const el = $('#toast');
     el.innerHTML = `${icon(warning ? 'warning' : 'check', 17)}<span>${escape(message)}</span>`;
     el.className = `show${warning ? ' warning' : ''}`;
@@ -180,6 +181,7 @@
     repairSelection();
     state.dirty = true;
     recalculate(refit);
+    globalThis.KinmoDebug?.checkpoint('geometry-change');
     renderTree(); renderInspector(); updateHeader(); updateToolbar();
     clearTimeout(autosaveTimer);
     if (!state.magic) autosaveTimer = setTimeout(() => saveProject(true), 1400);
@@ -432,7 +434,7 @@
         </section>
         <aside class="inspector" id="properties-panel" aria-label="Inšpektor vlastností" hidden><div class="inspector-top"><div>${icon('settings', 16)}<span>Vlastnosti</span></div>${ib('close', 'close-inspector', 'Zavrieť vlastnosti')}</div><div id="inspector-content"></div></aside>
       </main>
-      <footer class="status-bar"><div><span class="ready-dot" id="solver-dot"></span><span id="solver-status">Solver pripravený</span><span class="status-separator"></span><span id="solver-meta">1 stupeň voľnosti</span></div><div class="status-right"><span id="pointer-coordinates">X: 0,0 <span>Y: 0,0</span></span><span class="status-separator"></span><span>Pozícia v mm</span><span class="version">v2.0</span></div></footer>
+      <footer class="status-bar"><div><span class="ready-dot" id="solver-dot"></span><span id="solver-status">Solver pripravený</span><span class="status-separator"></span><span id="solver-meta">1 stupeň voľnosti</span></div><div class="status-right"><span id="pointer-coordinates">X: 0,0 <span>Y: 0,0</span></span><span class="status-separator"></span><span>Pozícia v mm</span><span class="version">v${escape(globalThis.KinmoBuild?.version || '2.1.0')}</span></div></footer>
     `;
   }
 
@@ -2357,6 +2359,7 @@
       pushHistory(); state.project.dimensions.push(E.makeDimension(state.result, state.measure.referenceA, b)); changed(false);
       toast('Kóta bola pridaná. Kliknutím na ňu nastavíte typ a odsadenie.');
     }
+    if(drag){globalThis.KinmoDebug?.record('gesture-end',{kind:drag.kind,cancelled:!!event.cancelled||event.type==='pointercancel'});globalThis.KinmoDebug?.checkpoint('gesture-end',true);}
     if (drag?.simulationMoved && !event.cancelled && event.type !== 'pointercancel') resumeElasticMotion();
   }
 
@@ -2427,6 +2430,20 @@
     const e = currentElement(); if (!e) return;
     modal('Vlastnosti prvku', `<h3>${escape(e.name)}</h3><p>${escape(typeNames[e.type])}</p>${e.primary ? '<p>Chránená šablóna. Vytvorte voľnú kópiu na úpravy.</p><button class="button button-secondary" data-action="make-editable">Vytvoriť voľnú kópiu</button>' : `<div class="properties-overview"><details open><summary>Geometria</summary><div><button data-action="element-menu">Názov</button><button data-action="open-full-properties">Všetky parametre geometrie</button>${K.isElastic(e) ? '<button data-action="construction">Konštrukčné rozmery a zdvih</button>' : state.mode==='edit'&&!e.locked ? '<button data-action="edit-numbers">Poloha X / Y</button><button data-action="edit-rotation">Natočenie</button>' : ''}${state.mode==='edit'&&W.thickness(e) ? '<button data-action="edit-thickness">Hrúbka / priemer</button>' : ''}</div></details><details><summary>Spojenia a uloženie</summary><div><button data-action="selection-settings">Spojenia / uloženie</button><button data-action="new-joint">Pridať väzbu</button></div></details>${!K.isElastic(e)&&!['ground','slot'].includes(e.type)&&!e.parentId ? '<details><summary>Pohon a limity</summary><div><button data-action="selection-motor">Priradiť / upraviť pohon</button><button data-action="element-limits">Pohybové limity</button></div></details>' : ''}<details><summary>Kontrola</summary><div><button data-action="explain-movement">Prečo sa nehýbe?</button><button data-action="cycle-review">Overiť celý cyklus</button></div></details></div>`}`);
   }
+  function debugSnapshot(includeImages = false) {
+    const project = K.copy(state.project), reference = includeImages ? project.importReference : null;
+    delete project.importReference; if(project.source){delete project.source.image;delete project.source.imageData;}
+    return { project: JSON.parse(X.serializeNative(project, {motion:state.motion,workspace:X.preferences(state)})), mode:state.mode, motion:state.motion,
+      selected:[...state.selectedElementIds], view:K.copy(state.view), tool:state.tool, playing:state.playing,
+      result:state.result?{blocked:state.result.blocked,issues:[...state.result.issues],poses:K.copy(state.result.poses),forces:K.copy(state.result.forces||[])}:null,
+      solver:state.result?{constraints:W.constraints(state.project,state.result),freedom:E.freedom(state.project,state.result)}:null,
+      dynamic:state.dynamic?K.copy(state.dynamic):null, forceError:state.forceError, ...(reference?{reference}: {}) };
+  }
+  function debugModal() {
+    const d=globalThis.KinmoDebug.status();
+    modal('Debug režim · údaje pre cielené opravy', `<p>Pri zapnutí sa lokálne priebežne ukladajú akcie, chyby, polohy mechanizmu, zmeny geometrie a diagnostika Fusion. Záznam pretrvá obnovenie stránky. Export priložte AI spolu s popisom problému.</p><form id="debug-form"><label class="check-row"><input name="debug-enabled" type="checkbox"${d.enabled?' checked':''}/>Zapnúť priebežný debug záznam</label><p>${d.events} udalostí · ${d.checkpoints} snímok. ${escape(d.storageError)}</p><label class="property-field"><span>Čo sa stalo a ako to zopakovať?</span><textarea class="text-field" name="description" rows="4" maxlength="4000"></textarea></label><label class="check-row"><input name="images" type="checkbox"/>Zahrnúť aj predlohu Magic importu</label><p class="section-description">Kľúče Fusion, heslá a podpisové údaje sa nezapisujú. Súbor obsahuje geometriu projektu; predlohu zahrnie iba začiarknutá voľba.</p><div class="modal-actions"><button class="button button-secondary" type="button" data-action="debug-clear">Vymazať záznam</button><button class="button button-dark" type="submit">Exportovať debug súbor</button></div></form>`);
+  }
+
   function issueModal() {
     modal('Nahlásiť problém · lokálny balík', '<p>Balík obsahuje geometriu projektu, aktuálnu polohu, režim a diagnostiku. Zdrojové obrázky sa vynechajú. Súbor si stiahnete a priložíte k hláseniu.</p><form id="issue-form"><label class="property-field"><span>Čo sa stalo a ako to zopakovať?</span><textarea class="text-field" name="description" maxlength="4000" rows="5" required></textarea></label><div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Zrušiť</button><button class="button button-dark">Stiahnuť diagnostický balík</button></div></form>');
   }
@@ -2576,7 +2593,7 @@
     const root = $('#workflow-tools'); if (!root) return;
     root.hidden = !!state.magic;
     const reference = state.project.importReference, imported = reference || state.project.source?.name === 'Magic import';
-    const extraTools = `<button data-action="explain-movement">Prečo sa nehýbe?</button><button data-action="cycle-review">Overiť celý cyklus</button><button data-action="dimensions-overview">Prehľad rozmerov</button><button data-action="issue-report">Nahlásiť problém</button>`;
+    const extraTools = `<button data-action="explain-movement">Prečo sa nehýbe?</button><button data-action="cycle-review">Overiť celý cyklus</button><button data-action="dimensions-overview">Prehľad rozmerov</button><button data-action="issue-report">Nahlásiť problém</button><button data-action="debug-mode">Debug režim</button><button data-action="native-downloads">Windows / Android aplikácie</button>`;
     const advanced=window.KinmoAdvanced?`<details class="workflow-position-menu"><summary>Ďalšie nástroje</summary><div>${extraTools}${[['hub','Spoločný čap'],['drives','Viac pohonov'],['contacts','Kontakt a dorazy'],['planes','Skupiny / roviny'],['measure','Meranie v čase'],['variants','Varianty'],['revisions','Automatické verzie'],['learn','Príklady']].map(([tab,label])=>`<button data-action="advanced-open" data-tab="${tab}">${label}</button>`).join('')}</div></details>`:'';
     const markup = `${advanced}${state.phasePick ? '<button data-action="plan-pick-done">Použiť polohu</button><button data-action="plan-pick-cancel">Zrušiť výber</button>' : ''}${imported ? `<button data-action="reference-toggle" aria-pressed="${!!reference?.visible}"${reference ? '' : ' title="Doplniť pôvodný obrázok staršieho Magic projektu"'}>Predloha</button>${reference ? '<button data-action="reference-settings" aria-label="Nastaviť predlohu">◐</button>' : ''}` : ''}${(state.project.elements.some(K.isElastic)||state.project.connections.some(j=>j.contact?.enabled)) ? `<button data-action="force-motion" aria-pressed="${state.project.simulation?.mode === 'dynamic'}">Pohyb zo síl</button>` : ''}${state.mode==='simulate' ? '<details class="workflow-position-menu"><summary>Poloha simulácie</summary><div><button data-action="simulation-pause">Pozastaviť tu</button><button data-action="simulation-design">Vrátiť do návrhu</button><button data-action="simulation-bake">Poloha → návrh</button></div></details>' : ''}<button data-action="freedom-toggle" aria-pressed="${!!state.showFreedom}">Voľnosť</button><button data-action="trial-toggle" aria-pressed="${!!state.trial}">Skúšobný pohyb</button><button data-action="mechanism-kit">Zostavy</button><button data-action="motion-plan">Fázy pohybu</button>`;
     if (root._workflowMarkup !== markup) { root.innerHTML = markup + '<button class="mobile-workflow-button" data-action="mobile-workflow" aria-haspopup="dialog">Nástroje</button>'; root._workflowMarkup = markup; }
@@ -2594,7 +2611,7 @@
       content = `<section><h3>Prvok a väzby</h3><button data-action="selection-settings"${e && !e.primary && state.mode === 'edit' ? '' : ' disabled'}>Spojenia a uloženie</button><button data-action="properties-overview"${e ? '' : ' disabled'}>Vlastnosti prvku</button></section>${!$('#manipulation-tools').hidden ? `<section><h3>Geometria</h3>${$('#manipulation-tools').innerHTML}<button data-action="mobile-handles" aria-pressed="${!!state.mobileHandles}">${state.mobileHandles ? 'Skryť' : 'Zobraziť'} úchyty na plátne</button></section>` : ''}`;
     } else {
       title = 'Ponuka pracovného priestoru';
-      const controls = [['undo','Späť'],['redo','Znova'],['settings','Vzhľad a nastavenia'],['diagnostics','Diagnostika väzieb'],['toggle-inspector','Inšpektor vlastností'],['profileVisible','Pohybový profil'],['timelineVisible','Časová os'],['help','Pomoc']];
+      const controls = [['undo','Späť'],['redo','Znova'],['settings','Vzhľad a nastavenia'],['debug-mode','Debug režim'],['native-downloads','Windows / Android aplikácie'],['diagnostics','Diagnostika väzieb'],['toggle-inspector','Inšpektor vlastností'],['profileVisible','Pohybový profil'],['timelineVisible','Časová os'],['help','Pomoc']];
       content = `<section><h3>Pracovný priestor</h3>${controls.map(([action,label])=>`<button data-action="${action}"${action === 'undo' && !state.history.length || action === 'redo' && !state.future.length ? ' disabled' : ''}>${label}</button>`).join('')}</section><section><h3>Zobrazenie plátna</h3>${[['grid','Mriežka'],['main-dimensions','Hlavné rozmery'],['dimensions','Kóty'],['ghosts','Krajné polohy'],['trace','Trajektórie'],['labels','Názvy a texty']].map(([action,label])=>`<button data-action="${action}" aria-pressed="${!!state[({grid:'grid','main-dimensions':'mainDimensions',dimensions:'dimensions',ghosts:'ghosts',trace:'trace',labels:'labels'})[action]]}">${label}</button>`).join('')}</section>`;
     }
     modal(title, `<div class="mobile-tools-dialog">${content}</div>`);
@@ -3729,15 +3746,15 @@
   }
 
   function fusionModal() {
-    const available = ['http:', 'https:'].includes(location.protocol), savedKey = CAD.rememberedKey();
+    const available = ['http:', 'https:'].includes(location.protocol) && globalThis.KinmoNative?.platform !== 'android', savedKey = CAD.rememberedKey();
     modal('Lokálne prepojenie · Autodesk Fusion', `<p class="modal-description">Doplnok vytvorí nový, neuložený referenčný dokument. Existujúce návrhy nemení. Krivky sú fixované úsečky, kulisy majú strednice a voliteľné uzavreté referenčné obrysy; kóty sú referenčné popisy. Nejde o výrobný profil, 3D zostavu ani Fusion joints.</p>
-      <ol class="fusion-steps"><li>Stiahnite a rozbaľte doplnok. Vo Fusion: Utilities → Scripts and Add-Ins → Add-Ins → šípka pri + → Script or add-in from device → priečinok KinmoFusion. Nevytvárajte nový prázdny doplnok.</li><li>Vyberte KinmoFusion a stlačte Run. Ak už beží s inou adresou, zastavte ho a spustite znova; môžete použiť uložené párovanie alebo vytvoriť nový kľúč. Povoľte presný pôvod <code>${escape(available ? location.origin : 'HTTP(S) adresa aplikácie')}</code>.</li><li>Pri prvom párovaní vložte nižšie kľúč z Fusion. Pre opätovné použitie ho zapamätajte v doplnku aj prehliadači. Povoľte lokálnu sieť, ak si ju prehliadač vyžiada.</li></ol>
+      ${globalThis.KinmoNative?.platform==='android'?'<p class="analysis-warning">Fusion beží na Windows alebo macOS. V Android aplikácii použite export DXF a otvorte ho na počítači.</p>':''}<ol class="fusion-steps"><li>Stiahnite a rozbaľte doplnok. Vo Fusion: Utilities → Scripts and Add-Ins → Add-Ins → šípka pri + → Script or add-in from device → priečinok KinmoFusion. Nevytvárajte nový prázdny doplnok.</li><li>Vyberte KinmoFusion a stlačte Run. Ak už beží s inou adresou, zastavte ho a spustite znova; môžete použiť uložené párovanie alebo vytvoriť nový kľúč. Povoľte presný pôvod <code>${escape(available ? location.origin : 'HTTP(S) adresa aplikácie')}</code>.</li><li>Pri prvom párovaní vložte nižšie kľúč z Fusion. Pre opätovné použitie ho zapamätajte v doplnku aj prehliadači. Povoľte lokálnu sieť, ak si ju prehliadač vyžiada.</li></ol>
       <a class="button button-secondary" href="./cad/KinmoFusion.zip" download${!available ? ' aria-disabled="true"' : ''}>Stiahnuť doplnok KinmoFusion (ZIP)</a>
       <form id="fusion-form"><label class="property-field"><span>Párovací kľúč z doplnku Fusion</span><input class="text-field" name="key" type="password" autocomplete="off" minlength="20" maxlength="100" value="${escape(savedKey)}" required/></label>
       <label class="check-row"><input name="remember-pairing" type="checkbox"${savedKey ? ' checked' : ''}/><span>Zapamätať overený kľúč v tomto prehliadači</span></label><p class="section-description">V doplnku Fusion tiež zvoľte zapamätanie párovania. Kľúč zostane iba v úložisku tohto webu; nie je súčasťou projektu ani exportov.</p><button type="button" class="button button-secondary" data-action="fusion-forget">Zabudnúť kľúč v prehliadači</button>
       <label class="check-row"><input id="cad-slot-outlines" type="checkbox"${state.cadSlotOutlines ? ' checked' : ''}/><span>Pridať uzavreté referenčné obrysy drážok podľa šírky</span></label><p class="section-description">Obrysy sa vložia do vrstiev SLOT_REFERENCE_OUTLINE / INNER. Strednice ostávajú vo vrstve SLOT. Pretínajúce sa alebo zrútené obrysy sa neodosielajú.</p>
       <label class="check-row"><input type="checkbox" name="consent" required/><span>Súhlasím s odoslaním viditeľnej geometrie do nového dokumentu v bežiacom Fusion.</span></label>
-      <p class="section-description">Spojenie: <code>${escape(CAD.ENDPOINT)}</code>, iba toto zariadenie. Po práci zastavte doplnok. ${available ? 'Nie sú potrebné prihlasovacie údaje Autodesk.' : 'file:// nemôže použiť priame spojenie. Spustite lokálny server alebo použite DXF; doplnok je tiež v priečinku cad/KinmoFusion.'}</p>
+      <p class="section-description">Spojenie: <code>${escape(CAD.ENDPOINT)}</code>, iba toto zariadenie. Po práci zastavte doplnok. ${available ? 'Nie sú potrebné prihlasovacie údaje Autodesk.' : globalThis.KinmoNative?.platform==='android'?'Na Android zariadení použite DXF pre počítač.':'file:// nemôže použiť priame spojenie. Spustite lokálny server alebo použite DXF; doplnok je tiež v priečinku cad/KinmoFusion.'}</p>
       <div id="fusion-status" class="fusion-feedback" data-state="idle" role="status" aria-live="polite" aria-atomic="true">Najskôr overte spojenie. Overenie nevytvorí dokument vo Fusion; výkres odošle až druhé tlačidlo.</div>
       <div class="modal-actions"><button type="button" class="button button-secondary" data-action="fusion-check"${!available ? ' disabled' : ''}>Overiť spojenie</button><button type="submit" class="button button-dark"${!available ? ' disabled' : ''}>Odoslať nový referenčný výkres</button></div></form>`, true);
   }
@@ -4080,6 +4097,9 @@
     'element-limits': () => { const r=selectionReference();if(r)canvasDialog('limits',r); },
     'detect-review-edit': (el) => { $('#modal').close();state.magic.review=null;state.magic.showImage=true;state.magic.tool='select';state.magic.detectEditing=el.dataset.id;renderMagicImport();renderScene();actions['detect-edit']({dataset:{id:el.dataset.id}}); },
     'construction': constructionModal,
+    'debug-mode': debugModal,
+    'debug-clear': async () => { await globalThis.KinmoDebug.clear();debugModal(); },
+    'native-downloads': () => globalThis.KinmoNativeClient.openDownloads(modal),
     'issue-report': issueModal,
     'connection-type': (el) => { const d=state.connectionReview;if(d){previewConnection(d.a,d.b,el.dataset.type,d.snap,true);if(state.connectionReview){state.connectionReview.snap=d.snap;state.connectionReview.transaction=d.transaction;}} },
     'diagnostics': () => { state.diagnosticsOpen = !state.diagnosticsOpen; state.diagnosticAnalysis = null; renderScene(); updateToolbar(); },
@@ -4329,6 +4349,7 @@
     if(event.target.dataset?.setting==='connection-target'){try{chooseConnectionTarget(Number(event.target.value));}catch(error){toast(error.message,true);}return;}
     const input = event.target;
     if (state.gifExport) return;
+    if(input.name==='debug-enabled'){globalThis.KinmoDebug.setEnabled(input.checked);return;}
     if (input.name==='theme' && input.closest?.('#settings-form')) { if(input.checked)applyPreferences({...state,theme:input.value},true);return; }
     if (input.closest?.('#gif-form')) { updateGIFEstimate(); return; }
     if (input.closest?.('#dimension-form')) {
@@ -4445,6 +4466,7 @@
 
   async function onSubmit(event) {
     const form = event.target;
+    if(form.id==='debug-form'){event.preventDefault();const data=new FormData(form);const extra=globalThis.KinmoUsability.issueBundle(state.project,state.result,{description:data.get('description'),mode:state.mode,selected:state.selectedElementIds,collisions:state.collisions});const debug=await globalThis.KinmoDebug.bundle(data.get('description'),data.has('images'),extra);download('kinematika-debug.json',JSON.stringify(debug,null,2),'application/json');return;}
     if (state.gifExport) { event.preventDefault(); return; }
     if(form.id==='advanced-perspective-form'){event.preventDefault();try{await rectifyMagic(new FormData(form));}catch(error){toast(error.message,true);}return;}
     if(form.id.startsWith('advanced-')){event.preventDefault();try{advancedSubmit(form,new FormData(form));}catch(error){toast(error.message,true);}return;}
@@ -4714,6 +4736,7 @@
         if (!magicActionAllowed(button.dataset.action)) { toast('Najskôr dokončite alebo zrušte Magic import.', true); return; }
         document.querySelectorAll('#workflow-tools details[open], #model-checks details[open]').forEach((el) => { el.open = false; });
         if (button.closest('.binding-dialog, .mobile-tools-dialog')) $('#modal').close();
+        globalThis.KinmoDebug?.record('action',{action:button.dataset.action,id:button.dataset.id,kind:button.dataset.kind,type:button.dataset.type});
         actions[button.dataset.action]?.(button, event); return;
       }
       const component = event.target.closest('[data-component]');
@@ -4867,6 +4890,7 @@
   applyPreferences(state);
   recalculate(true);
   renderTree(); renderInspector(); updateHeader(); updateToolbar();
+  globalThis.KinmoDebug?.attach(debugSnapshot);
   wireEvents();
   requestAnimationFrame(animate);
 })();

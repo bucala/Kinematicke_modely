@@ -144,3 +144,10 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 | 2026-10-09 | `60d92b2` | Základné slovenské štúdio mechanizmov, solvery, ukladanie a exporty bez závislostí. |
 
 Ďalšie podrobnosti a pôvodné súbory zaznamenáva Git história. Vzdialené CI a Workers nasadenie overujte samostatne podľa [DEPLOYMENT.md](DEPLOYMENT.md).
+
+## 2026-10-14 · 2.1: Fusion, debug a priame aplikácie
+
+- Fusion 1.2.0: samostatné chyby zaneprázdnenia/udalosti, bezpečná diagnostika, kontrola registrácie handlera a náhradné dokončenie už odoslaného výkresu tlačidlom vo Fusion. Import sa prevezme iba raz aj pri súbehu udalostí.
+- Voliteľný debug režim v menu: priebežný IndexedDB záznam, JS chyby, akcie a snímky projektu, export JSON, obmedzenie veľkosti a redakcia kľúčov. Predloha Magic importu len na výslovný výber.
+- Windows x64 EXE (.NET/WebView2) a podpísaný Android APK (WebView), lokálny editor, zachovanie profilu pri aktualizáciách a Android výber/ukladanie súborov.
+- Automatické platformové buildy a verzie cez Actions; Cloudflare Worker/R2 download endpointy, kontrolné súčty a publikovanie oboch balíkov pred aktualizáciou latest manifestu. Aktivácia vyžaduje súkromné signing a Cloudflare secrets.

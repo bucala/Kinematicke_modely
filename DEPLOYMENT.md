@@ -120,3 +120,9 @@ Ide o CMD spúšťač existujúceho `push-github.ps1`, nie o novú implementáci
 11. Overiť načítanie HTML, JS, CSS, ikonky a fontov, simuláciu, export, bezpečnostné hlavičky a konzolu. Overiť úspešné GitHub kontroly a nové produkčné nasadenie v Cloudflare.
 
 Pri použití Workers Builds netreba vytvárať paralelný deploy workflow ani ukladať Cloudflare API token do GitHub Actions. Autorizácia nasadenia sa spravuje v Cloudflare.
+
+## 2026-10-14 · Windows/Android cez GitHub Actions a R2
+
+`wrangler.toml` teraz pridáva Worker `cloudflare/worker.mjs`, statický binding ASSETS a R2 RELEASES (`kinematika-releases`). Web ostáva statickou klientskou aplikáciou; download endpointy obsluhuje Worker. Pre nasadenie musí existovať R2 bucket. Nový workflow bucket vytvorí po nastavení Cloudflare secrets a vytvorí/publikuje oba natívne balíky. Ak existujúce Workers Builds nasadia skôr, bez bucketu môžu zlyhať; po vytvorení spustite nasadenie znova.
+
+Postup secrets, trvalého Android podpisu, verzovania a buildov je v [native/README.md](native/README.md). Používateľ potvrdil priame `.exe`/`.apk` stiahnutie a nastavenie GitHub secrets. V tomto prostredí chýba Cloudflare token a API sieťový prístup; vykonal sa iba lokálny Wrangler dry run. Push sám nepotvrdzuje úspech Actions ani produkcie.

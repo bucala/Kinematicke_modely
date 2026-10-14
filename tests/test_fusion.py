@@ -133,6 +133,37 @@ class JobTests(unittest.TestCase):
             self.assertFalse(any(record["state"] == "pending" for record in jobs.records.values()))
             self.assertFalse(any("snapshot" in record for record in jobs.records.values()))
 
+    def test_void_event_posting_waits_for_main_thread_and_diagnostics_omit_geometry(self):
+        jobs = bridge.Jobs(lambda _job: None)
+        job = jobs.submit(snapshot())
+        self.assertEqual(jobs.status(job)["state"], "pending")
+        self.assertTrue(jobs.diagnostics()["busy"])
+        self.assertNotIn("entities", json.dumps(jobs.diagnostics()))
+        self.assertIsNotNone(jobs.take(job))
+        jobs.finish(job, True)
+        self.assertFalse(jobs.diagnostics()["busy"])
+        self.assertEqual(jobs.status(job)["state"], "done")
+
+    def test_explicit_rejection_has_specific_code(self):
+        jobs = bridge.Jobs(lambda _job: False)
+        with self.assertRaises(bridge.DispatchError) as error:
+            jobs.submit(snapshot())
+        self.assertEqual(error.exception.code, "fusion_event_rejected")
+        self.assertFalse(jobs.diagnostics()["busy"])
+
+    def test_manual_fallback_can_be_claimed_once_and_blocks_duplicate_imports(self):
+        jobs = bridge.Jobs(lambda _job: "manual")
+        job = jobs.submit(snapshot())
+        self.assertEqual(jobs.status(job)["dispatchMode"], "manual")
+        self.assertEqual(jobs.pending_ids(), [job])
+        self.assertIsNotNone(jobs.take(job))
+        self.assertIsNone(jobs.take(job))
+        self.assertTrue(jobs.is_busy())
+        with self.assertRaises(bridge.DispatchError):
+            jobs.submit(snapshot())
+        jobs.finish(job, True)
+        self.assertFalse(jobs.is_busy())
+
     def test_status_retention_is_bounded(self):
         jobs = bridge.Jobs(lambda _job: True)
         for _ in range(25):
@@ -286,6 +317,8 @@ def load_mock_addin():
     adsk, core, fusion = types.ModuleType("adsk"), types.ModuleType("adsk.core"), types.ModuleType("adsk.fusion")
     adsk.core, adsk.fusion = core, fusion
     core.CustomEventHandler = object
+    core.CommandEventHandler = object
+    core.CommandCreatedEventHandler = object
     core.CustomEventArgs = types.SimpleNamespace(cast=lambda value: value)
     core.Point3D = types.SimpleNamespace(create=lambda x, y, z: types.SimpleNamespace(x=x, y=y, z=z))
     core.DocumentTypes = types.SimpleNamespace(FusionDesignDocumentType=1)
@@ -360,6 +393,16 @@ class ImportTests(unittest.TestCase):
         handler = module.ImportHandler(app, jobs)
         handler.notify(types.SimpleNamespace(additionalInfo=job))
         handler.notify(types.SimpleNamespace(additionalInfo=job))
+        self.assertEqual(jobs.status(job)["state"], "done")
+        self.assertEqual(len(app.created), 1)
+
+    def test_manual_toolbar_completion_creates_exactly_one_document(self):
+        module, app = load_mock_addin(), App()
+        jobs = bridge.Jobs(lambda _job: "manual")
+        job = jobs.submit(bridge.validate_snapshot(snapshot()))
+        execute = module.ManualExecute(module.ImportHandler(app, jobs), jobs)
+        execute.notify(None)
+        execute.notify(None)
         self.assertEqual(jobs.status(job)["state"], "done")
         self.assertEqual(len(app.created), 1)
 

@@ -4,6 +4,7 @@ import os
 import re
 from pathlib import Path
 import sys
+from collections import deque
 import math
 import secrets
 import threading
@@ -126,16 +127,24 @@ def forget_pairing(path):
     Path(path).unlink(missing_ok=True)
 
 
+class DispatchError(RuntimeError):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
 class Jobs:
     def __init__(self, notify):
         self.notify = notify
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.records = {}
+        self.events = deque(maxlen=100)
 
     def submit(self, snapshot):
         with self.lock:
-            if any(j["state"] == "pending" for j in self.records.values()):
-                raise RuntimeError("Fusion is still importing the previous drawing.")
+            if any(j["state"] in ("pending", "running") for j in self.records.values()):
+                self.log("busy-rejected")
+                raise DispatchError("fusion_busy")
             now = time.monotonic()
             self.records = {key: job for key, job in self.records.items() if now - job["created"] < 120}
             if len(self.records) >= 10:
@@ -145,23 +154,48 @@ class Jobs:
             self.records[job_id] = {"state": "pending", "snapshot": snapshot, "created": now}
         try:
             accepted = self.notify(job_id)
-        except Exception:
+        except Exception as error:
+            self.log("dispatch-exception", errorType=type(error).__name__)
             accepted = False
-        if not accepted:
+        # Some Python API wrappers return None after successfully posting a void event.
+        # Only an explicit False is a rejection; completion is always confirmed by the handler.
+        if accepted is False:
             self.finish(job_id, False)
-            raise RuntimeError("Fusion did not accept the main-thread event.")
+            self.log("dispatch-rejected")
+            raise DispatchError("fusion_event_rejected")
+        if accepted == "manual":
+            with self.lock:
+                self.records[job_id]["dispatchMode"] = "manual"
+        self.log("event-posted", callbackResult=type(accepted).__name__)
         return job_id
+
+    def log(self, event, **details):
+        with self.lock:
+            self.events.append({"time": time.time(), "event": event, **details})
+
+    def diagnostics(self):
+        with self.lock:
+            return {"busy": self.is_busy(), "events": list(self.events), "jobs": [{"id": key, "state": value["state"], "ageSeconds": round(time.monotonic()-value["created"], 2)} for key, value in self.records.items()]}
 
     def is_busy(self):
         with self.lock:
-            return any(job["state"] == "pending" for job in self.records.values())
+            return any(job["state"] in ("pending", "running") for job in self.records.values())
 
     def take(self, job_id):
+        self.log("handler-started")
         with self.lock:
             record = self.records.get(job_id)
-            return record.get("snapshot") if record and record["state"] == "pending" else None
+            if not record or record["state"] != "pending":
+                return None
+            record["state"] = "running"
+            return record.get("snapshot")
+
+    def pending_ids(self):
+        with self.lock:
+            return [key for key, value in self.records.items() if value["state"] == "pending"]
 
     def finish(self, job_id, success, message=""):
+        self.log("import-finished", success=bool(success))
         with self.lock:
             if job_id in self.records:
                 record = self.records[job_id]
@@ -172,7 +206,7 @@ class Jobs:
     def status(self, job_id):
         with self.lock:
             record = self.records.get(job_id)
-            return {"state": record["state"], "message": record.get("message", "")} if record else None
+            return {"state": record["state"], "message": record.get("message", ""), "dispatchMode": record.get("dispatchMode", "automatic")} if record else None
 
 
 class LocalServer(ThreadingHTTPServer):
@@ -270,7 +304,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorized():
             return
         if self.path == "/status":
-            self.reply(200, {"app": "KinmoFusion", "version": 1, "referenceOnly": True, "busy": self.server.jobs.is_busy()}, True)
+            self.reply(200, {"app": "KinmoFusion", "version": 1, "referenceOnly": True, "busy": self.server.jobs.is_busy(), "addonVersion": "1.2.0", "diagnostics": self.server.jobs.diagnostics()}, True)
         elif self.path.startswith("/jobs/"):
             value = self.server.jobs.status(self.path.removeprefix("/jobs/"))
             self.reply(200 if value else 404, value or {"error": "Unknown job."}, True)
@@ -298,8 +332,8 @@ class Handler(BaseHTTPRequestHandler):
             data = validate_snapshot(json.loads(body.decode("utf-8")))
             job = self.server.jobs.submit(data)
             self.reply(202, {"job": job, "state": "pending"}, True)
-        except RuntimeError:
-            self.reply(409, {"error": "Fusion is busy or did not accept the import."}, True)
+        except DispatchError as error:
+            self.reply(409, {"error": "Fusion is busy or did not accept the import.", "code": error.code, "diagnostics": self.server.jobs.diagnostics()}, True)
         except (ValueError, TypeError, UnicodeError, RecursionError):
             self.reply(400, {"error": "Invalid CAD geometry."}, True)
         except (TimeoutError, OSError):

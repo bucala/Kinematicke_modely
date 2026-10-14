@@ -1,0 +1,110 @@
+name: Native Windows and Android release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: native-release
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      code: ${{ steps.version.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          node -e "const fs=require('fs');const v=require('./package.json').version.split('.');const n=1000+Number(process.env.GITHUB_RUN_NUMBER);if(n>65535)throw Error('Version sequence exhausted');fs.appendFileSync(process.env.GITHUB_OUTPUT,'version='+v[0]+'.'+v[1]+'.'+n+'\\ncode='+n+'\\n')"
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - run: npm run check && npm test && python3 -m unittest discover -s tests -p '*fusion*.py'
+  windows:
+    needs: version
+    runs-on: windows-latest
+    env:
+      KINMO_VERSION: ${{ needs.version.outputs.version }}
+      KINMO_REVISION: ${{ github.sha }}
+      KINMO_PLATFORM: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - run: npm run build
+      - run: node scripts/native-assets.mjs windows
+        env: {PYTHON: python}
+      - run: dotnet publish native/windows/Kinematika.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:KinmoVersion=$env:KINMO_VERSION -o artifacts/windows
+      - run: |
+          & artifacts/windows/KinematikaStudio.exe --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item artifacts/windows/KinematikaStudio.exe "artifacts/KinematikaStudio-$env:KINMO_VERSION.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: artifacts/*.exe
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      KINMO_VERSION: ${{ needs.version.outputs.version }}
+      KINMO_VERSION_CODE: ${{ needs.version.outputs.code }}
+      KINMO_REVISION: ${{ github.sha }}
+      KINMO_PLATFORM: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.10.2'}
+      - run: npm run build && node scripts/native-assets.mjs android
+      - name: Configure permanent release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo 'Configure permanent Android signing secrets; refusing an unsigned or changing-key release.'; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+      - run: gradle -p native/android assembleRelease
+        env:
+          KINMO_KEYSTORE: ${{ runner.temp }}/release.keystore
+          KINMO_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KINMO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      - run: |
+          mkdir -p artifacts
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify native/android/app/build/outputs/apk/release/app-release.apk
+          cp native/android/app/build/outputs/apk/release/app-release.apk "artifacts/KinematikaStudio-$KINMO_VERSION.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: artifacts/*.apk
+  publish:
+    needs: [version, windows, android]
+    runs-on: ubuntu-latest
+    env:
+      KINMO_VERSION: ${{ needs.version.outputs.version }}
+      KINMO_REVISION: ${{ github.sha }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: actions/download-artifact@v4
+        with: {path: artifacts, merge-multiple: true}
+      - run: node scripts/publish-release.mjs artifacts --manifest-only
+      - uses: actions/upload-artifact@v4
+        with: {name: release-manifest, path: artifacts/latest.json}
+      - name: Publish to Cloudflare R2 and deploy application
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo 'Configure Cloudflare secrets to publish. Build artifacts remain downloadable in Actions.'; exit 1; }
+          node scripts/publish-release.mjs artifacts
+          npm run build
+          npx --yes wrangler@4 deploy --config wrangler.toml

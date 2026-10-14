@@ -10,6 +10,9 @@ _server = None
 _thread = None
 _event = None
 _handler = None
+_manual_control = None
+_manual_definition = None
+_manual_handlers = []
 
 
 def import_drawing(app, snapshot):
@@ -72,19 +75,59 @@ class ImportHandler(adsk.core.CustomEventHandler):
         self.jobs = jobs
 
     def notify(self, args):
-        job_id = adsk.core.CustomEventArgs.cast(args).additionalInfo
+        self.process(adsk.core.CustomEventArgs.cast(args).additionalInfo)
+
+    def process(self, job_id):
         data = self.jobs.take(job_id)
         if not data:
             return
         try:
             import_drawing(self.app, data)
             self.jobs.finish(job_id, True)
-        except Exception:
+        except Exception as error:
+            self.jobs.log("import-exception", errorType=type(error).__name__)
             self.jobs.finish(job_id, False, "Import failed; an incomplete NEW reference document may remain. Existing designs were not changed.")
 
 
+class ManualExecute(adsk.core.CommandEventHandler):
+    def __init__(self, importer, jobs):
+        super().__init__()
+        self.importer, self.jobs = importer, jobs
+
+    def notify(self, _args):
+        for job_id in self.jobs.pending_ids():
+            self.jobs.log("manual-import-requested")
+            self.importer.process(job_id)
+
+
+class ManualCreated(adsk.core.CommandCreatedEventHandler):
+    def __init__(self, importer, jobs):
+        super().__init__()
+        self.execute_handler = ManualExecute(importer, jobs)
+
+    def notify(self, args):
+        args.command.execute.add(self.execute_handler)
+
+
+def install_manual_import(ui, importer, jobs):
+    global _manual_control, _manual_definition
+    panel = ui.allToolbarPanels.itemById("SolidScriptsAddinsPanel")
+    if not panel:
+        return False
+    _manual_definition = ui.commandDefinitions.addButtonDefinition(
+        "KinmoFusionImportPending", "Kinmo: importovať čakajúci výkres",
+        "Dokončí výkres odoslaný z Kinematika Studio, aj keď Fusion odmietne automatickú udalosť.",
+    )
+    handler = ManualCreated(importer, jobs)
+    _manual_definition.commandCreated.add(handler)
+    _manual_handlers.append(handler)
+    _manual_control = panel.controls.addCommand(_manual_definition)
+    _manual_control.isPromoted = True
+    return True
+
+
 def run(_context):
-    global _server, _thread, _event, _handler
+    global _server, _thread, _event, _handler, _manual_control, _manual_definition
     app = adsk.core.Application.get()
     ui = app.userInterface
     try:
@@ -119,12 +162,25 @@ def run(_context):
                 "Zapamätať pôvod a kľúč v používateľskom profile tohto počítača?\nPo ďalšom spustení môžete použiť rovnaké párovanie.",
                 "KinmoFusion · zapamätať párovanie", adsk.core.MessageBoxButtonTypes.YesNoButtonType,
             ) == adsk.core.DialogResults.DialogYes
-        jobs = Jobs(lambda job_id: app.fireCustomEvent(EVENT_ID, job_id))
+        manual_available = False
+        def dispatch(job_id):
+            try:
+                accepted = app.fireCustomEvent(EVENT_ID, job_id)
+            except Exception as error:
+                jobs.log("dispatch-exception", errorType=type(error).__name__)
+                accepted = False
+            if accepted is False and manual_available:
+                jobs.log("manual-fallback-queued")
+                return "manual"
+            return accepted
+        jobs = Jobs(dispatch)
         _event = app.registerCustomEvent(EVENT_ID)
         if not _event:
             raise RuntimeError("Custom event is already registered.")
         _handler = ImportHandler(app, jobs)
-        _event.add(_handler)
+        if _event.add(_handler) is False:
+            raise RuntimeError("Fusion refused custom event handler registration.")
+        manual_available = install_manual_import(ui, _handler, jobs)
         _server = LocalServer(origin, key, jobs)
         _thread = threading.Thread(target=_server.serve_forever, name="KinmoFusion-loopback", daemon=True)
         _thread.start()
@@ -148,7 +204,7 @@ def run(_context):
 
 
 def stop(_context):
-    global _server, _thread, _event, _handler
+    global _server, _thread, _event, _handler, _manual_control, _manual_definition
     app = adsk.core.Application.get()
     if _server:
         if _thread and _thread.is_alive():
@@ -162,5 +218,12 @@ def stop(_context):
         if _handler:
             _event.remove(_handler)
         app.unregisterCustomEvent(EVENT_ID)
+    if _manual_control:
+        _manual_control.deleteMe()
+        _manual_control = None
+    if _manual_definition:
+        _manual_definition.deleteMe()
+        _manual_definition = None
+    _manual_handlers.clear()
     _event = None
     _handler = None

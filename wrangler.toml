@@ -1,6 +1,13 @@
 name = "kinematicke-modely"
 account_id = "065e3003eb4c6bd1bffe7afa184eb5c4"
+main = "cloudflare/worker.mjs"
 compatibility_date = "2026-10-09"
 
 [assets]
 directory = "./dist"
+binding = "ASSETS"
+
+# Native application release distribution. Create this bucket before deployment.
+[[r2_buckets]]
+binding = "RELEASES"
+bucket_name = "kinematika-releases"

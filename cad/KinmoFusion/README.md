@@ -57,3 +57,13 @@ Pri zmene pôvodu alebo po aktualizácii doplnku zastavte iba **KinmoFusion** a 
 Od verzie **1.1.0** môžete v doplnku potvrdiť zapamätanie párovania. Pôvod a kľúč sa uložia do používateľského profilu (`KinematikaStudio/KinmoFusion/pairing.json` v AppData, Application Support alebo .config). Pri ďalšom Run zvoľte **Áno** pre rovnaké párovanie; **Nie** odstráni uloženie a vytvorí nové párovanie. V prehliadači označte **Zapamätať overený kľúč** a overte spojenie. Uloženie funguje len pre rovnaký web a profil prehliadača. **Zabudnúť kľúč v prehliadači** odstráni iba prehliadačové uloženie; odvolanie starého kľúča vykonajte novým párovaním v doplnku. Kľúč nie je súčasťou ZIPu, projektu ani exportov.
 
 Chyba **409** označuje prebiehajúci import alebo odmietnutú udalosť Fusion, nie neplatný kľúč. Po kopírovaní kľúča zavrite jeho dialóg aj **Scripts and Add-Ins**. Pred ďalším odoslaním overte, či už nevznikol nový dokument. Novší doplnok hlási stav `busy`; aplikácia počas neho ďalší výkres neodošle.
+
+### 1.2.0: diagnostika a náhradné dokončenie importu
+
+Zastavte doplnok a nahraďte celý jeho priečinok aktualizovaným ZIPom, potom znova spustite. Overenie spojenia samo nevytvára dokument. Kľúč môžete ponechať v zapamätanom párovaní.
+
+Ak Fusion odmietne automatickú udalosť, aktualizovaný doplnok ponechá odoslaný výkres vo fronte. Zavrite modalné okná vrátane Scripts and Add-Ins a v **Design → Utilities** kliknite na **Kinmo: importovať čakajúci výkres**. Aplikácia túto možnosť zobrazí počas čakania. Výkres znova neposielajte. Náhradné tlačidlo spracuje iba už odoslaný výkres; prázdny front nič nevytvorí. Ak Fusion panel nie je dostupný, zostáva konkrétna chyba `fusion_event_rejected` a diagnostický záznam.
+
+Import sa potvrdí až po vytvorení dokumentu na hlavnom vlákne. Rovnakú úlohu možno prevziať iba raz; rozpracovaný import blokuje ďalší. `/status` a debug balík obsahujú verziu doplnku, stav úloh a bounded záznam udalostí bez párovacieho kľúča či geometrie.
+
+Windows aplikácia používa vlastný pôvod **https://kinematika.desktop.local**; pri párovaní ho zadajte namiesto webovej adresy. Na Android zariadení lokálny Fusion na počítači nie je dostupný; použite DXF.

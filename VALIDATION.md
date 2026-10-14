@@ -388,3 +388,13 @@ Oprava CI je publikovaná v `fc04c71`. Používateľ následne uložil panel, po
 Click+Select a interaktívne README sú publikované v `5e985fd`. Dňa 11. 10. 2026 používateľ výslovne požiadal o changelogy, aktualizované README a commit/push rozšírenia 2 až 7 aj Magic import do existujúceho `main`. Rozsah je v [CHANGELOG.md](CHANGELOG.md); skutočný commit a stav publikovania zaznamenáva Git. Manuálny Wrangler deploy nie je súčasťou tohto kroku a vzdialené CI ani Workers nasadenie sa neodvodzujú z lokálnych kontrol.
 
 Zoznam publikovaných súborov v `push-github.ps1` zahŕňa nové moduly, testy, verejné zdroje doplnku a licencované PDF assety. Pomocné analýzy, lokálna PDF kontrola a CDP testy sú v ignorovaných `.analysis/`, `tmp/` a `outputs/`; nie sú súčasťou aplikácie ani publikovania. Dočasný PDF konverzný skript bol po kontrole odstránený.
+
+## 2026-10-14 · Fusion/debug/native 2.1
+
+- Syntax celého webu: `npm run check`.
+- JS regresie vrátane opt-in/redakcie/bounded debug journalu, fallback importu a release route/manifestu: `npm test` (754 testov).
+- Izolovaný lokálny transport a náhradné Fusion API: 29 Python testov. Náhradný toolbar import vytvorí presne jeden nový dokument; opakované prevzatie je blokované aj počas rozpracovania.
+- Chromium/CDP: desktop aj 390 px mobil, aktivovanie debug menu, reálny snapshot projektu/solveru, IndexedDB prežitie reloadu, redakcia mock kľúča a mobilný dialóg bez JS výnimiek. Skutočné stiahnutie debug JSON a Android save bridge cez prehliadačový adaptér tiež prešli.
+- Windows x64: .NET cross build samostatného PE32+ EXE. Samotné Windows UI/WebView2 tu nebežali; `--self-test` vykoná Windows runner v CI.
+- Android: JDK21/Gradle8.10.2/SDK35 release build, APK Signature Scheme v2 overený cez apksigner. UI, ukladanie na fyzickom zariadení a aktualizácia APK zostávajú zariadením overiteľnou akceptáciou.
+- Cloudflare: Wrangler dry run zbalil Worker a assets, rozpoznal ASSETS a RELEASES binding. Produkčné nasadenie a vzdialený Actions run zatiaľ neoverené; signing/Cloudflare secrets nastavuje používateľ.

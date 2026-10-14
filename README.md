@@ -992,3 +992,11 @@ Na mobile je horná lišta rozdelená na **Prvky** (knižnica) a **Ponuka** (nas
 
 
 Pre stabilné Fusion párovanie použite doplnok **1.1.0**, potvrďte uloženie párovania v doplnku a v aplikácii začiarknite **Zapamätať overený kľúč v tomto prehliadači**. Kľúč sa uloží až po úspešnom overení a po obnovení stránky sa predvyplní. Neotvára sa automatické spojenie a geometria sa odosiela iba cez explicitné Odoslať so súhlasom. Prehliadačové uloženie možno zabudnúť; nový kľúč v doplnku odvolá pôvodné párovanie. Kľúč ostáva mimo projektov, exportov a diagnostických balíkov.
+
+### Debug režim a priame aplikácie (2.1)
+
+V **Ďalšie nástroje → Debug režim** (na mobile tiež **Ponuka**) zapnite priebežné lokálne zaznamenávanie. Zopakujte chybu a v tom istom okne zvoľte **Exportovať debug súbor**. JSON obsahuje verziu, prostredie, akcie, JS chyby, aktuálny mechanizmus, nedávne zmeny a diagnostiku Fusion. Záznam je ohraničený a pretrvá obnovenie stránky. Párovacie kľúče sa odstraňujú; Magic import predloha sa pridá len na výslovné začiarknutie. Záznam možno vypnúť alebo vymazať.
+
+Doplnok Fusion **1.2.0** rozlišuje zaneprázdnenie a odmietnutie udalosti. Pri odmietnutej automatickej udalosti použite tlačidlo **Kinmo: importovať čakajúci výkres** vo Fusion; neopakujte odoslanie. [Podrobný postup](cad/KinmoFusion/README.md).
+
+**Ďalšie nástroje → Windows / Android aplikácie** ponúka poslednú zverejnenú `.exe` a `.apk`. Platformové buildy, trvalý Android podpis, automatické verzie a Cloudflare distribúciu opisuje [native/README.md](native/README.md). Bez nakonfigurovaných GitHub secrets nie je automatické publikovanie aktívne.
