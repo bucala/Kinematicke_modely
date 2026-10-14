@@ -163,3 +163,10 @@ test('Low damping with an explicit opposing load produces repeated spring oscill
   for(let i=1;i<plot.rows.length;i++)if((plot.rows[i-1].length-equilibrium)*(plot.rows[i].length-equilibrium)<0)crossings++;
   assert(crossings>3);assert.throws(()=>F.response(e,1,1,2,-1));
 });
+
+test('Pin snapping prefers the slot track at its endpoints while retaining a mounting-point alternative',()=>{
+ const pin=K.makeElement('bearing',-40,0),slot=K.makeElement('slot',0,0),p=custom(pin,slot),pose=E.design(p,0);
+ const choices=F.connectionChoices(p,{elementId:pin.id,point:'a'},pose,pose.poses[slot.id].a,8);
+ assert.equal(choices[0].kind,'guide');assert.equal(choices[0].target.ref.point,'curve');
+ assert(choices.some(c=>c.target.elementId===slot.id&&c.target.ref.point==='a'));
+});

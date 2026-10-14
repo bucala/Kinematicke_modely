@@ -93,7 +93,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -1087,7 +1087,7 @@ test('Connecting a roller to a cam creates contact; a nonroller fails without a 
   context.addElement('bearing', { x: 200, y: 120 }); const roller = state.project.elements.at(-1);
   const history = state.history.length;
   context.connectPoint({ elementId: roller.id, point: 'a' }); context.connectPoint({ elementId: cam.id, point: 'curve' });
-  assert.equal(state.history.length, history); context.confirmConnection(new Map([['accept-conflict','on']]));
+  assert.equal(state.connectionReview, null); assert(!context.dialog);
   assert.equal(state.project.connections.at(-1).type, 'cam-contact'); assert.equal(state.history.length, history + 1);
   context.connectPoint({ elementId: 'body', point: 'a' }); context.connectPoint({ elementId: cam.id, point: 'curve' });
   assert.equal(state.history.length, history + 1); assert.equal(state.project.connections.length, 1);
@@ -1774,7 +1774,7 @@ test('Wizard member drop, connection tool and motor forms operate on the same me
   const floor = state.project.elements[0]; context.setMagicStep(4);
   context.addElement('link', { x: 0, y: 0 }); const link = state.project.elements[1];
   context.connectPoint({ elementId: floor.id, point: 'a' }); context.connectPoint({ elementId: link.id, point: 'a' });
-  context.confirmConnection(new Map([['accept-conflict','on']]));
+  assert(!context.dialog);
   context.onCanvasSubmit({ dataset: { kind: 'motor', reference: `n:${link.id}:a` } }, new Map(Object.entries({ enabled: 'on', mode: 'rotary', angle: '0', speed: '20', min: '0', max: '90' })));
   assert.equal(state.project.connections.length, 1); assert(state.project.elements[1].drive); assert.equal(state.project.elements[1].driveSpeed, 20);
   assert.equal(state.history.length, 4); assert(state.magic.geometryStarted);
@@ -2040,11 +2040,11 @@ test('Mobile context menus keep all commands reachable in a compact menu', () =>
   assert(mobile.length <= 6); assert(mobile.some(i => i.label === 'Ďalšie možnosti…'));
 });
 
-test('Manual linking requires a preview, records no edit on cancel, and rejects a stale confirmation', () => {
+test('An explicitly requested connection preview records no edit and rejects a stale confirmation', () => {
   const {context,state}=controller();
   const a={elementId:'body',point:'b'},b={elementId:'another-body',point:'a'};
   const before=JSON.stringify(state.project),history=state.history.length;
-  context.connectPoint(a);context.connectPoint(b);
+  context.previewConnection(a,b,'revolute',null,true);
   assert(state.connectionReview);assert.equal(JSON.stringify(state.project),before);assert.equal(state.history.length,history);
   state.project.name='Changed while reviewing';
   assert.throws(()=>context.confirmConnection(new Map()),/Model sa zmenil/);
@@ -2087,4 +2087,61 @@ test('Changing the skin applies immediately without committing simulation fields
  context.onChange({target:{name:'theme',value:'dark',checked:true,dataset:{},closest:selector=>selector==='#settings-form'?{}:null}});
  assert.deepEqual(applied,{theme:'dark',persist:true});assert.equal(JSON.stringify(state.project),before);assert.equal(state.history.length,0);
  context.onChange({target:{name:'theme',value:'mono',checked:false,dataset:{},closest:()=>({})}});assert.equal(state.theme,'dark');
+});
+
+
+test('Manual connections skip the review dialog, create one undoable edit and clear the pending point',()=>{
+ const {context,state}=controller(),before=JSON.stringify(state.project);
+ context.connectPoint({elementId:'body',point:'b'});context.connectPoint({elementId:'another-body',point:'a'});
+ assert(!context.dialog);assert.equal(state.project.connections.length,1);assert.equal(state.pendingJoint,null);assert.equal(state.history.length,1);
+ context.undo();assert.equal(JSON.stringify(state.project),before);
+});
+
+test('Connecting a pin to either end of a slot creates a path constraint in either click order',()=>{
+ for(const reverse of [false,true]){
+  const {context,state}=controller(),K=context.K;
+  const slot={...K.makeElement('slot',200,100),id:'guide'},pin={...K.makeElement('bearing',200,100),id:'pin'};
+  state.project=K.validateProject({...K.preset('custom'),elements:[slot,pin]});state.result=K.solve(state.project,0,{collisions:false});
+  const refs=[{elementId:slot.id,point:'a'},{elementId:pin.id,point:'a'}];if(reverse)refs.reverse();
+  refs.forEach(r=>context.connectPoint(r));
+  const j=state.project.connections[0];assert.equal(j.type,'point-path');assert([j.a,j.b].some(r=>r.elementId===slot.id&&r.point==='curve'));assert(!context.dialog);
+ }
+});
+
+test('A standalone pin follows a curved track in simulation without a motor, changes no geometry and cancels cleanly',()=>{
+ const {context,state}=controller(),K=context.K;
+ const slot={...K.makeElement('slot',200,100),id:'guide'},pin={...K.makeElement('bearing',200,100),id:'pin'};
+ state.project=K.validateProject({...K.preset('custom'),elements:[slot,pin],connections:[{id:'joint',type:'point-path',a:{elementId:pin.id,point:'a'},b:{elementId:slot.id,point:'curve'},value:0,name:'Track'}]});
+ state.mode='simulate';state.collisions=false;state.result=K.solve(state.project,0,{collisions:false});state.contextMenuState.isOpen=false;
+ const before=JSON.stringify(state.project);context.solveCurrent=()=>K.solve(state.project,state.motion,{collisions:false,bodyPositions:state.guidePositions});
+ for(const t of [0,.5,1]){
+  assert(context.beginGuideDrag(state.project.elements[1],7));
+  const path=state.result.poses.guide.path,p=path[Math.round(t*(path.length-1))];
+  context.onPointerMove({pointerId:7,clientX:p.x,clientY:p.y,preventDefault(){}});
+  assert(K.distance(state.result.poses.pin.a,p)<K.TOLERANCE);assert(!state.result.blocked);
+  context.onPointerUp({pointerId:7,type:'pointerup'});
+ }
+ assert.equal(JSON.stringify(state.project),before);assert.equal(state.history.length,0);
+ const old=JSON.stringify(state.guidePositions);context.beginGuideDrag(state.project.elements[1],7);
+ context.onPointerMove({pointerId:7,clientX:200,clientY:100,preventDefault(){}});context.onPointerUp({pointerId:7,type:'pointercancel'});
+ assert.equal(JSON.stringify(state.guidePositions),old);
+ state.project.elements[1].locked=true;assert.equal(context.beginGuideDrag(state.project.elements[1],7),false);
+});
+
+test('The impact confirmation receives focus so Enter confirms deletion instead of closing the dialog',()=>{
+ const {context,state,element}=controller(),button=element('#confirm-impact');
+ element('#modal').querySelector=selector=>selector==='#impact-form .button-dark'?button:null;
+ context.reviewImpact(context.I.deleteSelection(state.project,['e:body'],state.result),'Deleted',null,'Odstrániť prvky a naviazané väzby?');
+ assert.equal(context.document.activeElement,button);assert.equal(state.project.elements.length,2);
+ context.workflowSubmit({id:'impact-form'},new Map([['keep-pose','on']]));assert.equal(state.project.elements.length,1);
+});
+
+
+test('The connection tool picks an overlapping pin before a selected slot endpoint',()=>{
+ const {context,state}=controller(),K=context.K;
+ const slot={...K.makeElement('slot',200,100),id:'guide'},pin={...K.makeElement('bearing',200,100),id:'pin'};
+ state.project=K.validateProject({...K.preset('custom'),elements:[slot,pin]});state.result=K.solve(state.project,0,{collisions:false});
+ context.selectTarget('n:guide:a');state.tool='connect';
+ context.onPointerDown(pointer(200,100));assert.equal(state.pendingJoint.elementId,'pin');
+ context.onPointerDown(pointer(200,100));assert.equal(state.project.connections.length,1);assert.equal(state.project.connections[0].type,'point-path');assert(!context.dialog);
 });

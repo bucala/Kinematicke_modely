@@ -1165,3 +1165,6 @@ dialog::backdrop { background: #10182066; backdrop-filter: blur(4px); }
   #settings-form > .modal-actions .button { min-height: 40px; }
 }
 @media (prefers-reduced-motion: reduce) { .component-card { transition: none; } }
+
+/* Canvas focus must not frame the whole workspace after every pointer click. */
+#mechanism-canvas:focus, #mechanism-canvas:focus-visible { outline: none; }

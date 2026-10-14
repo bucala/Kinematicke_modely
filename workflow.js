@@ -127,7 +127,11 @@
         out.push({ kind, direct: true, wholeBody, motion: result.motion, source:{elementId:source.id,ref:K.copy(reference),at:K.copy(origin)}, target:{elementId:target.id,ref:{elementId:target.id,point:key},at:{x:point.x,y:point.y}}, point:{x:point.x,y:point.y}, delta:{x:point.x-origin.x,y:point.y-origin.y}, distance:K.distance(at,point), label:`${target.name} · ${K.pointName(key)}` });
       }
     }
-    return out.sort((a,b)=>a.distance-b.distance).slice(0,16);
+    return out.sort((a,b)=> {
+      const slotGuide = c => source.type === 'bearing' && c.kind === 'guide' && project.elements.find(e => e.id === c.target.elementId)?.type === 'slot';
+      if (a.target.elementId === b.target.elementId && slotGuide(a) !== slotGuide(b)) return slotGuide(a) ? -1 : 1;
+      return a.distance-b.distance;
+    }).slice(0,16);
   }
   function bakePose(project, result) {
     if (project.kind !== 'custom' || result.blocked) throw new Error('Polohu možno uložiť len v platnom vlastnom modeli.');
