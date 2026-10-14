@@ -59,6 +59,7 @@
     };
     for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'labels', 'collisions', 'snap', 'forceArrows']) result[key] = input[key] !== false;
     for (const key of ['mainDimensions', 'profileVisible', 'timelineVisible', 'angleSnap']) result[key] = input[key] === true;
+    result.language=['sk','en','de'].includes(input.language)?input.language:'sk';
     return result;
   }
 
@@ -157,6 +158,7 @@
         }
       } else if (['ground','rail','link'].includes(e.type)) poly(e,capsule(pose,e.type==='rail'?e.slotWidth:e.width),true);
       else poly(e, polygon(pose, e.primary && e.type === 'panel' ? p.panelThickness : e.width), true);
+      if(e.type==='motor')entities.push({kind:'circle',elementId:e.id,name:`${e.name} · hriadeľ`,layer:'MOTOR_SHAFT',center:point(pose.a),radius:e.shaftDiameter/2,color:stroke(e)});
       if (e.type === 'cam') entities.push({ kind: 'circle', elementId: e.id, name: `${e.name} · os`, layer: 'CAM_AXIS', center: point(pose.a), radius: 3, color: stroke(e) });
       if (pose.carriageOutline?.length && !e.primary) poly(e, pose.carriageOutline, true, 'RAIL_CARRIAGE');
       if (options.labels !== false) text(e.name, { x: (pose.a.x + pose.b.x) / 2, y: (pose.a.y + pose.b.y) / 2 - 12 }, 'LABELS', e.id);

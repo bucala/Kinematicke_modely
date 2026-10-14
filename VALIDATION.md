@@ -405,3 +405,11 @@ Zoznam publikovaných súborov v `push-github.ps1` zahŕňa nové moduly, testy,
 - Chromium/CDP porovnal vrcholy skutočne vykreslených dielov s CAD snapshotom a overil predvolene vypnutú voľbu trajektórií.
 - Náhradné Fusion API importovalo aktuálny dvojkulisový export: 20 hrán korpusu/stola/opory, 6 hrán zásuvky a 7 hrán panelu/držiaka. Bez fiktívneho vozíka či trajektórií.
 - Celý balík: 763 JS testov a 30 Python testov; syntax a statický build. Živý import Fusion zostáva manuálnou akceptáciou na používateľovom zariadení.
+
+## 2026-10-14 · 2.2.0
+
+- Nové regresie: vačka s pôvodne pevne uhlovo uloženou osou, nepresne umiestnená deklarovaná os, plochý kontakt vozíka cez celý cyklus, hranice vedenia, zachovanie/sledovanie hrany po zmene rozmerov, stupeň voľnosti vozíka, motorové parametre a menovitý prevod, hriadeľ v CAD, neplatná geometria, číselné jednotky a desatinné čiarky, locale v KINMO.
+- Chromium/CDP: skutočné otáčanie vačky a motora, kontaktný formulár/náhľad, motorové vstupy s jednotkami, SK/EN/DE prepínanie a reload, ochrana názvu projektu a nemecký mobilný dialóg pri 390 px. Bez JS výnimiek.
+- Celé JS/Python regresie, syntax a statický build. Natívne platformové vydania zostavuje existujúci Actions workflow po pushi; vzdialený CI/deploy sa tu nepotvrdzuje.
+
+Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez zlyhania; statický build prešiel.

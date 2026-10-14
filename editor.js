@@ -149,8 +149,9 @@
   function freedom(project, result) {
     if (project.kind !== 'custom') return { free: 0, driven: true, rank: 0, variables: 0 };
     const driven = project.elements.filter((e) => e.drive).length >= 1;
-    const bodies = project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'cam', 'bearing', 'node'].includes(e.type));
+    const bodies = project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'cam', 'motor', 'bearing', 'node'].includes(e.type));
     const variables = bodies.flatMap((e) => ['x', 'y', ...(['bearing', 'node'].includes(e.type) ? [] : ['angle'])].map((key) => ({ id: e.id, key })));
+    for(const rail of project.elements.filter(e=>e.type==='rail'&&!e.primary&&!e.drive&&!e.movingRail&&project.connections.some(j=>[j.a,j.b].some(r=>K.carriageReference(project,e,r)))))variables.push({id:rail.id,key:'carriage'});
     const base = K.copy(result.poses);
     const residuals = (poses) => {
       const rows = [];
@@ -167,7 +168,7 @@
           const guide = j.a.point === 'curve' ? pa : pb, point = j.a.point === 'curve' ? b : a, r = j.a.point === 'curve' ? j.b : j.a;
           const roller = project.elements.find((e) => e.id === r.elementId);
           if (guide?.path && point) {
-            const contact = K.nearestOnCam(point, guide, roller.primary ? project.parameters.bearingRadius : roller.radius);
+            const contact = K.contactTarget(point,guide,poses[roller.id],j.surface,roller.type==='bearing'?(roller.primary?project.parameters.bearingRadius:roller.radius):0);
             rows.push((point.x - contact.x) * contact.normal.x + (point.y - contact.y) * contact.normal.y);
           }
         } else if (['point-path', 'prismatic'].includes(type)) {
@@ -194,7 +195,8 @@
       if (key === 'angle') {
         pose.angle += delta;
         for (const point of ['b', 'c']) if (pose[point]) pose[point] = K.worldPoint(pose, K.localPoint(base[id], base[id][point]));
-      } else {
+      } else if(key==='carriage'){const axis=K.rotate({x:delta,y:0},pose.angle);for(const key of K.carriagePoints)if(pose[key]){pose[key].x+=axis.x;pose[key].y+=axis.y;}if(pose.carriageOutline)pose.carriageOutline=pose.carriageOutline.map(p=>({x:p.x+axis.x,y:p.y+axis.y}));}
+      else {
         for (const point of ['a', 'b', 'c']) if (pose[point]) pose[point][key] += delta;
       }
       if (e.type === 'cam') poses[id] = K.bodyPose({ ...e, x: pose.a.x, y: pose.a.y, angle: pose.angle }, result.motion, project);

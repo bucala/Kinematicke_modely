@@ -82,7 +82,7 @@
     for (const e of p.elements.filter((v) => !v.parentId && !v.primary)) {
       const pose = result.poses[e.id]; if (!pose) continue;
       const source = { a: pose.controlOrigin || pose.a, angle: pose.angle }; let x = source.a.x, y = source.a.y, angle = source.angle;
-      if (!options.design && e.drive && ['link', 'panel', 'cam'].includes(e.type) && e.driveMode !== 'linear') {
+      if (!options.design && e.drive && ['link', 'panel', 'cam', 'motor'].includes(e.type) && e.driveMode !== 'linear') {
         angle -= motion; const pivot = pose[e.drivePivot || 'a'];
         const local = e.drivePivot === 'b' ? { x: e.length, y: 0 } : e.drivePivot === 'c' ? e.localC || { x: e.bearingOffset, y: 0 } : { x: 0, y: 0 }, offset = K.rotate(local, angle); x = pivot.x - offset.x; y = pivot.y - offset.y;
       } else if (e.drive && e.type === 'rail' && e.movingRail) { const v = K.along({ x, y }, K.railTravel(p, e, motion), e.angle); x = v.x; y = v.y; }

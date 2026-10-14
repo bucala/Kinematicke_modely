@@ -1000,3 +1000,10 @@ V **Ďalšie nástroje → Debug režim** (na mobile tiež **Ponuka**) zapnite p
 Doplnok Fusion **1.2.0** rozlišuje zaneprázdnenie a odmietnutie udalosti. Pri odmietnutej automatickej udalosti použite tlačidlo **Kinmo: importovať čakajúci výkres** vo Fusion; neopakujte odoslanie. [Podrobný postup](cad/KinmoFusion/README.md).
 
 **Ďalšie nástroje → Windows / Android aplikácie** ponúka poslednú zverejnenú `.exe` a `.apk`. Platformové buildy, trvalý Android podpis, automatické verzie a Cloudflare distribúciu opisuje [native/README.md](native/README.md). Bez nakonfigurovaných GitHub secrets nie je automatické publikovanie aktívne.
+
+### Vačka, kontaktná plocha, elektromotor a jazyky (2.2)
+
+- Vyberte vačku a **Otáčať vačku** v nástrojoch alebo vlastnostiach. Os sa zarovná na deklarované pevné uloženie; pevná väzba osi k rámu sa zmení na otočný kĺb. Pohon nahradí doterajší nezávislý pohon. Pri parametrickej šablóne sa zachová originál a vznikne voľná kópia. Súvislé otáčanie pokračuje cez celý cyklus bez obracania. Iné protichodné väzby zostávajú blokujúcou chybou.
+- **Kontaktná plocha**: zvoľte vačku, kontaktný prvok a plochú hranu, valček alebo bod. Náhľad zvýrazní zvolenú hranu. Vozík pevného vedenia sa môže posúvať bez presunu vedenia, iba v jeho medziach. Vybraná hrana vozíka sleduje aj zmeny jeho rozmerov. Ide o trvalý kinematický dotyk; dynamický kontakt priameho vozíka vyžaduje samostatné pohyblivé teleso.
+- **Elektromotor** v knižnici: rozmery telesa/hriadeľa, mechanický výkon, napätie, otáčky, účinnosti, prevod, smer a kategória DC/AC/krokový/servo. **Parametre elektromotora** zobrazujú odvodené výstupné otáčky, moment a menovitý prúd. **Zapnúť motor** aktivuje rotačný pohon. Prenos na vačku/rameno vytvorte pevnou väzbou cez osový bod A. Motor je menovitý mechanický model; elektrický rozbeh a regulácia prúdu sa nepočítajú.
+- **Vzhľad a nastavenia → Jazyk aplikácie**: SK je predvolené, EN a DE prekladajú ovládacie prvky, ponuky a hlavné pracovné dialógy. Voľba sa zapamätá a prenáša v nastaveniach KINMO. Používateľské názvy a vstupné hodnoty sa neprepisujú. Technické texty mimo prekladového katalógu používajú pôvodné SK znenie.

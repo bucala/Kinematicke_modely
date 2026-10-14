@@ -158,3 +158,10 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 - Obrysy template dielov zdieľajú editor, export aj nové voľné kópie. Samostatné vedenie zachová slotWidth a vozík; rám a ramená exportujú fyzickú hrúbku aj zaoblené konce. Piestnica má samostatný uzavretý obrys podľa rodDiameter. Parametrická zásuvka neexportuje fiktívny štandardný vozík.
 - Pomocné trajektórie do Fusion sú samostatná predvolene vypnutá voľba. Kóty a referenčné kulisové dráhy ostávajú voliteľné.
 - KinmoFusion 1.2.1 vypína zobrazovanie jednotlivých bodov skíc, ak túto vlastnosť podporuje API. Jednotky, párovanie a referencia v novom dokumente zostávajú zachované.
+
+## 2026-10-14 · 2.2.0: vačka, plochy, motor a jazyky
+
+- Priame otáčanie vačky/motora, centrovanie na pevnej osi, oprava pevného uhlového uloženia osi a periodické otáčanie bez zmeny smeru. Limitované pohony zachovávajú spätný chod. Parametrické šablóny vytvoria voľnú kópiu.
+- Kontaktná definícia bod/valček/plochá hrana, náhľad obrysu a zvýraznenie hrany; uloženie lokálnej plochy a indexu hrany. Pasívny vozík má samostatnú súradnicu po pevnom vedení, rešpektuje konce a rozmerové zmeny. Diagnostika aj kreslenie používajú tú istú kontaktnú geometriu.
+- Elektromotor ako nový prvok: rozmerové a menovité elektrické/mechanické údaje, redukcia, smer, otáčanie a osový bod pre pevné prepojenie. Dáta sa uchovajú v natívnom súbore, CAD má obrys telesa a hriadeľa. Číselný vstup podporuje desatinnú čiarku a W/kW, V/mV/kV, rpm.
+- Prepínanie SK/EN/DE, slovenčina predvolene, lokálny katalóg UI a zachovanie používateľských dát. Aktualizované dynamické texty sa prekladajú bez servera. Nezaradené technické texty používajú SK fallback.

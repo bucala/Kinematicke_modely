@@ -1331,3 +1331,7 @@ dialog::backdrop { background: #10182066; backdrop-filter: blur(4px); }
 .fusion-feedback[data-state="busy"] { border-color: var(--accent); }
 .fusion-feedback[data-state="ready"] { background: var(--success-bg); color: var(--success-ink); border-color: var(--success-border); }
 .fusion-feedback[data-state="error"] { background: var(--warning-bg); color: var(--warning-ink); border-color: var(--warning-border); }
+
+@media (max-width: 720px) {
+  #workflow-tools > [data-action="cam-spin"], #workflow-tools > [data-action="surface-contact"], #workflow-tools > [data-action="motor-spec"] { display: none; }
+}

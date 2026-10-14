@@ -7,7 +7,7 @@
     if (typeof input === 'number') { if (Number.isFinite(input)) return input; throw new Error('Zadajte konečné číslo.'); }
     if (typeof input !== 'string' || !input.trim() || input.length > 128) throw new Error('Zadajte číslo alebo krátky výraz, napríklad 300/2 alebo 12,5 cm.');
     const text = input.toLowerCase().replace(/,/g, '.').replace(/−/g, '-').replace(/×/g, '*').replace(/÷/g, '/'), tokens = [];
-    const token = /\s*(?:(\d+(?:\.\d*)?|\.\d+)(?:e([+-]?\d+))?|(mm|cm|deg|rad|m|°)|([()+*/-]))/gy;
+    const token = /\s*(?:(\d+(?:\.\d*)?|\.\d+)(?:e([+-]?\d+))?|(mm|cm|deg|rad|rpm|kw|w|kv|mv|v|m|°)|([()+*/-]))/gy;
     let offset = 0, match;
     while (offset < text.trimEnd().length) {
       token.lastIndex = offset; match = token.exec(text);
@@ -15,7 +15,7 @@
       offset = token.lastIndex;
       tokens.push(match[1] ? { number: Number(match[1] + (match[2] ? `e${match[2]}` : '')) } : match[3] ? { unit: match[3] } : { operator: match[4] });
     }
-    const factors = unit === 'mm' ? { mm: 1, cm: 10, m: 1000 } : ['°', 'deg'].includes(unit) ? { '°': 1, deg: 1, rad: 180 / Math.PI } : {};
+    const factors = unit === 'mm' ? { mm: 1, cm: 10, m: 1000 } : ['°', 'deg'].includes(unit) ? { '°': 1, deg: 1, rad: 180 / Math.PI } : unit==='W'?{w:1,kw:1000}:unit==='V'?{v:1,mv:.001,kv:1000}:unit==='rpm'?{rpm:1}:{};
     // A single trailing unit belongs to the whole expression: "300/2 cm".
     const finalUnit = tokens.at(-1)?.unit && tokens.filter((t) => t.unit).length === 1 ? tokens.pop().unit : null;
     let index = 0;
@@ -142,7 +142,7 @@
   }
   function thickness(element) {
     if (!element || element.primary) return null;
-    const key = K.isElastic(element) ? 'diameter' : ['bearing', 'node', 'cam'].includes(element.type) ? 'radius' : ['slot', 'rail'].includes(element.type) ? 'slotWidth' : 'width';
+    const key = element.type==='motor'?'motorDiameter':K.isElastic(element) ? 'diameter' : ['bearing', 'node', 'cam'].includes(element.type) ? 'radius' : ['slot', 'rail'].includes(element.type) ? 'slotWidth' : 'width';
     const span = key === 'width' && element.outline?.length ? Math.max(...element.outline.map(p => p.y)) - Math.min(...element.outline.map(p => p.y)) : 0;
     return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : element.type === 'rail' ? 'Šírka vedenia' : element.type === 'slot' ? 'Šírka drážky' : 'Hrúbka' };
   }
@@ -255,7 +255,7 @@
       if (!drivers.length && project.elements.length) hints.push(project.elements.some(K.isElastic) ? 'Bez predpísaného pohonu použite Pohyb zo síl; pružné členy môžu rozhýbať pripojené telesá.' : 'Chýba priradený pohon. Statická geometria môže byť platná, ale simulátor nevie, ktorý pohyb má meniť.');
       if (drivers.length > 1 && !project.driveProgram) hints.push('Model má viac pohonov. Tento simulátor podporuje iba jeden nezávislý vstup.');
       if (freedom.free) hints.push(`Po určení pohonu zostáva ${freedom.free} voľných súradníc. Doplňte uloženie, ďalší kĺb alebo vedenie. Limity pohybu nenahrádzajú väzbu.`);
-      for (const e of project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'cam', 'bearing', 'node'].includes(e.type))) {
+      for (const e of project.elements.filter((e) => !e.parentId && !e.locked && !e.drive && ['link', 'panel', 'cam', 'motor', 'bearing', 'node'].includes(e.type))) {
         const family = descendants(project, [e.id]);
         const linked = project.connections.some((j) => family.has(j.a.elementId) !== family.has(j.b.elementId));
         if (!linked && !project.elements.filter(K.isElastic).some(v=>[v.mountA,v.mountB].some(r=>r&&family.has(r.elementId))) && !(e.type === 'bearing' && e.slotId)) hints.push(`„${e.name}“ nemá väzbu na iné teleso. Voľný bod potrebuje polohové uloženie; tuhý člen aj určenie orientácie.`);
@@ -272,7 +272,7 @@
     for (const e of movable.filter((e) => !e.drive && !K.isElastic(e))) {
       const family = descendants(project, [e.id]), joints = project.connections.filter((j) => family.has(j.a.elementId) !== family.has(j.b.elementId));
       if (!joints.length && !project.elements.filter(K.isElastic).some(v=>[v.mountA,v.mountB].some(r=>r&&family.has(r.elementId))) && !(e.type === 'bearing' && e.slotId)) checks.push({ key: I.elementKey(e.id), message: `${e.name}: chýba spojenie s ďalším prvkom.`, action: 'connect' });
-      else if (joints.length === 1 && joints[0].type === 'revolute' && ['link', 'panel', 'cam'].includes(e.type)) checks.push({ key: I.elementKey(e.id), message: `${e.name}: jeden otočný spoj ešte umožňuje voľné otáčanie.`, action: 'support' });
+      else if (joints.length === 1 && joints[0].type === 'revolute' && ['link', 'panel', 'cam', 'motor'].includes(e.type)) checks.push({ key: I.elementKey(e.id), message: `${e.name}: jeden otočný spoj ešte umožňuje voľné otáčanie.`, action: 'support' });
     }
     for (const pair of conflicts) checks.push({ key: I.jointKey(pair[0]), otherKey: I.jointKey(pair[1]), message: 'Tieto dve väzby si odporujú. Skontrolujte ich hodnoty.', action: 'joint' });
     for (const row of rows.filter((r) => ['error', 'missing'].includes(r.status))) checks.push({ key: row.key, message: `${row.name}: ${row.status === 'missing' ? 'chýba bod alebo dráha' : 'body alebo uhly sa nezhodujú'}.`, action: 'joint' });

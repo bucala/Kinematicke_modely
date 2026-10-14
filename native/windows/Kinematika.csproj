@@ -4,7 +4,7 @@
     <UseWindowsForms>true</UseWindowsForms><EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <AssemblyName>KinematikaStudio</AssemblyName>
-    <KinmoVersion Condition="'$(KinmoVersion)' == ''">2.1.0</KinmoVersion>
+    <KinmoVersion Condition="'$(KinmoVersion)' == ''">2.2.0</KinmoVersion>
     <Version>$(KinmoVersion)</Version>
   </PropertyGroup>
   <ItemGroup><PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" /></ItemGroup>

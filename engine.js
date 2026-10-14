@@ -6,7 +6,7 @@
   const EPS = 1e-8;
   const TOLERANCE = 0.05;
   const ELASTIC_TYPES = ['spring-compression', 'spring-extension', 'piston-push', 'piston-pull'];
-  const TYPES = ['ground', 'rail', 'link', 'slot', 'cam', 'bearing', 'node', 'panel', ...ELASTIC_TYPES];
+  const TYPES = ['ground', 'rail', 'link', 'slot', 'cam', 'motor', 'bearing', 'node', 'panel', ...ELASTIC_TYPES];
   const CONSTRAINT_TYPES = ['revolute', 'prismatic', 'point-path', 'cam-contact', 'distance', 'fixed', 'parallel', 'angle'];
   const KINDS = ['drawer', 'fourbar', 'crank', 'custom'];
   const projects = new Map();
@@ -44,7 +44,12 @@
   };
   const isElastic = (element) => ELASTIC_TYPES.includes(element?.type);
   const carriagePoints = ['c', 'ct', 'cb'];
-  const pointKeys = (e) => ['bearing', 'node', 'cam'].includes(e.type) ? ['a'] : e.type === 'rail' ? ['a', 'b', ...carriagePoints] : e.type === 'panel' ? ['a', 'b', 'c'] : ['a', 'b'];
+  const pointKeys = (e) => ['bearing', 'node', 'cam','motor'].includes(e.type) ? ['a'] : e.type === 'rail' ? ['a', 'b', ...carriagePoints] : e.type === 'panel' ? ['a', 'b', 'c'] : ['a', 'b'];
+  function carriageReference(project,rail,reference){
+    if(reference.elementId===rail.id)return carriagePoints.includes(reference.point);
+    let element=project.elements.find(e=>e.id===reference.elementId),seen=new Set();
+    while(element?.parentId&&!seen.has(element.id)){seen.add(element.id);if(element.parentId===rail.id)return carriagePoints.includes(element.parentPoint||'a');element=project.elements.find(e=>e.id===element.parentId);}return false;
+  }
   const defaultTracePoint = (e) => e?.type === 'rail' ? 'c' : e && pointKeys(e).includes('b') ? 'b' : 'a';
   const pointName = (key) => ({ ct: 'Vrch vozíka', cb: 'Spodok vozíka' })[key] || key.toUpperCase();
   function carriageGeometry(element, pose) {
@@ -84,14 +89,15 @@
 
   function makeElement(type, x = 150, y = 30) {
     const names = {
-      ground: 'Pevný rám', rail: 'Lineárne vedenie', link: 'Tiahlo', slot: 'Zakrivená kulisa', cam: 'Rotačná vačka', bearing: 'Ložisko', node: 'Uzol', panel: 'Sklápacie čelo',
+      motor: 'Elektromotor', ground: 'Pevný rám', rail: 'Lineárne vedenie', link: 'Tiahlo', slot: 'Zakrivená kulisa', cam: 'Rotačná vačka', bearing: 'Ložisko', node: 'Uzol', panel: 'Sklápacie čelo',
       'spring-compression': 'Tlačná pružina', 'spring-extension': 'Ťažná pružina', 'piston-push': 'Tlačný piest', 'piston-pull': 'Ťažný piest',
     };
     return {
       id: uid(), type, name: names[type] || 'Prvok', x, y, angle: type === 'panel' ? 90 : 0,
-      length: type === 'piston-pull' ? 144 : type === 'piston-push' ? 240 : type.startsWith('spring-') ? 160 : type === 'cam' ? 40 : type === 'panel' ? 160 : type === 'rail' ? 240 : 120,
+      length: type === 'piston-pull' ? 144 : type === 'piston-push' ? 240 : type.startsWith('spring-') ? 160 : type === 'motor'?20:type === 'cam' ? 40 : type === 'panel' ? 160 : type === 'rail' ? 240 : 120,
       group:'',plane:0,guideFriction:0,width: type === 'panel' ? 16 : 12, radius: type === 'cam' ? 40 : 6, stroke: 150, carriageOffset: 0, slotWidth: 16,
       carriageWidth: 24, carriageHeight: 30,
+      motorLength:80,motorDiameter:60,shaftDiameter:8,powerW:120,voltage:24,rpm:1500,efficiency:.85,gearRatio:1,gearEfficiency:.95,motorKind:'dc',direction:1,continuous:type==='motor',
       camLift: 20, camPhase: 0, camShape: 'harmonic', camNoseRatio: .4,
       bearingOffset: 65, curveKind: 'bezier', curveRadius: 100, visible: true,
       locked: type === 'ground', drive: type === 'rail',
@@ -186,7 +192,7 @@
   }
 
   function configuredDriveRange(project) {
-    const rotary = ['fourbar', 'crank'].includes(project.kind) || (project.kind === 'custom' && project.elements.some((e) => e.drive && ['link', 'panel', 'cam'].includes(e.type) && e.driveMode !== 'linear'));
+    const rotary = ['fourbar', 'crank'].includes(project.kind) || (project.kind === 'custom' && project.elements.some((e) => e.drive && ['link', 'panel', 'cam', 'motor'].includes(e.type) && e.driveMode !== 'linear'));
     return rotary
       ? { min: project.parameters.rotationMin ?? 0, max: project.parameters.rotationMax ?? 360, unit: '°', label: 'Uhol pohonu' }
       : { min: project.parameters.travelMin, max: project.parameters.travelMax, unit: 'mm', label: 'Posuv výsuvu' };
@@ -333,6 +339,14 @@
     return { ...target, surface, normal, distance: distance(point, target) };
   }
 
+  function contactTarget(point,cam,pose,surface={},fallbackRadius=0){
+    if(surface.kind!=='flat')return nearestOnCam(point,cam,surface.kind==='point'?0:surface.radius??fallbackRadius);
+    const outline=pose.carriageOutline||pose.outline,derived=Number.isInteger(surface.edgeIndex)&&outline?.length, a=derived?outline[surface.edgeIndex%outline.length]:worldPoint({a:point,angle:pose.angle},surface.a),b=derived?outline[(surface.edgeIndex+1)%outline.length]:worldPoint({a:point,angle:pose.angle},surface.b),length=distance(a,b),t={x:(b.x-a.x)/length,y:(b.y-a.y)/length},normal={x:-t.y*surface.normalSign,y:t.x*surface.normalSign};
+    const candidates=cam.path.filter(v=>{const u=(v.x-a.x)*t.x+(v.y-a.y)*t.y;return u>=-EPS&&u<=length+EPS;});
+    if(!candidates.length){const na=nearestOnCam(a,cam,0),nb=nearestOnCam(b,cam,0),near=na.distance<nb.distance?na:nb,end=na.distance<nb.distance?a:b;return{...near,x:point.x+near.x-end.x,y:point.y+near.y-end.y};}
+    const support=candidates.reduce((best,v)=>((v.x-a.x)*normal.x+(v.y-a.y)*normal.y)>((best.x-a.x)*normal.x+(best.y-a.y)*normal.y)?v:best),gap=(a.x-support.x)*normal.x+(a.y-support.y)*normal.y;
+    return{x:point.x-gap*normal.x,y:point.y-gap*normal.y,surface:support,normal,gap,distance:Math.abs(gap)};
+  }
   function circlePathIntersections(center, radius, points) {
     const result = [];
     for (let i = 1; i < points.length; i++) {
@@ -401,6 +415,7 @@
       Object.assign(pose, carriageGeometry(element, pose));
     }
     if (element.type === 'slot') { pose.path = cachedPath || genericPath(element); pose.a = pose.path[0]; pose.b = pose.path[pose.path.length - 1]; }
+    if(element.type==='motor')pose.outline=Array.from({length:64},(_,i)=>({x:pose.a.x+element.motorDiameter/2*Math.cos(i/64*Math.PI*2),y:pose.a.y+element.motorDiameter/2*Math.sin(i/64*Math.PI*2)}));
     if (element.type === 'cam') { pose.path = cachedPath || camProfile(element); pose.outline = pose.path.slice(0, -1); }
     return pose;
   }
@@ -413,7 +428,7 @@
       const programmed=!options.design&&e.drive?global.KinmoAdvanced?.at(project,e,motion,options.time):null;
       const linear = !options.design && e.drive && e.type !== 'rail' && e.driveMode === 'linear';
       const offset = linear ? along({ x: e.x, y: e.y }, programmed??(motion - range.min) / (range.max - range.min) * e.stroke, e.driveAngle || 0) : e;
-      const angle = e.angle + (!options.design && e.drive && ['link', 'panel', 'cam'].includes(e.type) && !linear ? (programmed??motion) : 0);
+      const angle = e.angle + (!options.design && e.drive && ['link', 'panel', 'cam', 'motor'].includes(e.type) && !linear ? (programmed??motion) : 0);
       let x = offset.x, y = offset.y;
       const seed = !options.design && !e.drive && !e.locked && !e.parentId && options.bodyPositions?.[e.id];
       if (!options.design && e.drive && !linear && e.drivePivot !== 'a') {
@@ -439,8 +454,8 @@
           const offset = rotate({ x: body.x, y: body.y }, parent.angle);
           x = origin.x + offset.x; y = origin.y + offset.y; angle += parent.angle;
         }
-        const transformed = { ...e, x, y, angle };
-        const signature = `${x},${y},${angle}`;
+        const transformed = { ...e, x, y, angle,carriageOffset:e.carriageOffset+(body.carriageDelta||0) };
+        const signature = `${x},${y},${angle},${body.carriageDelta||0}`;
         if (body.signature !== signature) {
           body.path = e.type === 'slot' ? genericPath(transformed) : e.type === 'cam' ? camProfile(transformed) : null;
           const q=!options.design&&e.drive?global.KinmoAdvanced?.at(project,e,motion,options.time):null;
@@ -461,11 +476,12 @@
       while (body?.element.parentId) body = bodies.get(body.element.parentId);
       return body;
     };
+    const carriage = (body,ref) => body?.element.type==='rail'&&!body.element.drive&&!body.element.movingRail&&ref&&carriageReference(project,body.element,ref);
     const immobile = (body) => !body || body.element.locked || body.element.drive || ['ground', 'rail', 'slot'].includes(body.element.type);
     const onGuide = (p, pose, joint) => {
       if (joint.type === 'cam-contact') {
         const reference = joint.a.point === 'curve' ? joint.b : joint.a, roller = project.elements.find((e) => e.id === reference.elementId);
-        return nearestOnCam(p, pose, roller.primary ? project.parameters.bearingRadius : roller.radius);
+        return contactTarget(p,pose,poses[roller.id],joint.surface,roller.type==='bearing'?(roller.primary?project.parameters.bearingRadius:roller.radius):0);
       }
       const nearest = nearestOnPath(p, pose.path);
       if (joint.type !== 'prismatic' || joint.limitMin == null) return nearest;
@@ -488,7 +504,8 @@
       if (angle === -180 && raw > 0) angle = 180;
       return angle - clamp(angle, joint.limitMin, joint.limitMax);
     };
-    const adjust = (body, point, error, sign, denom, rotateBody = true) => {
+    const adjust = (body, point, error, sign, denom, rotateBody = true, ref) => {
+      if(carriage(body,ref)){const axis=rotate({x:1,y:0},body.angle);body.carriageDelta=clamp(body.element.carriageOffset+(body.carriageDelta||0)+sign*(error.x*axis.x+error.y*axis.y)/denom,0,body.element.length)-body.element.carriageOffset;refreshAll();return;}
       if (immobile(body)) return;
       const r = { x: point.x - body.x, y: point.y - body.y };
       const inertia = !rotateBody || ['bearing', 'node'].includes(body.element.type) ? 0 : 4 / Math.max(100, body.element.length ** 2);
@@ -516,12 +533,13 @@
           }
           if (['parallel', 'angle'].includes(type)) continue;
         }
-        const weight = (body, point) => {
+        const weight = (body, point, ref) => {
+          if(carriage(body,ref))return 1;
           if (immobile(body)) return 0;
           return 1 + (type === 'prismatic' || ['bearing', 'node'].includes(body.element.type) ? 0 : 4 * ((point.x - body.x) ** 2 + (point.y - body.y) ** 2) / Math.max(100, body.element.length ** 2));
         };
         const current = endpoints(joint);
-        const denom = weight(ba, current.a) + weight(bb, current.b);
+        const denom = weight(ba, current.a,joint.a) + weight(bb, current.b,joint.b);
         if (denom < EPS || ba === bb) continue;
         const error = { x: current.b.x - current.a.x, y: current.b.y - current.a.y };
         if (type === 'distance') {
@@ -530,8 +548,8 @@
           if (length < EPS) { error.x = -(joint.value || 0); error.y = 0; }
           else { error.x *= scale; error.y *= scale; }
         }
-        adjust(ba, current.a, error, 1, denom, type !== 'prismatic');
-        adjust(bb, current.b, error, -1, denom, type !== 'prismatic');
+        adjust(ba, current.a, error, 1, denom, type !== 'prismatic',joint.a);
+        adjust(bb, current.b, error, -1, denom, type !== 'prismatic',joint.b);
       }
       for (const body of bodies.values()) {
         if (body.element.type !== 'bearing' || !body.element.slotId) continue;
@@ -919,14 +937,16 @@
       normalized.parentId = text(e.parentId, '', 100);
       normalized.parentPoint = ['a', 'b', 'c', 'ct', 'cb'].includes(e.parentPoint) ? e.parentPoint : 'a';
       normalized.driveMode = e.driveMode === 'linear' || e.type === 'rail' ? 'linear' : 'rotary';
-      if (e.type === 'cam' && normalized.driveMode !== 'rotary') throw new Error('Rotačná vačka vyžaduje otočný pohon.');
+      if (['cam','motor'].includes(e.type) && normalized.driveMode !== 'rotary') throw new Error('Rotačná vačka vyžaduje otočný pohon.');
       normalized.driveAngle = number(e.driveAngle, 0, -360, 360);
       normalized.drivePivot = ['a', 'b', 'c'].includes(e.drivePivot) ? e.drivePivot : 'a';
-      normalized.driveSpeed = e.driveSpeed == null ? null : number(e.driveSpeed, 0, -10000, 10000);
+      normalized.driveSpeed = e.driveSpeed == null ? null : number(e.driveSpeed, 0, -1000000, 1000000);
+      normalized.continuous = e.continuous === true;
+      if(e.type==='motor'){for(const [key,low,high] of [['motorLength',1,5000],['motorDiameter',1,5000],['shaftDiameter',.1,1000],['powerW',0,10000000],['voltage',.1,10000],['rpm',0,100000],['efficiency',.01,1],['gearRatio',.01,10000],['gearEfficiency',.01,1]])normalized[key]=number(e[key],base[key],low,high);normalized.motorKind=['dc','ac','stepper','servo'].includes(e.motorKind)?e.motorKind:'dc';normalized.direction=e.direction===-1?-1:1;if(normalized.shaftDiameter>=normalized.motorDiameter)throw new Error('Hriadeľ musí byť menší než teleso motora.');const speed=normalized.direction*normalized.rpm*6/normalized.gearRatio;if(Math.abs(speed)>1000000)throw new Error('Výstupné otáčky prekračujú rozsah simulátora. Zväčšite prevod alebo znížte otáčky.');if(normalized.drive)normalized.driveSpeed=speed;}
       normalized.color = /^#[0-9a-fA-F]{6}$/.test(e.color || '') ? e.color : '';
       if (e.type === 'node' && normalized.drive && normalized.driveMode !== 'linear') throw new Error('Samostatný bod môže mať iba lineárny pohon.');
       if (normalized.drivePivot === 'c' && e.type !== 'panel') throw new Error('Pohon odkazuje na neplatný otočný bod.');
-      if (normalized.drivePivot === 'b' && ['node', 'bearing', 'cam'].includes(e.type)) throw new Error('Pohon odkazuje na neplatný otočný bod.');
+      if (normalized.drivePivot === 'b' && ['node', 'bearing', 'cam','motor'].includes(e.type)) throw new Error('Pohon odkazuje na neplatný otočný bod.');
       normalized.mass = number(e.mass, base.mass, 0, 100000);
       normalized.inertia = number(e.inertia, 0, 0, 1000000);
       normalized.com = e.com == null ? null : vector(e.com);
@@ -948,6 +968,7 @@
       return normalized;
     });
     const points = ['a', 'b', 'c', 'ct', 'cb', 'curve'];
+    if(elements.some(e=>e.drive&&e.continuous&&e.driveMode!=='linear')&&Math.abs((p.rotationMax-p.rotationMin)/360-Math.round((p.rotationMax-p.rotationMin)/360))>.00001)throw new Error('Súvislé otáčanie vyžaduje celý počet otáčok v rozsahu pohonu.');
     const primaryTypes = definition?.types || {
       drawer: { 'frame-1': 'ground', 'rail-1': 'rail', 'slot-1': 'slot', 'panel-1': 'panel', 'bearing-1': 'bearing', 'bearing-2': 'bearing' },
       fourbar: { 'frame-1': 'ground', 'input-1': 'link', 'coupler-1': 'link', 'output-1': 'link' },
@@ -995,7 +1016,7 @@
       const type = j.type || (j.a.point === 'curve' || j.b.point === 'curve' ? 'point-path' : 'revolute');
       if (!CONSTRAINT_TYPES.includes(type) || ((j.a.point === 'curve' || j.b.point === 'curve') && !['point-path', 'prismatic', 'cam-contact'].includes(type)) || (['point-path', 'prismatic', 'cam-contact'].includes(type) && j.a.point !== 'curve' && j.b.point !== 'curve')) throw new Error('Typ väzby nezodpovedá jej uzlom.');
       const guide = j.a.point === 'curve' ? ea : eb, follower = j.a.point === 'curve' ? eb : ea, followerPoint = j.a.point === 'curve' ? j.b.point : j.a.point;
-      if (type === 'cam-contact' ? guide.type !== 'cam' || follower.type !== 'bearing' || followerPoint !== 'a' : [j.a, j.b].some((r) => r.point === 'curve' && elements.find((e) => e.id === r.elementId).type === 'cam')) throw new Error('Vačkový kontakt vyžaduje obrys vačky a stred valčekového ložiska. Strednicová väzba nie je kontakt.');
+      if (type === 'cam-contact' ? guide.type !== 'cam' || (j.surface ? ['ground','cam','slot'].includes(follower.type) || (follower.type==='rail'&&!carriagePoints.includes(followerPoint)) : follower.type!=='bearing'||followerPoint!=='a') : [j.a, j.b].some((r) => r.point === 'curve' && elements.find((e) => e.id === r.elementId).type === 'cam')) throw new Error('Vačkový kontakt vyžaduje obrys vačky a kontaktný bod alebo plochu pohyblivého prvku.');
       if (type === 'prismatic' && (j.a.point === 'curve' ? ea : eb).type !== 'rail') throw new Error('Posuvná väzba vyžaduje priame lineárne vedenie.');
       const value = number(j.value, 0, type === 'distance' ? 0 : -360, type === 'distance' ? 5000 : 360);
       if ([ea, eb].some(isElastic) && !['revolute'].includes(type)) throw new Error('Montáž pružného prvku musí používať koncový otočný bod.');
@@ -1007,7 +1028,9 @@
         const guide = j.a.point === 'curve' ? ea : eb;
         if (limitMax <= limitMin || (type === 'prismatic' && !guide.primary && limitMax > guide.length)) throw new Error('Limity musia byť zoradené a ležať v rozsahu vedenia.');
       }
-      return { ...(global.KinmoAdvanced?.contact(j.contact)?{contact:global.KinmoAdvanced.contact(j.contact)}:{}), id: j.id, a: { elementId: j.a.elementId, point: j.a.point }, b: { elementId: j.b.elementId, point: j.b.point }, type, value, limitMin, limitMax, builtin: !!j.builtin && ea.primary && eb.primary, name: text(j.name, 'Otočný kĺb') };
+      let surface;
+      if(j.surface){if(type!=='cam-contact'||!['point','roller','flat'].includes(j.surface.kind))throw new Error('Neplatná kontaktná plocha.');surface={kind:j.surface.kind};if(surface.kind==='flat'){surface.a=vector(j.surface.a);surface.b=vector(j.surface.b);surface.normalSign=j.surface.normalSign===-1?-1:1;if(j.surface.edgeIndex!=null)surface.edgeIndex=number(j.surface.edgeIndex,0,0,1000);if(surface.edgeIndex!=null&&!Number.isInteger(surface.edgeIndex))throw new Error('Kontaktná hrana má neplatný index.');if(distance(surface.a,surface.b)<.01)throw new Error('Kontaktná hrana musí mať dĺžku.');}else surface.radius=number(j.surface.radius,0,0,1000);}
+      return { ...(surface?{surface}:{}), ...(global.KinmoAdvanced?.contact(j.contact)?{contact:global.KinmoAdvanced.contact(j.contact)}:{}), id: j.id, a: { elementId: j.a.elementId, point: j.a.point }, b: { elementId: j.b.elementId, point: j.b.point }, type, value, limitMin, limitMax, builtin: !!j.builtin && ea.primary && eb.primary, name: text(j.name, 'Otočný kĺb') };
     });
     for (const e of elements) if (e.slotId && !elements.some((s) => s.id === e.slotId && s.type === 'slot')) throw new Error('Ložisko odkazuje na neexistujúcu kulisu.');
     const uniqueRecords = (list, limit, normalize, label) => {
@@ -1081,6 +1104,6 @@
     nearestOnPath, segmentIntersection, segmentRect, solve, sample, point, inverseDrive, bounds, validateProject,
     registerProject, prepareProject, projectPhases, tracePoint,
     rotate, localPoint, worldPoint, isElastic, hasOrientation, bodyPose, genericPath, elasticMount,
-    pointKeys, pointName, defaultTracePoint, carriagePoints, carriageGeometry, templateOutlines, pointInPolygon, camProfile, nearestOnCam, validateOutline,
+    pointKeys, pointName, defaultTracePoint, carriagePoints, carriageGeometry, carriageReference, templateOutlines, pointInPolygon, camProfile, nearestOnCam, contactTarget, validateOutline,
   });
 })(globalThis);

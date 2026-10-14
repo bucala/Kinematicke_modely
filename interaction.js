@@ -387,21 +387,23 @@
     const p = K.copy(project), e = mutable(p.elements.find((v) => v.id === r.elementId));
     if (e.parentId || K.isElastic(e) || ['ground', 'slot'].includes(e.type)) throw new Error('Vyberte samostatný pohyblivý uzol alebo rameno.');
     if (!options.enabled) { if (e.type === 'rail') storePose(e, result); e.drive = false; return validateEdit(p); }
+    if(['cam','motor'].includes(e.type)){r={elementId:e.id,point:'a'};for(const j of p.connections){if(j.type!=='fixed')continue;const other=same(j.a,r)?j.b:same(j.b,r)?j.a:null;const body=other&&p.elements.find(v=>v.id===other.elementId);if(body&&(body.type==='ground'||body.locked)){j.type='revolute';j.value=0;}}}
     const linear = options.mode === 'linear', min = options.min, max = options.max;
     if (!Number.isFinite(options.speed) || !(max > min)) throw new Error('Pohon vyžaduje konečnú rýchlosť a zoradené limity.');
-    if (!linear && !['link', 'panel', 'cam'].includes(e.type)) throw new Error('Otočný pohon vyžaduje rameno, panel alebo vačku.');
-    if (linear && e.type === 'cam') throw new Error('Vačka používa otočný pohon.');
+    if (!linear && !['link', 'panel', 'cam', 'motor'].includes(e.type)) throw new Error('Otočný pohon vyžaduje rameno, panel alebo vačku.');
+    if (linear && ['cam','motor'].includes(e.type)) throw new Error('Vačka používa otočný pohon.');
     if (linear && min < 0) throw new Error('Začiatok lineárneho zdvihu nesmie byť záporný.');
     delete p.driveProgram;
     for (const body of p.elements) body.drive = false;
-    Object.assign(e, { drive: true, locked: false, driveMode: linear ? 'linear' : 'rotary', drivePivot: linear ? 'a' : r.point, driveSpeed: options.speed, driveAngle: options.angle || 0 });
+    Object.assign(e, { drive: true, locked: false, driveMode: linear ? 'linear' : 'rotary', drivePivot: linear ? 'a' : r.point, driveSpeed: options.speed, continuous: ['cam','motor'].includes(e.type)&&(options.continuous==null?e.continuous===true:options.continuous===true), driveAngle: options.angle || 0 });
     if (linear) {
       p.parameters.travelMin = min; p.parameters.travelMax = max; e.stroke = max - min;
       e.x = result.poses[e.id].a.x; e.y = result.poses[e.id].a.y;
       if (e.type === 'rail') e.carriageOffset = K.localPoint({ a: result.poses[e.id].a, angle: result.poses[e.id].angle }, result.poses[e.id].c).x;
     } else {
       p.parameters.rotationMin = min; p.parameters.rotationMax = max;
-      const pivot = K.point(result, r), local = r.point === 'c' ? e.localC || { x: e.bearingOffset, y: 0 } : { x: r.point === 'b' ? e.length : 0, y: 0 };
+      const support=['cam','motor'].includes(e.type)&&p.connections.find(j=>['revolute','fixed'].includes(j.type)&&[j.a,j.b].some(ref=>same(ref,r))&&(()=>{const other=same(j.a,r)?j.b:j.a,body=root(p,p.elements.find(v=>v.id===other.elementId));return body&&(body.locked||body.type==='ground');})());
+      const pivot = support?K.point(result,same(support.a,r)?support.b:support.a):K.point(result, r), local = r.point === 'c' ? e.localC || { x: e.bearingOffset, y: 0 } : { x: r.point === 'b' ? e.length : 0, y: 0 };
       e.angle = result.poses[e.id].angle - min;
       const v = K.rotate(local, e.angle); e.x = pivot.x - v.x; e.y = pivot.y - v.y;
     }
