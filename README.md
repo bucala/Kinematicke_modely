@@ -620,7 +620,7 @@ Katalógové príklady a zdroje sú v inšpektore pružných prvkov: Gutekunst D
 
 Farebné karty v nastaveniach ukazujú náhľad každého skinu. Výber sa prejaví a uloží okamžite; rozpracované hodnoty simulácie sa potvrdia až cez **Použiť nastavenia**. Formulár používa dva stĺpce na väčších obrazovkách a jeden na mobile, s dostupnými tlačidlami aj pri posúvaní.
 
-V **Nastaveniach → Vzhľad aplikácie** vyberte bielu/čiernu, krémovú/terakotu alebo teplú tmavú/bielu. Krémový vzhľad vychádza z [palety Claude](https://mobbin.com/colors/brand/claude): Pampas `#F4F3EE`, biela `#FFFFFF`, terakota Crail `#C15F3C` a Cloudy `#B1ADA1` pre hlavné čiary mriežky. Drobný text používa tmavší odtieň kvôli čitateľnosti. Existujúce nastavenie `orange` automaticky použije novú krémovú paletu; identifikátory súborov a nastavení sa nemenia. Mechanické farby členov a upozornení si zachovávajú význam vo všetkých vzhľadoch.
+V **Nastaveniach → Vzhľad aplikácie** je päť paliet: **Slate & Indigo** (predvolená), **Neutral Sage**, **Steel & Teal**, **Warm Sand & Coffee** a **Dark Mode**. Neutrálne pozadie, biele alebo bridlicové panely a jemná mriežka dominujú pracovnej ploche; akcent označuje hlavné tlačidlá a aktívne prvky. Text tlačidiel má kontrastný odtieň podľa palety (pri oceľovej modrej a jantárovej tmavý). Staršia voľba `mono` sa načíta ako `slate`, `orange` ako `sand`; tmavý skin dostane novú námornícku paletu. Voľba sa zachová aj v exporte `.kinmo`. Farby mechanických členov a význam stavových upozornení ostávajú samostatné od vzhľadu rozhrania.
 
 **Exportovať** ponúka:
 

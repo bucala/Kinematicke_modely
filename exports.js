@@ -53,7 +53,7 @@
   function preferences(input = {}) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) input = {};
     const result = {
-      theme: ['mono', 'orange', 'dark'].includes(input.theme) ? input.theme : 'mono',
+      theme: ['slate', 'sage', 'steel', 'sand', 'dark'].includes(input.theme) ? input.theme : input.theme === 'orange' ? 'sand' : 'slate',
       cycle: Number.isFinite(input.cycle) ? K.clamp(input.cycle, 1, 60) : 6,
       speed: [0.25, 0.5, 1, 1.5, 2].includes(input.speed) ? input.speed : 1,
     };

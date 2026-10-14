@@ -110,9 +110,14 @@
     assert(value.theme === 'dark' && value.grid === false && value.speed === 2);
     near(value.cycle, 60); assert(!('pairingKey' in value) && !('prototype' in value));
   });
-  add('Vzhľad toleruje poškodené nastavenia a zachová tri povolené skiny.', () => {
-    for (const value of [null, [], 'bad']) assert(X.preferences(value).theme === 'mono');
-    for (const theme of ['mono', 'orange', 'dark']) assert(X.preferences({ theme }).theme === theme);
+  add('Vzhľad migruje staré skiny a zachová päť moderných paliet aj v natívnom súbore.', () => {
+    for (const value of [null, [], 'bad']) assert(X.preferences(value).theme === 'slate');
+    for (const theme of ['slate', 'sage', 'steel', 'sand', 'dark']) {
+      assert(X.preferences({ theme }).theme === theme);
+      assert(X.parseNative(X.nativeFile(K.preset('custom'), { workspace: { theme } })).workspace.theme === theme);
+    }
+    assert(X.preferences({theme:'mono'}).theme === 'slate');
+    assert(X.preferences({theme:'orange'}).theme === 'sand');
     assert(X.preferences({ theme: '<script>', speed: 99 }).speed === 1);
   });
   add('Viditeľnosť grafu, časovej osi a popisov je nezávislá a prenosná v .kinmo.', () => {

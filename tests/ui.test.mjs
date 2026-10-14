@@ -667,14 +667,26 @@ for (const modifier of ['ctrlKey', 'metaKey']) {
   });
 }
 
-test('Cream theme uses the Claude palette without changing existing theme identifiers', () => {
-  const cream = styles.match(/:root\[data-theme="orange"\] \{([^}]+)\}/)?.[1]; assert(cream);
-  for (const [name, color] of [['paper', '#ffffff'], ['canvas', '#f4f3ee'], ['accent', '#c15f3c'], ['grid-large', '#b1ada1']]) {
-    assert(cream.includes(`--${name}: ${color};`), `${name} should use ${color}`);
+test('Five modern palettes use the requested neutral surfaces and accessible accent text', () => {
+  const palettes = [
+    ['slate','#f8fafc','#ffffff','#0f172a','#4f46e5'],
+    ['sage','#f9f9fb','#ffffff','#1e293b','#3b7a57'],
+    ['steel','#f4f6f8','#ffffff','#111827','#0284c7'],
+    ['sand','#fafafa','#ffffff','#18181b','#d97706'],
+    ['dark','#0f172a','#1e293b','#f8fafc','#38bdf8'],
+  ];
+  const luminance = hex => { const rgb=hex.slice(1).match(/../g).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722; };
+  const contrast=(a,b)=>{const x=luminance(a),y=luminance(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+  for(const [theme,canvas,paper,ink,accent] of palettes){
+    const block=styles.match(new RegExp(`:root\\[data-theme="${theme}"\\] \{([^}]+)\}`))?.[1];assert(block,theme);
+    for(const [name,value] of [['canvas',canvas],['paper',paper],['ink',ink],['accent',accent]])assert(block.includes(`--${name}: ${value};`));
+    const token=name=>block.match(new RegExp(`--${name}: (#[a-f0-9]+);`))[1];
+    for(const bg of [canvas,paper])for(const text of ['ink','secondary','muted'])assert(contrast(token(text),bg)>=4.5,`${theme} ${text} on ${bg}`);
+    assert(contrast(token('on-accent'),accent)>=4.5,`${theme} primary button`);
+    assert(contrast(token('accent-ink'),token('accent-pale'))>=4.5,`${theme} active item`);
+    assert(source.includes(`['${theme}',`));
   }
-  assert(source.includes("['orange', 'Krémová / terakota']"));
-  assert.match(styles, /:root\[data-theme="mono"\]/); assert.match(styles, /:root\[data-theme="dark"\]/);
-  assert(source.includes('stroke="var(--accent)"'));
+  assert(styles.includes('color: var(--on-accent)'));
 });
 
 test('Central selection distinguishes endpoint and body, without opening properties', () => {
