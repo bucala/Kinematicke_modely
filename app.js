@@ -584,7 +584,7 @@
       geometry = section('Geometria mechanizmu', `${field('Polomer kľuky', 'crankLength', p.crankLength)}${field('Dĺžka ojnice', 'rodLength', p.rodLength)}${field('Poloha osi vedenia Y', 'sliderY', p.sliderY, 'mm', -500, 500)}`);
     } else {
       geometry = section('Poloha a orientácia', two(field('Poloha X', 'x', e.x, 'mm', -5000, 5000, 0.1, 'element'), field('Poloha Y', 'y', e.y, 'mm', -5000, 5000, 0.1, 'element')) + field('Uhol natočenia', 'angle', e.angle, '°', -360, 360, 0.1, 'element')) +
-        section('Geometria', `${!['bearing', 'node'].includes(e.type) ? field('Dĺžka prvku', 'length', e.length, 'mm', 1, 2000, 1, 'element') : field(e.type === 'node' ? 'Polomer značky bodu' : 'Polomer ložiska', 'radius', e.radius, 'mm', 1, 100, 1, 'element')}${['link', 'panel'].includes(e.type) ? field('Hrúbka člena', 'width', e.width, 'mm', 1, 100, 1, 'element') : ''}${e.type === 'rail' ? field('Zdvih vedenia', 'stroke', e.stroke, 'mm', 1, 2000, 1, 'element') : ''}${e.type === 'panel' ? field('Vzdialenosť ložiska', 'bearingOffset', e.bearingOffset, 'mm', 1, 2000, 1, 'element') : ''}${e.type === 'slot' ? field('Šírka drážky', 'slotWidth', e.slotWidth, 'mm', 2, 100, 1, 'element') : ''}`);
+        section('Geometria', `${!['bearing', 'node'].includes(e.type) ? field('Dĺžka prvku', 'length', e.length, 'mm', 1, 2000, 1, 'element') : field(e.type === 'node' ? 'Polomer značky bodu' : 'Polomer ložiska', 'radius', e.radius, 'mm', 1, 100, 1, 'element')}${['link', 'panel', 'ground'].includes(e.type) ? field('Hrúbka člena', 'width', e.width, 'mm', .1, 500, 1, 'element') : ''}${e.type === 'rail' ? field('Šírka vedenia', 'slotWidth', e.slotWidth, 'mm', .1, 500, .1, 'element') + field('Zdvih vedenia', 'stroke', e.stroke, 'mm', 1, 2000, 1, 'element') : ''}${e.type === 'panel' ? field('Vzdialenosť ložiska', 'bearingOffset', e.bearingOffset, 'mm', 1, 2000, 1, 'element') : ''}${e.type === 'slot' ? field('Šírka drážky', 'slotWidth', e.slotWidth, 'mm', .1, 500, 1, 'element') : ''}`);
       if (e.type === 'bearing') geometry += section('Vedenie ložiska', `<label class="property-field"><span>Viazať na kulisu</span><select class="property-select" id="bearing-slot"><option value="">Bez väzby</option>${state.project.elements.filter((s) => s.type === 'slot').map((s) => `<option value="${escape(s.id)}"${s.id === e.slotId ? ' selected' : ''}>${escape(s.name)}</option>`).join('')}</select></label>`);
       if (e.type === 'slot') geometry += section('Profil kulisy / vodiacej dráhy', `<label class="property-field"><span>Typ geometrie</span><select class="property-select" id="element-curve-kind">${[['bezier', 'Bézierova krivka'], ['spline', 'Interpolovaná spline'], ['arc', 'Kruhový oblúk'], ['polyline', 'Lomená čiara · presné body']].map(([kind, title]) => `<option value="${kind}"${e.curveKind === kind ? ' selected' : ''}>${title}</option>`).join('')}</select></label>${e.curveKind === 'arc' ? field('Polomer zakrivenia', 'curveRadius', e.curveRadius, 'mm', 1, 5000, 1, 'element') : ''}<p class="section-description">${e.controls.length} bodov, lokálne súradnice. V editačnom režime môžete body ťahať na plátne.</p>${e.controls.length <= 32 ? e.controls.map((c, i) => `<div class="control-point-row"><span>P${i}</span>${field('X', `${i}-x`, c.x, 'mm', -5000, 5000, 0.1, 'element-control')}${field('Y', `${i}-y`, c.y, 'mm', -5000, 5000, 0.1, 'element-control')}</div>`).join('') : ''}<button class="button button-secondary full-width" data-action="edit-path">Upraviť / pridať / odstrániť body</button>`);
       if (e.type === 'cam') geometry += section('Profil rotačnej vačky', `<label class="property-field"><span>Tvar vačky</span><select class="property-select" id="cam-shape"><option value="harmonic"${e.camShape !== 'pear' ? ' selected' : ''}>Harmonický radiálny profil</option><option value="pear"${e.camShape === 'pear' ? ' selected' : ''}>Pretiahnutá vačka · dva kruhové oblúky</option></select></label>${e.camShape === 'pear' ? field('Pomer polomeru špičky / základne', 'camNoseRatio', e.camNoseRatio, '×', .1, 1, .01, 'element') : ''}${field('Polomer základného kruhu R', 'radius', e.radius, 'mm', .1, 5000, .1, 'element')}${field('Zdvih profilu h', 'camLift', e.camLift, 'mm', 0, 5000, .1, 'element')}${field('Fáza výstupku', 'camPhase', e.camPhase, '°', -360, 360, .1, 'element')}<p class="section-description">${e.camShape === 'pear' ? 'Dva kruhové oblúky spojené spoločnými dotyčnicami, s osou v základnom kruhu.' : 'Jedna hladká vlna za otáčku, polomer R až R + h.'} Kontakt používa skutočný polomer valčeka a predpoklad trvalého dotyku, nie stred valčeka na obryse.</p><button class="button button-secondary full-width" data-action="cam-follower">Pridať vedený valčekový sledovač</button>`);
@@ -705,7 +705,7 @@
           <path d="M${result.motion + 9} ${p.pivotY - 1}H${pose.b.x - 9}" stroke="#fcf1dc" stroke-width="1.4"/>
           ${[0.18, 0.48, 0.8].map((t) => `<circle cx="${result.motion + t * (p.frameLength + p.panelOffsetX)}" cy="${p.pivotY}" r="2.2" fill="#b58548"/>`).join('')}
           <text x="${result.motion + p.frameLength / 2 - 45}" y="${p.pivotY + 31}" class="part-label rail-label">LINEÁRNY VÝSUV</text>`;
-      } else body = `${line(pose.a, pose.b, `stroke="#c4d0d9" stroke-width="22" stroke-linecap="round"`)}${line(pose.a, pose.b, `stroke="${color}" stroke-width="1" stroke-dasharray="5 4"`)}<polygon points="${K.carriageGeometry(e, pose).carriageOutline.map((p) => `${p.x},${p.y}`).join(' ')}" fill="#e7c18b" stroke="${selected ? 'var(--accent)' : '#b28649'}"/>`;
+      } else body = `${line(pose.a, pose.b, `stroke="#c4d0d9" stroke-width="${e.slotWidth}" stroke-linecap="round"`)}${line(pose.a, pose.b, `stroke="${color}" stroke-width="1" stroke-dasharray="5 4"`)}<polygon points="${K.carriageGeometry(e, pose).carriageOutline.map((p) => `${p.x},${p.y}`).join(' ')}" fill="#e7c18b" stroke="${selected ? 'var(--accent)' : '#b28649'}"/>`;
     } else if (e.type === 'panel') {
       const width = e.primary ? p.panelThickness : e.width;
       if (selected) body += `<polygon points="${panelPolygon(pose, width + 10)}" fill="#eab252" opacity="0.1"/>`;
@@ -724,7 +724,7 @@
       const r = e.primary ? (e.role === 'pivot' ? 5.5 : p.bearingRadius) : e.radius;
       body = `<circle cx="${pose.a.x}" cy="${pose.a.y}" r="${r + 2}" fill="#f8fbfa" stroke="${color}" stroke-width="1.5"/><circle cx="${pose.a.x}" cy="${pose.a.y}" r="${r * 0.58}" fill="#d9e4df" stroke="${color}" stroke-width="0.85"/><circle cx="${pose.a.x}" cy="${pose.a.y}" r="1.8" fill="#657d73"/>`;
     } else if (e.type === 'ground') {
-      body = `${line(pose.a, pose.b, `stroke="${color}" stroke-width="8" stroke-linecap="round"`)}${groundGlyph(pose.a)}${groundGlyph(pose.b)}`;
+      body = `${line(pose.a, pose.b, `stroke="${color}" stroke-width="${e.width}" stroke-linecap="round"`)}${groundGlyph(pose.a)}${groundGlyph(pose.b)}`;
     } else {
       const width = e.width;
       body = `${line(pose.a, pose.b, `stroke="${bad ? '#df5e59' : selected ? 'var(--accent)' : e.color || (e.role === 'coupler' ? '#6d9b95' : '#97a9b9')}" stroke-width="${width + 3}" stroke-linecap="round"`)}
@@ -1509,7 +1509,7 @@
       }
       if (pose && !['node', 'bearing'].includes(e.type)) {
         const polygon = pose.outline?.length ? pose.outline : e.type === 'panel' ? panelPoints(pose, e.primary ? state.project.parameters.panelThickness : e.width) : null;
-        candidates.push({ type: 'body', key: e.type === 'slot' ? I.pathKey(e.id) : I.elementKey(e.id), path: (pose.path?.length ? pose.path : [pose.a, pose.b]).filter(Boolean).map(screen), polygon: polygon?.map(screen), radius: Math.max(7, (e.width + 3) * Math.hypot(matrix.a, matrix.b) / 2), priority: state.project.elements.indexOf(e) });
+        candidates.push({ type: 'body', key: e.type === 'slot' ? I.pathKey(e.id) : I.elementKey(e.id), path: (pose.path?.length ? pose.path : [pose.a, pose.b]).filter(Boolean).map(screen), polygon: polygon?.map(screen), radius: Math.max(7, (e.type === 'rail' ? e.slotWidth : e.type === 'slot' ? e.slotWidth + 20 : e.width + 3) * Math.hypot(matrix.a, matrix.b) / 2), priority: state.project.elements.indexOf(e) });
       }
     }
     for (const joint of state.project.connections) {
@@ -3731,14 +3731,32 @@
   function fusionModal() {
     const available = ['http:', 'https:'].includes(location.protocol);
     modal('Lokálne prepojenie · Autodesk Fusion', `<p class="modal-description">Doplnok vytvorí nový, neuložený referenčný dokument. Existujúce návrhy nemení. Krivky sú fixované úsečky, kulisy majú strednice a voliteľné uzavreté referenčné obrysy; kóty sú referenčné popisy. Nejde o výrobný profil, 3D zostavu ani Fusion joints.</p>
-      <ol class="fusion-steps"><li>Stiahnite a rozbaľte doplnok. Vo Fusion: Utilities → Scripts and Add-Ins → Add-Ins → šípka pri + → Script or add-in from device → priečinok KinmoFusion. Nevytvárajte nový prázdny doplnok.</li><li>Vyberte KinmoFusion a stlačte Run. Povoľte presný pôvod <code>${escape(available ? location.origin : 'HTTP(S) adresa aplikácie')}</code>.</li><li>Vložte nižšie dočasný párovací kľúč z Fusion. Povoľte lokálnu sieť, ak si ju prehliadač vyžiada.</li></ol>
+      <ol class="fusion-steps"><li>Stiahnite a rozbaľte doplnok. Vo Fusion: Utilities → Scripts and Add-Ins → Add-Ins → šípka pri + → Script or add-in from device → priečinok KinmoFusion. Nevytvárajte nový prázdny doplnok.</li><li>Vyberte KinmoFusion a stlačte Run. Ak už beží s inou adresou, zastavte ho a spustite znova; dostanete nový kľúč. Povoľte presný pôvod <code>${escape(available ? location.origin : 'HTTP(S) adresa aplikácie')}</code>.</li><li>Vložte nižšie dočasný párovací kľúč z Fusion. Povoľte lokálnu sieť, ak si ju prehliadač vyžiada.</li></ol>
       <a class="button button-secondary" href="./cad/KinmoFusion.zip" download${!available ? ' aria-disabled="true"' : ''}>Stiahnuť doplnok KinmoFusion (ZIP)</a>
       <form id="fusion-form"><label class="property-field"><span>Dočasný párovací kľúč (neukladá sa)</span><input class="text-field" name="key" type="password" autocomplete="off" minlength="20" maxlength="100" required/></label>
       <label class="check-row"><input id="cad-slot-outlines" type="checkbox"${state.cadSlotOutlines ? ' checked' : ''}/><span>Pridať uzavreté referenčné obrysy drážok podľa šírky</span></label><p class="section-description">Obrysy sa vložia do vrstiev SLOT_REFERENCE_OUTLINE / INNER. Strednice ostávajú vo vrstve SLOT. Pretínajúce sa alebo zrútené obrysy sa neodosielajú.</p>
       <label class="check-row"><input type="checkbox" name="consent" required/><span>Súhlasím s odoslaním viditeľnej geometrie do nového dokumentu v bežiacom Fusion.</span></label>
       <p class="section-description">Spojenie: <code>${escape(CAD.ENDPOINT)}</code>, iba toto zariadenie. Po práci zastavte doplnok. ${available ? 'Nie sú potrebné prihlasovacie údaje Autodesk.' : 'file:// nemôže použiť priame spojenie. Spustite lokálny server alebo použite DXF; doplnok je tiež v priečinku cad/KinmoFusion.'}</p>
-      <p id="fusion-status" class="section-description" role="status"></p>
+      <div id="fusion-status" class="fusion-feedback" data-state="idle" role="status" aria-live="polite" aria-atomic="true">Najskôr overte spojenie. Overenie nevytvorí dokument vo Fusion; výkres odošle až druhé tlačidlo.</div>
       <div class="modal-actions"><button type="button" class="button button-secondary" data-action="fusion-check"${!available ? ' disabled' : ''}>Overiť spojenie</button><button type="submit" class="button button-dark"${!available ? ' disabled' : ''}>Odoslať nový referenčný výkres</button></div></form>`, true);
+  }
+
+  function fusionFeedback(message, status = 'idle', target = $('#fusion-status')) {
+    if (!target || target !== $('#fusion-status')) return;
+    target.textContent = message; target.dataset.state = status;
+    target.setAttribute('aria-busy', String(status === 'busy'));
+    target.scrollIntoView?.({ block: 'nearest' });
+  }
+
+  async function checkFusionConnection(button) {
+    const target = $('#fusion-status'), form = $('#fusion-form');
+    button.disabled = true;
+    fusionFeedback('Overujem spojenie s doplnkom na tomto zariadení… Ak Chrome požiada o prístup k lokálnej sieti, povoľte ho.', 'busy', target);
+    try {
+      await CAD.status(form.elements.key.value.trim());
+      fusionFeedback('Spojenie s KinmoFusion je overené. Na vytvorenie dokumentu potvrďte súhlas a kliknite na Odoslať nový referenčný výkres.', 'ready', target);
+    } catch (error) { fusionFeedback(error.message, 'error', target); }
+    finally { if (button.isConnected) button.disabled = false; }
   }
 
   function elasticSourcesModal() {
@@ -4084,15 +4102,7 @@
     'angle-snap': toggleAngleSnap,
     'cam-follower': () => { const e = currentElement(); if (e?.type === 'cam') try { editCanvas(I.addCamFollower(state.project, e.id, state.result), 'Vedený valček bol pridaný. Priraďte vačke otočný pohon.'); } catch (error) { toast(error.message, true); } },
     'fusion': fusionModal,
-    'fusion-check': async (el) => {
-      el.disabled = true;
-      try {
-        const key = $('#fusion-form').elements.key.value;
-        await CAD.status(key);
-        if ($('#fusion-status')) $('#fusion-status').textContent = 'Lokálne spojenie je overené. Žiadna geometria ešte nebola odoslaná.';
-      } catch (error) { if ($('#fusion-status')) $('#fusion-status').textContent = error.message; }
-      finally { if (el.isConnected) el.disabled = false; }
-    },
+    'fusion-check': checkFusionConnection,
     'elastic-sources': elasticSourcesModal,
     'edit-com': centerOfMassModal,
     'analyze-forces': () => {
@@ -4494,12 +4504,14 @@
       const button = $('button[type="submit"]', form);
       if (button.disabled) return;
       button.disabled = true;
+      const feedback = $('#fusion-status');
+      fusionFeedback('Overujem doplnok a pripravujem referenčný výkres…', 'busy', feedback);
       try {
         const snapshot = X.cadSnapshot(state.project, state.result, { dimensions: state.dimensions, trajectories: state.trace, samples: state.samples, references: traceReferences(), traceSpace: state.traceSpace, slotOutlines: state.cadSlotOutlines });
-        await CAD.send(snapshot, String(data.get('key')), (message) => { if ($('#fusion-status')) $('#fusion-status').textContent = message; });
-        if ($('#fusion-status')) $('#fusion-status').textContent = 'Fusion potvrdil vytvorenie nového referenčného výkresu.';
+        await CAD.send(snapshot, String(data.get('key')).trim(), (message) => fusionFeedback(message, 'busy', feedback));
+        fusionFeedback('Fusion potvrdil vytvorenie nového referenčného výkresu.', 'ready', feedback);
         toast('Nový referenčný výkres bol vytvorený vo Fusion.');
-      } catch (error) { if ($('#fusion-status')) $('#fusion-status').textContent = error.message; }
+      } catch (error) { fusionFeedback(error.message, 'error', feedback); }
       finally { if (button.isConnected) button.disabled = false; }
       return;
     }

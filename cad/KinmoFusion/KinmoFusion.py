@@ -93,7 +93,7 @@ def run(_context):
             return
         origin, cancelled = ui.inputBox(
             "Enter the exact Kinematika Studio origin (scheme + host + optional port).\nOnly this website will be allowed. file:// is not supported.",
-            "KinmoFusion · allow application", "http://127.0.0.1:5173",
+            "KinmoFusion · allow application", "https://kinematicke-modely.marcel-bucala.workers.dev",
         )
         if cancelled:
             return

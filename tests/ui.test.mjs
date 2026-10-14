@@ -84,7 +84,7 @@ function controller(width = 1440) {
     download: (filename, content, type) => { context.downloaded = { filename, content, type }; },
     modal: (title, html, wide) => { context.dialog = { title, html, wide }; },
   });
-  for (const name of ['onLostPointerCapture', 'connectionDiagram', 'touchStart', 'touchMove', 'touchEnd', 'mainDimensionsSVG', 'previewConnection', 'confirmConnection', 'propertiesOverview', 'buildShell', 'updateInspectorVisibility', 'setInspectorOpen', 'updatePanelVisibility', 'toggleViewPanel', 'selectElement', 'selectTarget', 'repairSelection', 'memberSelected', 'selectedNodeReferences', 'defaultTraceReference', 'closeContextMenu', 'jointPoints', 'canvasHit', 'contextItems', 'openContextMenu', 'onContextMenu', 'pushHistory', 'undo', 'editCanvas', 'deleteSelected', 'fixSelected', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onCanvasSubmit', 'animate', 'templateCards', 'projectsModal', 'canSelectText', 'onKeyboard', 'wireEvents', 'manipulationSVG', 'transformModal', 'submitTransform', 'renderDiagnostics', 'toggleSmartSnap', 'findDragSnap', 'smartSnapSVG', 'offerSnapConnection', 'submitSnapConnection', 'readCollection', 'writeCollection', 'collectionRecord', 'recordSaveModal', 'draftRecord', 'submitWorkbenchSave', 'exportCollection', 'importCollection', 'collectionErrorModal', 'assembliesModal', 'insertLibraryModal', 'submitLibraryInsert', 'revisionsModal', 'restoreRevisionModal', 'confirmRevisionRestore', 'comparisonModal', 'submitRevisionComparison', 'deleteRecordModal', 'confirmRecordDelete', 'loadProject', 'replaceProject', 'exportModal', 'fusionModal', 'onChange', 'magicBounds', 'magicImageSVG', 'renderMagicReference', 'magicDrawingSVG', 'magicWorking', 'magicActionAllowed', 'startMagicImport', 'renderMagicImport', 'setMagicStep', 'nextMagicStep', 'pickMagicImage', 'onSubmit', 'onMagicImage', 'submitMagicScale', 'selectMagicTool', 'clearMagicDrawing', 'commitMagicDrawing', 'magicPointer', 'onMagicSetting', 'persistMagicProjects', 'magicOriginalPreserved', 'submitMagicFinish', 'cancelMagicImport', 'addElement', 'setTool', 'connectPoint', 'onContextAction', 'sceneMarkup', 'drawElement', 'drawDoubleDrawer', 'drawElastic', 'panelPolygon', 'node', 'dimHorizontal', 'groundGlyph', 'traceLabel', 'gifOptions', 'gifModal', 'updateGIFEstimate', 'gifProgress', 'cancelGIF', 'checkGIF', 'gifSource', 'gifFrameCanvas', 'exportGIF', 'gifError']) {
+  for (const name of ['fusionFeedback', 'checkFusionConnection', 'onLostPointerCapture', 'connectionDiagram', 'touchStart', 'touchMove', 'touchEnd', 'mainDimensionsSVG', 'previewConnection', 'confirmConnection', 'propertiesOverview', 'buildShell', 'updateInspectorVisibility', 'setInspectorOpen', 'updatePanelVisibility', 'toggleViewPanel', 'selectElement', 'selectTarget', 'repairSelection', 'memberSelected', 'selectedNodeReferences', 'defaultTraceReference', 'closeContextMenu', 'jointPoints', 'canvasHit', 'contextItems', 'openContextMenu', 'onContextMenu', 'pushHistory', 'undo', 'editCanvas', 'deleteSelected', 'fixSelected', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onCanvasSubmit', 'animate', 'templateCards', 'projectsModal', 'canSelectText', 'onKeyboard', 'wireEvents', 'manipulationSVG', 'transformModal', 'submitTransform', 'renderDiagnostics', 'toggleSmartSnap', 'findDragSnap', 'smartSnapSVG', 'offerSnapConnection', 'submitSnapConnection', 'readCollection', 'writeCollection', 'collectionRecord', 'recordSaveModal', 'draftRecord', 'submitWorkbenchSave', 'exportCollection', 'importCollection', 'collectionErrorModal', 'assembliesModal', 'insertLibraryModal', 'submitLibraryInsert', 'revisionsModal', 'restoreRevisionModal', 'confirmRevisionRestore', 'comparisonModal', 'submitRevisionComparison', 'deleteRecordModal', 'confirmRecordDelete', 'loadProject', 'replaceProject', 'exportModal', 'fusionModal', 'onChange', 'magicBounds', 'magicImageSVG', 'renderMagicReference', 'magicDrawingSVG', 'magicWorking', 'magicActionAllowed', 'startMagicImport', 'renderMagicImport', 'setMagicStep', 'nextMagicStep', 'pickMagicImage', 'onSubmit', 'onMagicImage', 'submitMagicScale', 'selectMagicTool', 'clearMagicDrawing', 'commitMagicDrawing', 'magicPointer', 'onMagicSetting', 'persistMagicProjects', 'magicOriginalPreserved', 'submitMagicFinish', 'cancelMagicImport', 'addElement', 'setTool', 'connectPoint', 'onContextAction', 'sceneMarkup', 'drawElement', 'drawDoubleDrawer', 'drawElastic', 'panelPolygon', 'node', 'dimHorizontal', 'groundGlyph', 'traceLabel', 'gifOptions', 'gifModal', 'updateGIFEstimate', 'gifProgress', 'cancelGIF', 'checkGIF', 'gifSource', 'gifFrameCanvas', 'exportGIF', 'gifError']) {
     const definition = source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))?.[0];
     assert(definition, `Missing UI function ${name}`);
     vm.runInContext(definition, context);
@@ -2176,4 +2176,29 @@ test('Mobile geometry handles are opt-in while precise editing commands stay ava
  assert.equal(context.manipulationSVG(1),'');assert(!element('#manipulation-tools').hidden);assert(element('#manipulation-tools').innerHTML.includes('edit-length'));
  context.mobileToolsModal('selection');assert(context.dialog.html.includes('mobile-handles'));
  state.mobileHandles=true;assert(context.manipulationSVG(1).includes('data-edit-handle="length"'));assert.equal(state.history.length,0);
+});
+
+
+test('Rail and frame rendering follows the thickness changed by the editor instead of a fixed stroke',()=>{
+ for(const type of ['rail','ground']){
+  const {context,state}=controller(),K=context.K,e={...K.makeElement(type,0,0),id:'thick'};
+  state.project=K.validateProject({...K.preset('custom'),elements:[e]});
+  const key=type==='rail'?'slotWidth':'width';
+  for(const size of [16,60,255]){
+   state.project=context.W.setThickness(state.project,e.id,size);state.result=context.E.design(state.project,0);
+   const current=state.project.elements[0],html=context.drawElement(current,state.result.poses[e.id],state.result);
+   assert.equal(current[key],size);assert(html.includes(`stroke-width="${size}"`),type+' '+size);
+   assert.equal(context.W.thickness(current).value,size);
+  }
+ }
+});
+
+test('Fusion connection checking immediately shows progress, reports errors visibly and can be retried without sending geometry',async()=>{
+ const {context,element}=controller(),status=element('#fusion-status'),button=element('#fusion-check');button.isConnected=true;
+ element('#fusion-form').elements={key:{value:' mock-pairing-value-not-a-real-key '}};
+ let release,calls=0;context.CAD.status=key=>{assert.equal(key,'mock-pairing-value-not-a-real-key');calls++;return new Promise(resolve=>release=resolve);};
+ const pending=context.checkFusionConnection(button);assert.equal(status.dataset.state,'busy');assert(button.disabled);assert(status.textContent.includes('Overujem'));
+ release({});await pending;assert.equal(status.dataset.state,'ready');assert(!button.disabled);
+ context.CAD.status=async()=>{calls++;throw Error('Port 8765 nie je dostupný');};
+ await context.checkFusionConnection(button);assert.equal(status.dataset.state,'error');assert.equal(status.textContent,'Port 8765 nie je dostupný');assert(!button.disabled);assert.equal(calls,2);
 });

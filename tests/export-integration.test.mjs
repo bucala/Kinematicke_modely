@@ -168,3 +168,9 @@ test('Canvas modules and regression cases are in the public build and explicit p
     assert(publisher.includes(`'${file}'`)); assert(!build.includes(`'${file}'`));
   }
 });
+
+
+test('CAD accepts a key pasted with surrounding spaces and reports a rejected origin separately',async()=>{
+ const {api,calls}=cad([ready()]);await api.status('  '+mockKey+'  ');assert.equal(calls[0].options.headers['X-Kinmo-Key'],mockKey);
+ const rejected=cad([{ok:false,status:403}]);await assert.rejects(rejected.api.status(mockKey),/403.*pôvod/);
+});

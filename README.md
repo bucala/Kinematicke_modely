@@ -986,3 +986,6 @@ tests/browser.html     Test runner priamo v prehliadači
 
 
 Na mobile je horná lišta rozdelená na **Prvky** (knižnica) a **Ponuka** (nastavenia, inšpektor, história a zobrazenie plátna). **Nástroje** otvoria pohyb, zostavy a kontrolu modelu; tlačidlo s názvom vybraného prvku otvorí jeho úpravy. Nástroje plátna sú v jednom spodnom rade, bez automatického informačného panelu nad mechanizmom. Geometrické úchyty sa na mobile zapínajú až cez **Zobraziť úchyty na plátne** v úpravách výberu; presné číselné úpravy sú dostupné aj bez nich. Svetlé sekundárne plochy a ikony majú čisté biele pozadie, texty používajú kontrastné odtiene aktuálneho skinu. Build verzuje odkazy na CSS a skripty podľa ich obsahu, aby prehliadač po aktualizácii nekombinoval staré a nové súbory.
+
+
+Šírka samostatného lineárneho vedenia a hrúbka rámu sa vykresľujú podľa ich rozmeru, vrátane zmien úchytom a číselným zadaním. Pri vedení sa upravuje `slotWidth` (šírka vedenia); rozmery vozíka ostávajú samostatné. Fusion zobrazuje priebeh overenia, úspech a chybu priamo v dialógu. Overenie spojenia nevytvorí dokument. Doplnok 1.0.1 predvolene ponúka nasadený pôvod aplikácie; pri inom webe alebo lokálnom serveri ho zmeňte na presnú adresu. Po aktualizácii alebo zmene pôvodu zastavte a znovu spustite KinmoFusion a použite nový párovací kľúč.

@@ -144,7 +144,7 @@
     if (!element || element.primary) return null;
     const key = K.isElastic(element) ? 'diameter' : ['bearing', 'node', 'cam'].includes(element.type) ? 'radius' : ['slot', 'rail'].includes(element.type) ? 'slotWidth' : 'width';
     const span = key === 'width' && element.outline?.length ? Math.max(...element.outline.map(p => p.y)) - Math.min(...element.outline.map(p => p.y)) : 0;
-    return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : 'Hrúbka' };
+    return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : element.type === 'rail' ? 'Šírka vedenia' : element.type === 'slot' ? 'Šírka drážky' : 'Hrúbka' };
   }
   function setThickness(project, id, value) {
     const p = K.copy(project), e = p.elements.find((e) => e.id === id), size = thickness(e);

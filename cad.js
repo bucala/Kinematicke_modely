@@ -5,6 +5,7 @@
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   async function request(path, key, body) {
     if (!['http:', 'https:'].includes(global.location?.protocol)) throw new Error('Priame prepojenie s Fusion vyžaduje HTTP(S), nie file://. Použite lokálny server alebo DXF.');
+    if (typeof key === 'string' && !/[\r\n]/.test(key)) key = key.trim();
     if (typeof key !== 'string' || key.length < 20 || key.length > 100 || /[\r\n]/.test(key)) throw new Error('Vložte dočasný párovací kľúč z doplnku Fusion.');
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8000);
     try {
@@ -13,11 +14,11 @@
         headers: { 'X-Kinmo-Key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
         ...(body ? { body: JSON.stringify(body) } : {}), signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`Fusion odpovedal ${response.status}. Skontrolujte kľúč, povolený pôvod aplikácie a rozbehnutý doplnok.`);
+      if (!response.ok) throw new Error(response.status === 401 ? 'Fusion odpovedal 401: párovací kľúč nie je platný. Po reštarte doplnku použite nový kľúč z Fusion.' : response.status === 403 ? 'Fusion odpovedal 403: pôvod aplikácie nie je povolený. Zastavte a znovu spustite KinmoFusion a povoľte presnú adresu z tohto dialógu.' : `Fusion odpovedal ${response.status}. Skontrolujte rozbehnutý doplnok.`);
       return await response.json();
     } catch (error) {
       if (error.name === 'AbortError') throw new Error('Lokálne spojenie s Fusion neodpovedá. Skontrolujte doplnok a port 8765.');
-      if (error instanceof TypeError) throw new Error('Prehliadač nemá spojenie s Fusion. Spustite doplnok, povoľte lokálnu sieť a skontrolujte presný pôvod aplikácie. Alternatíva: export DXF.');
+      if (error instanceof TypeError) throw new Error('Prehliadač nedosiahol lokálny doplnok Fusion. V Chrome otvorte ikonu vedľa adresy → Nastavenia webu a povoľte lokálnu sieť, potom zopakujte overenie. Vo Fusion musí bežať KinmoFusion na porte 8765 s presným pôvodom aplikácie uvedeným v dialógu. Ak doplnok povoľuje inú adresu, zastavte ho a spustite znova. Z prehliadača nemožno rozlíšiť zablokovaný prístup, nesprávny pôvod a zastavený doplnok. Alternatíva: export DXF.');
       throw error;
     } finally { clearTimeout(timer); }
   }

@@ -1327,3 +1327,7 @@ dialog::backdrop { background: #10182066; backdrop-filter: blur(4px); }
 }
 [data-theme] :is(.component-symbol, .selection-icon) { background: var(--paper); border-color: var(--border); --icon-bg: var(--paper); }
 [data-theme] :is(.rail-label, .slot-label, .panel-label, .arm-label, .angle-label, .panel-dimension, .trace-label, .measure-label, .dimension-label) { fill: var(--secondary); paint-order: stroke; stroke: var(--paper); stroke-width: 2px; stroke-linejoin: round; }
+.fusion-feedback { padding: 14px; margin: 16px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.fusion-feedback[data-state="busy"] { border-color: var(--accent); }
+.fusion-feedback[data-state="ready"] { background: var(--success-bg); color: var(--success-ink); border-color: var(--success-border); }
+.fusion-feedback[data-state="error"] { background: var(--warning-bg); color: var(--warning-ink); border-color: var(--warning-border); }
