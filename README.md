@@ -967,3 +967,15 @@ tests/browser.html     Test runner priamo v prehliadači
 </details>
 
 **[Naspäť na navigáciu](#navigation)** · **[Spustenie](#start)** · **[Návod Fusion](cad/KinmoFusion/README.md)** · **[História zmien](CHANGELOG.md)** · **[Overenie](VALIDATION.md)** · **[Nasadenie](DEPLOYMENT.md)**
+
+
+## Jednoduchšia kontrola a hlavné rozmery
+
+- **Hlavné rozmery** v hornej lište plátna zapínajú informačnú šírku a výšku viditeľnej geometrie v mm. Nastavenie sa ukladá. **Ďalšie nástroje → Prehľad rozmerov** ukáže dĺžky A–B členov a pracovné rozsahy pružín / piestov. Predloha a texty rozmery nezväčšujú.
+- **Ďalšie nástroje → Prečo sa nehýbe?** vysvetlí fixované telesá, uloženie vedenia, konflikty väzieb a nesprávne zdvihy. Vybraný problém označí prvok; navrhnuté opravy nadväzujú na existujúce editory a históriu Späť.
+- Nové spojenie nástrojom **J** alebo po snappingu najprv zobrazí náhľad. Môžete zmeniť typ väzby, vidieť výslednú geometriu a zmenu počtu voľných súradníc. Konflikt vyžaduje výslovné potvrdenie. Zrušenie nemení model; potvrdenie snappingu zachová spoločný krok Späť pre presun a spojenie.
+- **Overiť celý cyklus** preverí 201 polôh od minima po maximum, vrátane kolízií a pracovných rozsahov pružných členov. Klik na problém zobrazí jeho polohu a diagnostiku. Kontrolu možno zrušiť. Je vzorkovaná a nie je časovou simuláciou voľného pohybu zo síl.
+- Na dotykovej obrazovke podržanie približne **0,55 s** otvorí kontextovú ponuku. Dva prsty posúvajú a približujú pohľad; nemenia geometriu ani históriu. Uzly majú väčšiu dotykovú oblasť.
+- **Vlastnosti…** otvoria jednotný prehľad geometrie, spojení, uloženia a dostupných pohonov / limitov. Pružné členy majú **Konštrukčné rozmery a zdvih**: minimum, maximum a voľná dĺžka sa potvrdzujú spoločne. Piestnica sa musí zmestiť do valca; neplatné rozmery sa nevložia a dôvod sa zobrazuje počas zadávania.
+- Magic import má v kontrole samostatný prehľad telies, čapov a nepotvrdených väzieb. Neisté tvary sú zvýraznené a možno sa vrátiť k ich úprave nad zdrojovým obrázkom. Náhľad rozpoznaných obrysov zachová predlohu v pozadí.
+- **Ďalšie nástroje → Nahlásiť problém** stiahne lokálny JSON balík s popisom, natívnym projektom, diagnostikou a zaznamenanou polohou telies. Zdrojové fotografie sa vynechajú. Balík možno otvoriť cez existujúci import projektu; pri ďalšom pohybe sa model opäť vypočíta. Súbor sa nikam automaticky neposiela.

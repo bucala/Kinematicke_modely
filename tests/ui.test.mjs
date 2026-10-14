@@ -16,6 +16,7 @@ import '../scene-export.js';
 import '../gif-export.js';
 import '../exports.js';
 import '../context-menu.js';
+import '../usability.js';
 import './gif-decoder.js';
 
 const source = await readFile(new URL('../app.js', import.meta.url), 'utf8');
@@ -57,7 +58,7 @@ function controller(width = 1440) {
     history: [], historySelections: [], future: [], futureSelections: [],
   };
   const context = vm.createContext({
-    state, document, location: { protocol: 'https:', origin: 'https://app.example.com' }, window: { innerWidth: width, addEventListener() {}, getSelection: () => ({ removeAllRanges() {} }) }, $: element,
+    KinmoUsability: globalThis.KinmoUsability, state, document, location: { protocol: 'https:', origin: 'https://app.example.com' }, window: { innerWidth: width, addEventListener() {}, getSelection: () => ({ removeAllRanges() {} }) }, $: element,
     icon: () => '', escape: (value) => String(value), fmt: (value) => String(value), svgNS: 'http://www.w3.org/2000/svg',
     line: (a, b, attributes = '') => `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${attributes}/>`,
     ib: (name, action, title, active = false, extra = '') => `<button data-action="${action}" ${extra}></button>`,
@@ -83,7 +84,7 @@ function controller(width = 1440) {
     download: (filename, content, type) => { context.downloaded = { filename, content, type }; },
     modal: (title, html, wide) => { context.dialog = { title, html, wide }; },
   });
-  for (const name of ['buildShell', 'updateInspectorVisibility', 'setInspectorOpen', 'updatePanelVisibility', 'toggleViewPanel', 'selectElement', 'selectTarget', 'repairSelection', 'memberSelected', 'selectedNodeReferences', 'defaultTraceReference', 'closeContextMenu', 'jointPoints', 'canvasHit', 'contextItems', 'openContextMenu', 'onContextMenu', 'pushHistory', 'undo', 'editCanvas', 'deleteSelected', 'fixSelected', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onCanvasSubmit', 'animate', 'templateCards', 'projectsModal', 'canSelectText', 'onKeyboard', 'wireEvents', 'manipulationSVG', 'transformModal', 'submitTransform', 'renderDiagnostics', 'toggleSmartSnap', 'findDragSnap', 'smartSnapSVG', 'offerSnapConnection', 'submitSnapConnection', 'readCollection', 'writeCollection', 'collectionRecord', 'recordSaveModal', 'draftRecord', 'submitWorkbenchSave', 'exportCollection', 'importCollection', 'collectionErrorModal', 'assembliesModal', 'insertLibraryModal', 'submitLibraryInsert', 'revisionsModal', 'restoreRevisionModal', 'confirmRevisionRestore', 'comparisonModal', 'submitRevisionComparison', 'deleteRecordModal', 'confirmRecordDelete', 'loadProject', 'replaceProject', 'exportModal', 'fusionModal', 'onChange', 'magicBounds', 'magicImageSVG', 'renderMagicReference', 'magicDrawingSVG', 'magicWorking', 'magicActionAllowed', 'startMagicImport', 'renderMagicImport', 'setMagicStep', 'nextMagicStep', 'pickMagicImage', 'onSubmit', 'onMagicImage', 'submitMagicScale', 'selectMagicTool', 'clearMagicDrawing', 'commitMagicDrawing', 'magicPointer', 'onMagicSetting', 'persistMagicProjects', 'magicOriginalPreserved', 'submitMagicFinish', 'cancelMagicImport', 'addElement', 'setTool', 'connectPoint', 'onContextAction', 'sceneMarkup', 'drawElement', 'drawDoubleDrawer', 'drawElastic', 'panelPolygon', 'node', 'dimHorizontal', 'groundGlyph', 'traceLabel', 'gifOptions', 'gifModal', 'updateGIFEstimate', 'gifProgress', 'cancelGIF', 'checkGIF', 'gifSource', 'gifFrameCanvas', 'exportGIF', 'gifError']) {
+  for (const name of ['onLostPointerCapture', 'connectionDiagram', 'touchStart', 'touchMove', 'touchEnd', 'mainDimensionsSVG', 'previewConnection', 'confirmConnection', 'propertiesOverview', 'buildShell', 'updateInspectorVisibility', 'setInspectorOpen', 'updatePanelVisibility', 'toggleViewPanel', 'selectElement', 'selectTarget', 'repairSelection', 'memberSelected', 'selectedNodeReferences', 'defaultTraceReference', 'closeContextMenu', 'jointPoints', 'canvasHit', 'contextItems', 'openContextMenu', 'onContextMenu', 'pushHistory', 'undo', 'editCanvas', 'deleteSelected', 'fixSelected', 'onPointerDown', 'onPointerMove', 'onPointerUp', 'onCanvasSubmit', 'animate', 'templateCards', 'projectsModal', 'canSelectText', 'onKeyboard', 'wireEvents', 'manipulationSVG', 'transformModal', 'submitTransform', 'renderDiagnostics', 'toggleSmartSnap', 'findDragSnap', 'smartSnapSVG', 'offerSnapConnection', 'submitSnapConnection', 'readCollection', 'writeCollection', 'collectionRecord', 'recordSaveModal', 'draftRecord', 'submitWorkbenchSave', 'exportCollection', 'importCollection', 'collectionErrorModal', 'assembliesModal', 'insertLibraryModal', 'submitLibraryInsert', 'revisionsModal', 'restoreRevisionModal', 'confirmRevisionRestore', 'comparisonModal', 'submitRevisionComparison', 'deleteRecordModal', 'confirmRecordDelete', 'loadProject', 'replaceProject', 'exportModal', 'fusionModal', 'onChange', 'magicBounds', 'magicImageSVG', 'renderMagicReference', 'magicDrawingSVG', 'magicWorking', 'magicActionAllowed', 'startMagicImport', 'renderMagicImport', 'setMagicStep', 'nextMagicStep', 'pickMagicImage', 'onSubmit', 'onMagicImage', 'submitMagicScale', 'selectMagicTool', 'clearMagicDrawing', 'commitMagicDrawing', 'magicPointer', 'onMagicSetting', 'persistMagicProjects', 'magicOriginalPreserved', 'submitMagicFinish', 'cancelMagicImport', 'addElement', 'setTool', 'connectPoint', 'onContextAction', 'sceneMarkup', 'drawElement', 'drawDoubleDrawer', 'drawElastic', 'panelPolygon', 'node', 'dimHorizontal', 'groundGlyph', 'traceLabel', 'gifOptions', 'gifModal', 'updateGIFEstimate', 'gifProgress', 'cancelGIF', 'checkGIF', 'gifSource', 'gifFrameCanvas', 'exportGIF', 'gifError']) {
     const definition = source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))?.[0];
     assert(definition, `Missing UI function ${name}`);
     vm.runInContext(definition, context);
@@ -835,6 +836,7 @@ for (const width of [393, 1440]) {
     context.setTool('connect');
     context.onPointerDown(at); assert.equal(state.pendingJoint.elementId, 'fixed');
     context.onPointerDown(at);
+    if (state.connectionReview) context.confirmConnection(new Map([['accept-conflict','on']]));
     assert.equal(state.project.connections.length, 1);
     assert.equal(state.project.connections[0].a.elementId, 'fixed');
     assert.equal(state.project.connections[0].b.elementId, 'member');
@@ -1085,6 +1087,7 @@ test('Connecting a roller to a cam creates contact; a nonroller fails without a 
   context.addElement('bearing', { x: 200, y: 120 }); const roller = state.project.elements.at(-1);
   const history = state.history.length;
   context.connectPoint({ elementId: roller.id, point: 'a' }); context.connectPoint({ elementId: cam.id, point: 'curve' });
+  assert.equal(state.history.length, history); context.confirmConnection(new Map([['accept-conflict','on']]));
   assert.equal(state.project.connections.at(-1).type, 'cam-contact'); assert.equal(state.history.length, history + 1);
   context.connectPoint({ elementId: 'body', point: 'a' }); context.connectPoint({ elementId: cam.id, point: 'curve' });
   assert.equal(state.history.length, history + 1); assert.equal(state.project.connections.length, 1);
@@ -1771,6 +1774,7 @@ test('Wizard member drop, connection tool and motor forms operate on the same me
   const floor = state.project.elements[0]; context.setMagicStep(4);
   context.addElement('link', { x: 0, y: 0 }); const link = state.project.elements[1];
   context.connectPoint({ elementId: floor.id, point: 'a' }); context.connectPoint({ elementId: link.id, point: 'a' });
+  context.confirmConnection(new Map([['accept-conflict','on']]));
   context.onCanvasSubmit({ dataset: { kind: 'motor', reference: `n:${link.id}:a` } }, new Map(Object.entries({ enabled: 'on', mode: 'rotary', angle: '0', speed: '20', min: '0', max: '90' })));
   assert.equal(state.project.connections.length, 1); assert(state.project.elements[1].drive); assert.equal(state.project.elements[1].driveSpeed, 20);
   assert.equal(state.history.length, 4); assert(state.magic.geometryStarted);
@@ -2034,4 +2038,45 @@ test('Mobile context menus keep all commands reachable in a compact menu', () =>
   const commands = items => items.flatMap(i => i.items ? commands(i.items) : i.id ? [i.id] : []);
   assert.deepEqual([...commands(mobile)].sort(), [...commands(desktop)].sort());
   assert(mobile.length <= 6); assert(mobile.some(i => i.label === 'Ďalšie možnosti…'));
+});
+
+test('Manual linking requires a preview, records no edit on cancel, and rejects a stale confirmation', () => {
+  const {context,state}=controller();
+  const a={elementId:'body',point:'b'},b={elementId:'another-body',point:'a'};
+  const before=JSON.stringify(state.project),history=state.history.length;
+  context.connectPoint(a);context.connectPoint(b);
+  assert(state.connectionReview);assert.equal(JSON.stringify(state.project),before);assert.equal(state.history.length,history);
+  state.project.name='Changed while reviewing';
+  assert.throws(()=>context.confirmConnection(new Map()),/Model sa zmenil/);
+  assert.equal(state.project.connections.length,0);assert.equal(state.history.length,history);
+});
+test('Touch pinch changes the viewport without editing bodies or recording history', () => {
+  const {context,state}=controller(393);state.view={x:0,y:0,width:800,height:450};
+  const before=JSON.stringify(state.project),event=(id,x,y)=>({pointerType:'touch',pointerId:id,clientX:x,clientY:y,preventDefault(){},target:{closest:()=>null}});
+  assert.equal(context.touchStart(event(1,100,100)),false);assert.equal(context.touchStart(event(2,200,100)),true);
+  assert.equal(context.touchMove(event(2,300,100)),true);assert.equal(state.view.width,400);
+  assert.equal(JSON.stringify(state.project),before);assert.equal(state.history.length,0);
+  context.touchEnd(event(2,300,100));context.touchEnd(event(1,100,100));assert.equal(state.touchGesture,null);
+});
+test('Main dimension overlay is opt-in and labels physical millimetres', () => {
+  const {context,state}=controller();assert.equal(context.mainDimensionsSVG(state.result,1),'');
+  state.mainDimensions=true;const drawing=context.mainDimensionsSVG(state.result,1);
+  assert.match(drawing,/Šírka .* mm/);assert.match(drawing,/Výška .* mm/);assert.match(drawing,/pointer-events="none"/);
+  assert.equal(state.project.dimensions.length,0);
+});
+
+test('A second touch rolls back an initial placement and preserves the placement tool',()=>{
+ const {context,state}=controller(393);state.view={x:0,y:0,width:800,height:450};state.insertingType='link';state.tool='place';
+ const event=(id,x)=>({pointerType:'touch',pointerId:id,clientX:x,clientY:100,button:0,preventDefault(){},target:{closest:()=>null}}),before=JSON.stringify(state.project);
+ context.onPointerDown(event(1,100));assert.equal(state.project.elements.length,2);assert(state.touchGesture.deferred);
+ context.onPointerDown(event(2,200));assert.equal(JSON.stringify(state.project),before);assert.equal(state.history.length,0);assert.equal(state.insertingType,'link');assert.equal(state.tool,'place');
+});
+
+
+test('Rerender capture loss keeps an active drag, but release or a dialog cancels it',()=>{
+ const {context,state,element}=controller();let recaptured=0,cancelled=0;
+ element('#mechanism-canvas').setPointerCapture=()=>{recaptured++;};context.onPointerUp=()=>{cancelled++;state.drag=null;};
+ state.drag={pointerId:7};context.onLostPointerCapture({pointerId:7,buttons:1});assert(state.drag);assert.equal(recaptured,1);assert.equal(cancelled,0);
+ context.onLostPointerCapture({pointerId:7,buttons:0});assert.equal(cancelled,1);assert.equal(state.drag,null);
+ state.drag={pointerId:7};element('#modal').open=true;context.onLostPointerCapture({pointerId:7,buttons:1});assert.equal(cancelled,2);assert.equal(recaptured,1);
 });

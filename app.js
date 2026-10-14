@@ -103,7 +103,7 @@
     selectedElementIds: initialSelection ? [I.elementKey(initialSelection)] : [], hoveredTargetId: null,
     contextMenuState: { isOpen: false, x: 0, y: 0, targetId: null, targetType: 'canvas' },
     motion: K.driveRange(initialProject).min, playing: false, direction: 1, speed: 1, loop: true, cycle: 6,
-    grid: true, dimensions: true, ghosts: true, trace: true, labels: true, profileVisible: false, timelineVisible: false, collisions: true, snap: true, angleSnap: false,
+    mainDimensions: false, grid: true, dimensions: true, ghosts: true, trace: true, labels: true, profileVisible: false, timelineVisible: false, collisions: true, snap: true, angleSnap: false,
     traceRef: initialProject.kind === DD.KIND ? { elementId: 'bearing-1', point: 'a' } : { elementId: initialSelection || '', point: K.defaultTracePoint(initialProject.elements.find((e) => e.id === initialSelection)) },
     traceMode: initialProject.kind === DD.KIND ? 'bearings' : 'single', traceSpace: 'world',
     tool: 'select', sidebarTab: 'elements', inspectorTab: 'geometry', inspectorOpen: false, analysis: false,
@@ -281,6 +281,7 @@
     const b = state.magic?.image ? magicBounds() : K.bounds(state.project, state.samples);
     const ref = state.project.importReference;
     if (!state.magic && ref?.visible) { const r = ref.frames[ref.active].rect, x = Math.min(b.x, r.x), y = Math.min(b.y, r.y); b.width = Math.max(b.x + b.width, r.x + r.width) - x; b.height = Math.max(b.y + b.height, r.y + r.height) - y; b.x = x; b.y = y; }
+    if(state.mainDimensions&&!state.magic){const margin=Math.max(b.width,b.height)*.08;b.x-=margin;b.y-=margin;b.width+=margin*2;b.height+=margin*2;}
     const aspect = rect?.width && rect?.height ? rect.width / rect.height : 1.8;
     if (b.width / b.height > aspect) {
       const h = b.width / aspect;
@@ -394,7 +395,7 @@
           </div>
         </aside>
         <section class="center-workspace">
-          <div class="stage-header"><div class="segmented mode-switch" aria-label="Režim mechanizmu"><button data-action="mode-edit">Úprava geometrie</button><button data-action="mode-simulate">Simulácia</button></div><button class="subtle-button editable-copy" data-action="make-editable" title="Zachovať originál a vytvoriť voľnú editačnú kópiu">${icon('copy', 14)}<span>Voľná kópia</span></button><div class="stage-toggles" aria-label="Viditeľnosť plátna">${ib('grid', 'grid', 'Zobraziť mriežku', state.grid, 'aria-pressed="true"')}${ib('ruler', 'dimensions', 'Zobraziť rozmery', state.dimensions, 'aria-pressed="true"')}${ib('layers', 'ghosts', 'Zobraziť krajné polohy', state.ghosts, 'aria-pressed="true"')}${ib('trace', 'trace', 'Zobraziť trajektóriu', state.trace, 'aria-pressed="true"')}${ib('text', 'labels', 'Skryť texty, názvy a uhly schémy', state.labels, 'aria-pressed="true"')}</div></div>
+          <div class="stage-header"><div class="segmented mode-switch" aria-label="Režim mechanizmu"><button data-action="mode-edit">Úprava geometrie</button><button data-action="mode-simulate">Simulácia</button></div><button class="subtle-button editable-copy" data-action="make-editable" title="Zachovať originál a vytvoriť voľnú editačnú kópiu">${icon('copy', 14)}<span>Voľná kópia</span></button><div class="stage-toggles" aria-label="Viditeľnosť plátna">${ib('grid', 'grid', 'Zobraziť mriežku', state.grid, 'aria-pressed="true"')}<button class="main-dimensions-toggle" data-action="main-dimensions" aria-pressed="false">Hlavné rozmery</button>${ib('ruler', 'dimensions', 'Zobraziť rozmery', state.dimensions, 'aria-pressed="true"')}${ib('layers', 'ghosts', 'Zobraziť krajné polohy', state.ghosts, 'aria-pressed="true"')}${ib('trace', 'trace', 'Zobraziť trajektóriu', state.trace, 'aria-pressed="true"')}${ib('text', 'labels', 'Skryť texty, názvy a uhly schémy', state.labels, 'aria-pressed="true"')}</div></div>
           <div class="canvas-area" id="canvas-area">
             <div class="scene-heading"><span class="eyebrow">KINEMATICKÝ MODEL</span><h1 id="scene-name">${escape(state.project.name)}</h1><p>Bočný pohľad <span>·</span> Rovinný mechanizmus</p><button id="project-assumptions" class="estimate-chip" data-action="project-info" hidden>${icon('info', 12)}Odhadové rozmery · predpoklady</button></div>
             <div class="scene-status" id="scene-status">${icon('check', 13)}<span>Pohyb bez kolízií</span></div>
@@ -502,7 +503,7 @@
   function elasticGeometry(e) {
     const spring = e.type.startsWith('spring-'), compression = e.type === 'spring-compression', pulling = ['spring-extension', 'piston-pull'].includes(e.type);
     const force = state.result.forces?.find((v) => v.id === e.id), geometry = !spring && K.pistonGeometry(e), needsFit = !spring && (!geometry.fits || selectedPose()?.length > e.maxLength + K.TOLERANCE || selectedPose()?.length < e.minLength - K.TOLERANCE);
-    return section('Pracovný rozsah', `<label class="property-field"><span>Rozmery pri montáži</span><select id="range-mode" class="property-select"><option value="auto"${e.rangeMode !== 'manual' ? ' selected' : ''}>Automaticky podľa montáže</option><option value="manual"${e.rangeMode === 'manual' ? ' selected' : ''}>Vlastné pracovné dorazy</option></select></label><p class="section-description">Automatický rozsah zachová tuhosť pružiny. Ručne zadané minimum a maximum sa pri pohybe dodržia.</p>`) + (!spring ? section('Funkcia piesta', `<label class="property-field"><span>Správanie</span><select id="actuator-mode" class="property-select"><option value="gas"${e.actuatorMode !== 'damper' ? ' selected' : ''}>Plynová vzpera · sila a tlmenie</option><option value="damper"${e.actuatorMode === 'damper' ? ' selected' : ''}>Tlmič · odpor proti rýchlosti</option></select></label><p class="section-description">Pri návrhovom predĺžení sa zväčší aj valec a pracovný rozsah. Pri simulovanom vysúvaní má valec stálu dĺžku.</p>${needsFit ? `<p class="analysis-warning">Pracovný rozsah alebo vzdialenosť čapov nezodpovedá konštrukcii valca.</p><button class="button button-secondary full-width" data-action="piston-fit">Prispôsobiť valec montáži</button>` : ''}`) : '') + section('Dĺžka medzi montážnymi čapmi', `${field(spring ? 'Voľná dĺžka L₀' : 'Referenčná dĺžka', 'restLength', e.restLength, 'mm', .1, 5000, .1, 'element')}${two(field('Minimálna dĺžka', 'minLength', e.minLength, 'mm', .1, 5000, .1, 'element'), field('Maximálna dĺžka', 'maxLength', e.maxLength, 'mm', .1, 5000, .1, 'element'))}<div class="analysis-metric"><span>Aktuálna dĺžka</span><strong>${fmt(selectedPose()?.length, 2)} <small>mm</small></strong></div>`) +
+    return '<button class="button button-secondary full-width" data-action="construction">Konštrukčné rozmery a zdvih…</button>' + section('Pracovný rozsah', `<label class="property-field"><span>Rozmery pri montáži</span><select id="range-mode" class="property-select"><option value="auto"${e.rangeMode !== 'manual' ? ' selected' : ''}>Automaticky podľa montáže</option><option value="manual"${e.rangeMode === 'manual' ? ' selected' : ''}>Vlastné pracovné dorazy</option></select></label><p class="section-description">Automatický rozsah zachová tuhosť pružiny. Ručne zadané minimum a maximum sa pri pohybe dodržia.</p>`) + (!spring ? section('Funkcia piesta', `<label class="property-field"><span>Správanie</span><select id="actuator-mode" class="property-select"><option value="gas"${e.actuatorMode !== 'damper' ? ' selected' : ''}>Plynová vzpera · sila a tlmenie</option><option value="damper"${e.actuatorMode === 'damper' ? ' selected' : ''}>Tlmič · odpor proti rýchlosti</option></select></label><p class="section-description">Pri návrhovom predĺžení sa zväčší aj valec a pracovný rozsah. Pri simulovanom vysúvaní má valec stálu dĺžku.</p>${needsFit ? `<p class="analysis-warning">Pracovný rozsah alebo vzdialenosť čapov nezodpovedá konštrukcii valca.</p><button class="button button-secondary full-width" data-action="piston-fit">Prispôsobiť valec montáži</button>` : ''}`) : '') + section('Dĺžka medzi montážnymi čapmi', `<div class="elastic-lengths"><div><span>${spring ? 'Voľná dĺžka L₀' : 'Referenčná dĺžka'}</span><strong>${fmt(e.restLength,2)} mm</strong></div><div><span>Minimum</span><strong>${fmt(e.minLength,2)} mm</strong></div><div><span>Maximum</span><strong>${fmt(e.maxLength,2)} mm</strong></div><div><span>Aktuálna dĺžka</span><strong>${fmt(selectedPose()?.length,2)} mm</strong></div></div><p class="section-description">Rozmery upravte spoločne cez Konštrukčné rozmery a zdvih.</p>`) +
       section('Priemery', `${field(spring ? 'Vonkajší priemer pružiny' : 'Priemer valca', 'diameter', e.diameter, 'mm', .1, 500, .1, 'element')}${field(spring ? 'Priemer drôtu' : 'Priemer tyče', spring ? 'wireDiameter' : 'rodDiameter', spring ? e.wireDiameter : e.rodDiameter, 'mm', .01, 500, .01, 'element')}`) +
       section(pulling ? 'Ťažná sila (sťahuje čapy)' : 'Tlačná sila (odtláča čapy)', `${spring ? `<label class="property-field"><span>Spôsob zadania sily</span><select class="property-select" id="force-mode"><option value="rated"${e.forceMode !== 'stiffness' ? ' selected' : ''}>F pri pracovnom limite</option><option value="stiffness"${e.forceMode === 'stiffness' ? ' selected' : ''}>Tuhosť k (N/mm)</option></select></label>${e.forceMode === 'stiffness' ? field('Tuhosť pružiny k', 'stiffness', e.stiffness, 'N/mm', 0, 100000, .001, 'element') : field(compression ? 'F pri minimálnej dĺžke' : 'F pri maximálnej dĺžke', 'force', e.force, 'N', 0, 1000000, .01, 'element')}${!compression ? field('Počiatočné predpätie F₀', 'preload', e.preload, 'N', 0, 1000000, .01, 'element') : ''}<p class="section-description">${compression ? 'Nad voľnou dĺžkou pružina netlačí. F = k · (L₀ − L).' : 'Pod voľnou dĺžkou je pružina voľná. Od L₀ ťahá silou F₀ + k · (L − L₀).'}</p>` : `${field('Referenčná sila F', 'force', e.force, 'N', 0, 1000000, .1, 'element')}${field('Pomer sily na konci zdvihu', 'progression', e.progression, '×', 1, 3, .01, 'element')}<p class="section-description">${pulling ? 'F pri minimálnej dĺžke, rastie pri vysúvaní.' : 'F pri maximálnej dĺžke, rastie pri zasúvaní.'} Pomer 1 znamená konštantnú silu. Nejde o pneumatický okruh ani výrobný model plynu.</p>`}${field('Osové tlmenie', 'damping', e.damping, 'N·s/m', 0, 100000, .1, 'element')}${!spring ? two(field('Tlmenie pri zasúvaní', 'dampingCompression', e.dampingCompression ?? e.damping, 'N·s/m', 0, 100000, .1, 'element'), field('Tlmenie pri vysúvaní', 'dampingExtension', e.dampingExtension ?? e.damping, 'N·s/m', 0, 100000, .1, 'element')) : ''}${field('Hmotnosť na voľnom čape', 'tipMass', e.tipMass, 'kg', .001, 1000, .001, 'element')}<p class="section-description">V režime Pohyb zo síl sa sila prenáša na pohon aj spoločné voľné čapy. Tlmenie pôsobí proti rýchlosti; hmotnosť určuje zrýchlenie.</p><div class="analysis-metric"><span>Výsledná osová sila</span><strong>${fmt(force?.magnitude || 0, 2)} <small>N</small></strong></div><div class="analysis-metric"><span>Pružná / plynová sila</span><strong id="live-nominal-force">${fmt(force?.nominalForce||0,2)} N</strong></div><div class="analysis-metric"><span>Odpor tlmenia</span><strong id="live-damping-force">${fmt(force?.dampingForce||0,2)} N</strong></div><button class="button button-secondary full-width" data-action="elastic-response">Náhľad návratu a tlmenia</button>`) +
       section('Montáž medzi telesami', `<label class="property-field"><span>Koniec A</span><select id="mount-a" class="property-select">${nodeOptions(K.elasticMount(state.project, e, 'a'), false, true, true)}</select></label><label class="property-field"><span>Koniec B</span><select id="mount-b" class="property-select">${nodeOptions(K.elasticMount(state.project, e, 'b'), false, true, true)}</select></label><p class="section-description">Sila sa prenesie medzi zvolené body. Pružný prvok nepredpisuje tuhú dĺžku. Koncové dĺžky sú dorazy, ktoré zastavia simuláciu.</p>`) +
@@ -627,7 +628,7 @@
     scale ||= Math.hypot(...['a', 'b'].map((v) => $('#mechanism-canvas').getScreenCTM()?.[v] || 0)) || 1;
     const r = 5 / scale;
     return `<g data-element="${escape(id)}" data-point="${key}" data-selection-key="${escape(identity)}" class="joint-node node-${kind}${active ? ' active' : ''}${state.hoveredTargetId === identity ? ' hovered' : ''}" role="button" tabindex="0" aria-pressed="${active}" aria-label="Uzol ${escape(label || `${state.project.elements.find((e) => e.id === id)?.name} · ${key.toUpperCase()}`)}, ${({ fixed: 'pevný', driven: 'poháňaný', free: 'voľný' })[kind]}">
-      <circle cx="${point.x}" cy="${point.y}" r="${11 / scale}" fill="transparent" stroke="none"/>
+      <circle cx="${point.x}" cy="${point.y}" r="${(window.innerWidth<=640 ? 22 : 11) / scale}" fill="transparent" stroke="none"/>
       <circle class="node-ring" cx="${point.x}" cy="${point.y}" r="${r}" fill="var(--paper)" stroke="var(--node-${kind})" stroke-width="1.7" vector-effect="non-scaling-stroke"/>
       <circle cx="${point.x}" cy="${point.y}" r="${1.7 / scale}" fill="var(--node-${kind})" stroke="none"/>
       ${kind === 'fixed' ? `<path d="M${point.x - r * 1.6} ${point.y + r * 1.8}h${r * 3.2}m${-r * 2.5} 0-${r} ${r}m${r * 2.6}-${r}-${r} ${r}" fill="none" stroke="var(--node-fixed)" stroke-width="1.2" vector-effect="non-scaling-stroke"/>` : ''}
@@ -854,6 +855,7 @@
       content += magicDrawingSVG(scale);
       content += magicDetectionSVG(scale) + detectionEditSVG(scale);
     }
+    content += mainDimensionsSVG(result, scale);
     return content;
   }
 
@@ -1088,8 +1090,8 @@
     updateInspectorVisibility();
     updatePanelVisibility();
     if (!state.magic) try { localStorage.setItem(settingsKey, JSON.stringify(X.preferences(state))); } catch { /* Export includes settings if storage is unavailable. */ }
-    for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'labels', 'loop']) {
-      const el = $(`[data-action="${key}"]`);
+    for (const key of ['mainDimensions', 'grid', 'dimensions', 'ghosts', 'trace', 'labels', 'loop']) {
+      const el = $(`[data-action="${key==='mainDimensions'?'main-dimensions':key}"]`);
       if (el) { el.classList.toggle('is-active', state[key]); el.setAttribute('aria-pressed', state[key]); }
     }
     for (const tool of ['select', 'pan', 'connect', 'measure']) $(`[data-action="tool-${tool}"]`).classList.toggle('is-active', state.tool === tool);
@@ -1180,7 +1182,7 @@
     const el = $('#selection-summary');
     el.hidden = !state.selectedElementIds.length;
     const target = I.target(state.project, state.selectedElementIds.at(-1)), editable = target?.element && !target.element.primary && state.mode === 'edit';
-    el.innerHTML = `<span>${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'}</span><button data-action="selection-settings"${editable ? '' : ' disabled'}>Spojenia / uloženie…</button><button data-action="toggle-inspector">Vlastnosti…</button>`;
+    el.innerHTML = `<span>${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'}</span><button data-action="selection-settings"${editable ? '' : ' disabled'}>Spojenia / uloženie…</button><button data-action="properties-overview">Vlastnosti…</button>`;
   }
 
   function jointPoints(joint, result = state.result) {
@@ -1466,7 +1468,7 @@
     if (!preview) return;
     const target = state.project.elements.find((e) => e.id === preview.target.elementId), source = state.project.elements.find((e) => e.id === preview.source.elementId);
     const types = preview.kind === 'cam-contact' ? [['cam-contact', 'Kontakt vačky']] : preview.target.ref?.point === 'curve' ? [...(target?.type === 'rail' ? [['prismatic', 'Posuvne']] : []), ['point-path', 'Otočne v dráhe']] : K.isElastic(source) || K.isElastic(target) ? [['revolute', 'Otočne']] : [['revolute', 'Otočne'], ['fixed', 'Napevno']];
-    el.innerHTML = `<span>${escape(source?.name || 'Prvok')} ↔ ${escape(target?.name || 'Montážny bod')}</span>${preview.alternatives?.length>1 ? `<label>Cieľ spojenia<select class="property-select" data-setting="connection-target">${preview.alternatives.map((p,i)=>`<option value="${i}"${p.target.elementId===preview.target.elementId&&p.target.ref.point===preview.target.ref.point?' selected':''}>${escape(p.label)}</option>`).join('')}</select></label>` : ''}<div>${types.map(([type, label]) => `<button type="button" data-action="snap-connect" data-type="${type}">${label}</button>`).join('')}<button type="button" data-action="snap-position">Len poloha</button></div><small>Vyberte spoj · Escape ponechá polohu · Späť vráti celé prichytenie</small>`;
+    el.innerHTML = `<span>${escape(source?.name || 'Prvok')} ↔ ${escape(target?.name || 'Montážny bod')}</span>${preview.alternatives?.length>1 ? `<label>Cieľ spojenia<select class="property-select" data-setting="connection-target">${preview.alternatives.map((p,i)=>`<option value="${i}"${p.target.elementId===preview.target.elementId&&p.target.ref.point===preview.target.ref.point?' selected':''}>${escape(p.label)}</option>`).join('')}</select></label>` : ''}<div>${types.map(([type, label]) => `<button type="button" data-action="snap-connect" data-type="${type}">${label}</button>`).join('')}<button type="button" data-action="snap-position">Len poloha</button></div><small>Vyberte spoj pre náhľad · Escape ponechá polohu · Späť vráti celé prichytenie</small>`;
     const matrix = $('#mechanism-canvas').getScreenCTM(), area = $('#canvas-area').getBoundingClientRect();
     if (matrix) { el.style ||= {}; el.style.left = `${Math.max(12, Math.min(area.width - 300, preview.point.x * matrix.a + preview.point.y * matrix.c + matrix.e - (area.left || 0) + 16))}px`; el.style.top = `${Math.max(12, Math.min((area.height || 450) - 110, preview.point.x * matrix.b + preview.point.y * matrix.d + matrix.f - (area.top || 0) + 16))}px`; }
   }
@@ -1514,7 +1516,7 @@
       const { a, b } = jointPoints(joint);
       if (a && b) candidates.push({ type: 'joint', key: I.jointKey(joint.id), a: screen(a), b: screen(b), marker: screen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }) });
     }
-    const hits = I.hitTargets(candidates, { x: event.clientX, y: event.clientY });
+    const hits = I.hitTargets(candidates, { x: event.clientX, y: event.clientY }, event.pointerType === 'touch' ? 22 : 12);
     const part = state.tool === 'select' && event.target?.closest?.('[data-context-key]'), partTarget = part && I.target(state.project, part.dataset.contextKey);
     if (['control', 'outline'].includes(partTarget?.type)) hits.unshift(part.dataset.contextKey);
     const dimension = !state.dimensionPick && event.target?.closest?.('[data-dimension]');
@@ -1766,7 +1768,7 @@
       if (action === 'selection-connect') { selectTarget(state.contextMenuState.targetId || (t.type==='node'?I.nodeKey(I.reference(t)):I.elementKey(t.elementId))); beginSelectedConnection(); }
       else if (action.startsWith('pick:')) { openContextMenu({ clientX: state.contextMenuState.x, clientY: state.contextMenuState.y, target: $('#mechanism-canvas') }, action.slice(5)); }
       else if (action === 'gesture-help') modal('Ovládanie plátna', '<p>Ľavé tlačidlo vyberá a ťahá. Shift pridáva alebo odoberá z výberu. Ctrl cykluje prekrývajúce sa entity. Alt dočasne vypne sieť aj snapping. Voľný koniec pružiny alebo piesta sa mení samostatne; namontovaný koniec sleduje uchytenie. Štvorcový priečny úchyt mení hrúbku alebo priemer.</p>');
-      else if (action === 'inspect') { selectElement(t.elementId); state.inspectorTab = 'geometry'; setInspectorOpen(true); renderInspector(); }
+      else if (action === 'inspect') { selectElement(t.elementId); propertiesOverview(); }
       else if (action === 'thickness') { selectElement(t.elementId); setMode('edit'); transformModal('thickness'); }
       else if (action === 'elastic-fit') { const next = K.copy(p), e = next.elements.find((e) => e.id === t.elementId); e.rangeMode = 'auto'; editCanvas(K.fitElasticRanges(next, [e.id], state.result), 'Pracovný rozsah bol prispôsobený montáži.'); }
       else if (action === 'rail-motion' && t?.element?.type === 'rail') editCanvas(I.setRailMotion(p, t.elementId, !t.element.movingRail, state.result), t.element.movingRail ? 'Vozík sa pohybuje, vedenie je pevné.' : 'Vedenie sa pohybuje, vozík zostáva pevný.');
@@ -1948,21 +1950,57 @@
     const duplicate = state.project.connections.some((j) => (j.a.elementId === a.elementId && j.a.point === a.point && j.b.elementId === b.elementId && j.b.point === b.point) || (j.b.elementId === a.elementId && j.b.point === a.point && j.a.elementId === b.elementId && j.a.point === b.point));
     if (duplicate) { toast('Táto väzba už existuje.', true); state.pendingJoint = null; updateToolbar(); renderScene(); return; }
     if (state.project.connections.length >= 240) { toast('Bol dosiahnutý maximálny počet väzieb.', true); return; }
-    const next = K.copy(state.project), guide = a.point === 'curve' ? ea : b.point === 'curve' ? eb : null;
-    if (a.point === 'curve' || b.point === 'curve') {
-      const bearing = a.point === 'curve' ? eb : ea, slot = a.point === 'curve' ? ea : eb;
-      if (bearing.type === 'bearing' && !bearing.primary && slot.type === 'slot') next.elements.find((e) => e.id === bearing.id).slotId = slot.id;
+    const guide = a.point === 'curve' ? ea : b.point === 'curve' ? eb : null;
+    previewConnection(a,b,guide?.type === 'cam' ? 'cam-contact' : guide ? 'point-path' : 'revolute');
+  }
+
+  function touchStart(event) {
+    if (event.pointerType !== 'touch' || event.deferredTouch) return false;
+    const touch = state.touchGesture ||= { points: new Map(), pinching: false, timer: null };
+    touch.points.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    clearTimeout(touch.timer);
+    if (touch.points.size > 1) {
+      if (state.drag) onPointerUp({pointerId:state.drag.pointerId,cancelled:true,touchInternal:true});
+      state.project=touch.project; state.history=touch.history;state.historySelections=touch.historySelections;state.future=touch.future;state.futureSelections=touch.futureSelections;state.selectedElementIds=touch.selection;state.pendingJoint=touch.pendingJoint;state.insertingType=touch.insertingType;state.editPivot=touch.editPivot;state.tool=touch.tool;state.result=touch.result;state.samples=touch.samples;state.profile=touch.profile;state.dynamic=touch.dynamic;state.forceContext=touch.forceContext;
+      if(state.magic&&touch.magic){Object.assign(state.magic,touch.magic);renderMagicImport();}
+      repairSelection();renderTree();renderInspector();updateToolbar();renderPlacementTools();
+      const [a,b] = [...touch.points.values()]; touch.pinching=true;touch.longPressed=false; touch.distance=Math.hypot(a.x-b.x,a.y-b.y)||1; touch.view=K.copy(state.view); touch.anchor=worldPoint({clientX:(a.x+b.x)/2,clientY:(a.y+b.y)/2});
+      event.preventDefault(); return true;
     }
-    const type = guide?.type === 'cam' ? 'cam-contact' : guide ? 'point-path' : 'revolute';
-    next.connections.push({ id: K.uid(), a, b, type, value: 0, name: E.constraintNames[type], builtin: false });
-    try { const validated = K.validateProject(next); pushHistory(); state.project = validated; }
-    catch (error) { toast(error.message, true); return; }
-    state.pendingJoint = null; changed(false);
-    toast('Kinematická väzba bola vytvorená.');
+    touch.project=K.copy(state.project);touch.history=[...state.history];touch.historySelections=[...state.historySelections];touch.future=[...state.future];touch.futureSelections=[...state.futureSelections];touch.selection=[...state.selectedElementIds];touch.pendingJoint=state.pendingJoint?K.copy(state.pendingJoint):null;touch.insertingType=state.insertingType;touch.editPivot=state.editPivot;touch.tool=state.tool;touch.result=state.result;touch.samples=state.samples;touch.profile=state.profile;touch.dynamic=state.dynamic;touch.forceContext=state.forceContext;
+    touch.magic=state.magic?{points:K.copy(state.magic.points||[]),drawing:K.copy(state.magic.drawing||[]),tool:state.magic.tool,placementType:state.magic.placementType,geometryStarted:state.magic.geometryStarted,detectCandidates:K.copy(state.magic.detectCandidates||[]),detectHistory:[...(state.magic.detectHistory||[])],detectFuture:[...(state.magic.detectFuture||[])],detectEditing:state.magic.detectEditing}:null;
+    touch.start={x:event.clientX,y:event.clientY};
+    const key=canvasHit(event);
+    touch.timer=setTimeout(()=>{
+      if(state.touchGesture!==touch || touch.pinching || touch.points.size!==1)return;
+      if(state.drag)onPointerUp({pointerId:state.drag.pointerId,cancelled:true,touchInternal:true});
+      touch.longPressed=true;openContextMenu({clientX:touch.start.x,clientY:touch.start.y,target:$('#mechanism-canvas')},key);
+    },550);
+    return false;
+  }
+  function touchMove(event) {
+    const touch=state.touchGesture;if(event.pointerType!=='touch'||!touch)return false;
+    touch.points.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    if (touch.longPressed) return true;
+    if (!touch.pinching) { if(Math.hypot(event.clientX-touch.start.x,event.clientY-touch.start.y)>8){clearTimeout(touch.timer);touch.moved=true;}if(touch.deferred&&(state.insertingType||state.magic?.placementType)){touch.deferred.clientX=event.clientX;touch.deferred.clientY=event.clientY;} return false; }
+    event.preventDefault();
+    if(touch.points.size<2)return true;
+    const [a,b]=[...touch.points.values()], distance=Math.hypot(a.x-b.x,a.y-b.y)||1, area=$('#mechanism-canvas').getBoundingClientRect(), ratio=touch.distance/distance;
+    const width=K.clamp(touch.view.width*ratio,20,20000),height=touch.view.height*width/touch.view.width;
+    state.view={x:touch.anchor.x-((a.x+b.x)/2-area.left)/area.width*width,y:touch.anchor.y-((a.y+b.y)/2-area.top)/area.height*height,width,height};renderScene();return true;
+  }
+  function touchEnd(event) {
+    const touch=state.touchGesture;if(!touch||event.touchInternal)return false;
+    clearTimeout(touch.timer);touch.points.delete(event.pointerId);
+    const handled=touch.pinching||touch.longPressed;
+    if(!touch.points.size)state.touchGesture=null;
+    return handled;
   }
 
   function onPointerDown(event) {
     if (state.gifExport) return;
+    if (touchStart(event)) return;
+    if(event.pointerType==='touch'&&!event.deferredTouch&&(state.tool==='connect'||state.insertingType||state.magic?.placementType)){state.touchGesture.deferred={pointerId:event.pointerId,clientX:event.clientX,clientY:event.clientY,button:event.button,target:event.target,pointerType:'touch',deferredTouch:true,preventDefault(){}};if(state.insertingType||state.magic?.placementType)clearTimeout(state.touchGesture.timer);return;}
     if (event.button !== 0 && event.button !== 1) return;
     if (state.drag) return;
     event.preventDefault();
@@ -2088,6 +2126,7 @@
 
   function onPointerMove(event) {
     if (state.gifExport) return;
+    if (touchMove(event)) return;
     const point = worldPoint(event);
     state.snapSuppressed = !!event.altKey;
     state.pointer = point;
@@ -2251,7 +2290,18 @@
     state.playing = false; actions.play(); renderWorkflowTools();
   }
 
+  function onLostPointerCapture(event) {
+    if (!state.drag || state.drag.pointerId !== event.pointerId) return;
+    const held = !!(event.buttons & 1) || state.touchGesture?.points.has(event.pointerId);
+    if (held && !$('#modal').open && document.hasFocus?.() !== false) {
+      try { $('#mechanism-canvas').setPointerCapture(event.pointerId); return; } catch { /* The pointer may already have left the window. */ }
+    }
+    onPointerUp({pointerId:event.pointerId,cancelled:true});
+  }
   function onPointerUp(event) {
+    const touch=state.touchGesture,deferred=touch?.deferred;
+    if (touchEnd(event)) return;
+    if(deferred&&deferred.pointerId===event.pointerId&&!event.cancelled&&event.type!=='pointercancel'){if(state.insertingType||state.magic?.placementType||!touch.moved)onPointerDown(deferred);return;}
     const drag = state.drag;
     if (drag && event.pointerId !== drag.pointerId) return;
     state.drag = null;
@@ -2287,7 +2337,72 @@
     if (drag?.simulationMoved && !event.cancelled && event.type !== 'pointercancel') resumeElasticMotion();
   }
 
+  function mainDimensionsSVG(result, scale) {
+    if (!state.mainDimensions || state.magic) return '';
+    const d = globalThis.KinmoUsability.mainDimensions(state.project, result); if (!d) return '';
+    const gap = 24 / scale, y = d.top - gap, x = d.left - gap, size = 12 / scale;
+    return `<g data-editor-overlay="main-dimensions" class="main-dimensions" pointer-events="none" fill="var(--ink)" stroke="var(--accent)" stroke-width="1" vector-effect="non-scaling-stroke">${line({x:d.left,y:d.top},{x:d.left,y:y-gap/3})}${line({x:d.right,y:d.top},{x:d.right,y:y-gap/3})}${line({x:d.left,y},{x:d.right,y})}${line({x:d.left,y:d.top},{x:x-gap/3,y:d.top})}${line({x:d.left,y:d.bottom},{x:x-gap/3,y:d.bottom})}${line({x,y:d.top},{x,y:d.bottom})}<text x="${(d.left+d.right)/2}" y="${y-5/scale}" text-anchor="middle" stroke="none" font-size="${size}">Šírka ${fmt(d.width,1)} mm</text><text transform="translate(${x-6/scale},${(d.top+d.bottom)/2}) rotate(-90)" text-anchor="middle" stroke="none" font-size="${size}">Výška ${fmt(d.height,1)} mm</text></g>`;
+  }
+  function dimensionsOverview() {
+    const d = globalThis.KinmoUsability.mainDimensions(state.project, state.result); if (!d) { toast('Najskôr vložte prvok.'); return; }
+    modal('Hlavné rozmery mechanizmu', `<p>Aktuálna poloha · jednotky mm. Rozmery vychádzajú z obrysov viditeľných prvkov; nezahŕňajú predlohu ani texty.</p><div class="dimension-metrics"><strong>Šírka ${fmt(d.width,2)} mm</strong><strong>Výška ${fmt(d.height,2)} mm</strong></div><div class="comparison-scroll"><table class="diagnostic-table"><thead><tr><th>Prvok</th><th>A–B (mm)</th><th>Pracovný rozsah (mm)</th></tr></thead><tbody>${d.members.map(e=>`<tr><td>${escape(e.name)}</td><td>${fmt(e.length,2)}</td><td>${e.min == null ? '—' : `${fmt(e.min)}–${fmt(e.max)}`}</td></tr>`).join('')}</tbody></table></div><p>Rozmery na plátne zapnete tlačidlom Hlavné rozmery v hornej lište.</p>`);
+  }
+  function explainMovement() {
+    const report = globalThis.KinmoUsability.blockers(state.project, state.result);
+    state.showFreedom = true; renderScene();
+    modal('Prečo sa mechanizmus nehýbe?', `<p>${report.free} voľných súradníc. Pevné uloženie samo osebe nie je chyba; určte, ktorá časť sa má pohybovať.</p><div class="explanation-list">${report.hints.map(s=>`<p>${escape(s)}</p>`).join('')}${report.rows.map(r=>`<button class="button button-secondary" data-action="explain-focus" data-key="${escape(r.key)}" data-kind="${r.action}">${escape(r.message)}</button>`).join('') || '<p>V zobrazenej polohe sa nenašlo obmedzenie. Skontrolujte celý cyklus.</p>'}</div><h3>Navrhnuté opravy</h3>${report.repairs.map(r=>`<button class="button button-secondary" data-action="repair-model" data-key="${escape(r.key)}" data-kind="${r.action}">${escape(r.label)}</button>`).join('') || '<p>Bez automatického návrhu opravy.</p>'}<div class="modal-actions"><button class="button button-dark" data-action="cycle-review">Overiť celý cyklus</button></div>`, true);
+  }
+  async function reviewCycle() {
+    const revision = JSON.stringify(state.project), project = K.copy(state.project), range = K.driveRange(project), samples = [], profile = K.prepareProject(project), token = {};
+    modal('Kontrola celého cyklu', '<p id="cycle-progress" role="status">Kontrolujem polohy…</p><button class="button button-secondary" data-action="close-modal">Zrušiť</button>');
+    state.cycleReviewJob = token;
+    try {
+      for (let i=0;i<201;i++) {
+        if (state.cycleReviewJob !== token || !$('#modal').open || JSON.stringify(state.project) !== revision) return;
+        samples.push(K.solve(project,K.lerp(range.min,range.max,i/200),{profile,collisions:true}));
+        if (i%10===0) { $('#cycle-progress').textContent = `Kontrolujem polohu ${i+1}/201`; await new Promise(resolve=>requestAnimationFrame(resolve)); }
+      }
+      const review = globalThis.KinmoUsability.cycleReview(project,samples); state.cycleReview = {review,revision};
+      modal('Výsledok kontroly cyklu', `<p>${review.count} vzorkovaných polôh · ${review.failures.length} polôh s upozornením. Kontrolované sú väzby, kolízie a zdvih pružných členov.</p>${!review.hasDrive ? '<p class="analysis-warning">Chýba predpísaný pohon. Táto kontrola nepredpovedá časový priebeh Pohybu zo síl.</p>' : ''}<p>Kontrola je vzorkovaná; veľmi úzky konflikt medzi vzorkami môže uniknúť.</p><div class="cycle-failures">${review.failures.map((r,i)=>`<button class="button button-secondary" data-action="cycle-position" data-index="${i}">${fmt(r.motion,2)} ${review.range.unit} · ${escape(r.reasons.join(' ') || 'Nesplnená väzba')}</button>`).join('') || '<p>Vo vzorkovaných polohách nebol zistený problém.</p>'}</div>`,true);
+    } catch(error) { if ($('#modal').open) toast(error.message,true); }
+    finally { if (state.cycleReviewJob===token) state.cycleReviewJob=null; }
+  }
+  function connectionDiagram(review) {
+    const svg=X.vectorSVG(review.project,review.result,{dimensions:false,trajectories:false,labels:false}), bounds=X.geometryBounds(X.geometry(review.project,review.result,{dimensions:false,trajectories:false}));
+    const points=review.joint ? [K.point(review.result,review.joint.a),K.point(review.result,review.joint.b)].filter(Boolean) : [], radius=bounds.width/100;
+    const markers=points.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="#f7d56e" stroke="#9b462c" stroke-width="${radius/4}"/>`).join('');
+    const at=points[0], label=at ? `<text x="${at.x+radius*2}" y="${at.y-radius*2}" fill="#9b462c" font-size="${radius*2}">Nový spoj</text>` : '';
+    return svg.replace('</svg>',`<g aria-label="Spojované body">${markers}${label}</g></svg>`);
+  }
+  function previewConnection(a, b, type, snap = null) {
+    try {
+      const review = globalThis.KinmoUsability.connectionPreview(state.project,a,b,type,state.motion,{snap,design:state.mode==='edit'});
+      state.connectionReview = {a:K.copy(a),b:K.copy(b),type,review,revision:JSON.stringify(state.project)};
+      const elastic=[a,b].some(r=>K.isElastic(state.project.elements.find(e=>e.id===r.elementId)));
+      const types = a.point==='curve'||b.point==='curve' ? ([a,b].some(r=>r.point==='curve'&&state.project.elements.find(e=>e.id===r.elementId)?.type==='rail') ? ['point-path','prismatic'] : [type]) : elastic ? ['revolute'] : ['revolute','fixed'];
+      modal('Náhľad novej väzby', `<div class="connection-type-choices">${types.map(t=>`<button class="button button-secondary" data-action="connection-type" data-type="${t}" aria-pressed="${type===t}">${escape(E.constraintNames[t])}</button>`).join('')}</div><p>${escape(review.motion)}</p><p>Voľné súradnice: ${review.before} → ${review.after}. Počet závisí od aktuálnej geometrie.</p><div class="connection-preview">${connectionDiagram(review)}</div><form id="connection-review-form">${review.errors.length || review.result.blocked ? `<p class="analysis-warning">Náhľad obsahuje konflikt: ${escape([...review.errors.map(r=>r.name),...review.issues].join('; '))}</p><label class="check-row"><input type="checkbox" name="accept-conflict" required/>Vložiť aj s upozornením; geometriu upravím následne.</label>` : '<p>V tejto polohe nebol zistený konflikt väzieb. Celý cyklus overte po vložení.</p>'}<div class="modal-actions"><button class="button button-secondary" type="button" data-action="close-modal">Zrušiť</button><button class="button button-dark">Potvrdiť väzbu</button></div></form>`,true);
+    } catch(error) { toast(error.message,true); }
+  }
+  function confirmConnection(data) {
+    const draft = state.connectionReview; if (!draft || draft.revision !== JSON.stringify(state.project)) throw new Error('Model sa zmenil. Vytvorte nový náhľad väzby.');
+    if ((draft.review.errors.length || draft.review.result.blocked) && !data.has('accept-conflict')) throw new Error('Potvrďte upozornenie alebo zvoľte inú väzbu.');
+    if(draft.snap){state.pendingSnap=draft.snap;state.snapTransaction=draft.transaction;submitSnapConnection(new Map([['type',draft.type]]));}else editCanvas(draft.review.project,'Väzba bola potvrdená.'); state.pendingJoint=null; state.connectionReview=null; $('#modal').close(); updateToolbar();
+  }
+  function constructionModal() {
+    const e = currentElement(); if (!e || !K.isElastic(e)) return;
+    const geom = e.type.startsWith('piston-') ? K.pistonGeometry(e) : null;
+    modal('Konštrukčné rozmery', `<p>${escape(e.name)} · zmeny rozsahu sa potvrdia spoločne.</p>${geom ? `<p>Valec: ${fmt(geom.cylinder,2)} mm · zdvih: ${fmt(geom.stroke,2)} mm · potrebné zasunutie: ${fmt(geom.stroke+geom.overlap,2)} mm.</p>` : '<p>Voľná dĺžka musí byť medzi oboma dorazmi.</p>'}<form id="construction-form" data-id="${escape(e.id)}"><div class="settings-fields">${quantityInput('minLength','Minimálna dĺžka medzi čapmi',''+e.minLength,'mm',.1,5000)}${quantityInput('maxLength','Maximálna dĺžka medzi čapmi',''+e.maxLength,'mm',.1,5000)}${quantityInput('restLength','Voľná / referenčná dĺžka',''+e.restLength,'mm',.1,5000)}</div><p id="construction-feedback" role="status"></p><div class="modal-actions"><button class="button button-secondary" type="button" data-action="close-modal">Zrušiť</button><button class="button button-dark">Použiť rozmery</button></div></form>`);
+  }
+  function propertiesOverview() {
+    const e = currentElement(); if (!e) return;
+    modal('Vlastnosti prvku', `<h3>${escape(e.name)}</h3><p>${escape(typeNames[e.type])}</p>${e.primary ? '<p>Chránená šablóna. Vytvorte voľnú kópiu na úpravy.</p><button class="button button-secondary" data-action="make-editable">Vytvoriť voľnú kópiu</button>' : `<div class="properties-overview"><details open><summary>Geometria</summary><div><button data-action="element-menu">Názov</button><button data-action="open-full-properties">Všetky parametre geometrie</button>${K.isElastic(e) ? '<button data-action="construction">Konštrukčné rozmery a zdvih</button>' : state.mode==='edit'&&!e.locked ? '<button data-action="edit-numbers">Poloha X / Y</button><button data-action="edit-rotation">Natočenie</button>' : ''}${state.mode==='edit'&&W.thickness(e) ? '<button data-action="edit-thickness">Hrúbka / priemer</button>' : ''}</div></details><details><summary>Spojenia a uloženie</summary><div><button data-action="selection-settings">Spojenia / uloženie</button><button data-action="new-joint">Pridať väzbu</button></div></details>${!K.isElastic(e)&&!['ground','slot'].includes(e.type)&&!e.parentId ? '<details><summary>Pohon a limity</summary><div><button data-action="selection-motor">Priradiť / upraviť pohon</button><button data-action="element-limits">Pohybové limity</button></div></details>' : ''}<details><summary>Kontrola</summary><div><button data-action="explain-movement">Prečo sa nehýbe?</button><button data-action="cycle-review">Overiť celý cyklus</button></div></details></div>`}`);
+  }
+  function issueModal() {
+    modal('Nahlásiť problém · lokálny balík', '<p>Balík obsahuje geometriu projektu, aktuálnu polohu, režim a diagnostiku. Zdrojové obrázky sa vynechajú. Súbor si stiahnete a priložíte k hláseniu.</p><form id="issue-form"><label class="property-field"><span>Čo sa stalo a ako to zopakovať?</span><textarea class="text-field" name="description" maxlength="4000" rows="5" required></textarea></label><div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Zrušiť</button><button class="button button-dark">Stiahnuť diagnostický balík</button></div></form>');
+  }
+
   function modal(title, content, wide = false) {
+    state.cycleReviewJob=null;
     closeContextMenu();
     document.querySelectorAll('#workflow-tools details[open], #model-checks details[open]').forEach((el) => { el.open = false; });
     state.playing = false; updateMotion();
@@ -2431,7 +2546,8 @@
     const root = $('#workflow-tools'); if (!root) return;
     root.hidden = !!state.magic;
     const reference = state.project.importReference, imported = reference || state.project.source?.name === 'Magic import';
-    const advanced=window.KinmoAdvanced?`<details class="workflow-position-menu"><summary>Ďalšie nástroje</summary><div>${[['hub','Spoločný čap'],['drives','Viac pohonov'],['contacts','Kontakt a dorazy'],['planes','Skupiny / roviny'],['measure','Meranie v čase'],['variants','Varianty'],['revisions','Automatické verzie'],['learn','Príklady']].map(([tab,label])=>`<button data-action="advanced-open" data-tab="${tab}">${label}</button>`).join('')}</div></details>`:'';
+    const extraTools = `<button data-action="explain-movement">Prečo sa nehýbe?</button><button data-action="cycle-review">Overiť celý cyklus</button><button data-action="dimensions-overview">Prehľad rozmerov</button><button data-action="issue-report">Nahlásiť problém</button>`;
+    const advanced=window.KinmoAdvanced?`<details class="workflow-position-menu"><summary>Ďalšie nástroje</summary><div>${extraTools}${[['hub','Spoločný čap'],['drives','Viac pohonov'],['contacts','Kontakt a dorazy'],['planes','Skupiny / roviny'],['measure','Meranie v čase'],['variants','Varianty'],['revisions','Automatické verzie'],['learn','Príklady']].map(([tab,label])=>`<button data-action="advanced-open" data-tab="${tab}">${label}</button>`).join('')}</div></details>`:'';
     const markup = `${advanced}${state.phasePick ? '<button data-action="plan-pick-done">Použiť polohu</button><button data-action="plan-pick-cancel">Zrušiť výber</button>' : ''}${imported ? `<button data-action="reference-toggle" aria-pressed="${!!reference?.visible}"${reference ? '' : ' title="Doplniť pôvodný obrázok staršieho Magic projektu"'}>Predloha</button>${reference ? '<button data-action="reference-settings" aria-label="Nastaviť predlohu">◐</button>' : ''}` : ''}${(state.project.elements.some(K.isElastic)||state.project.connections.some(j=>j.contact?.enabled)) ? `<button data-action="force-motion" aria-pressed="${state.project.simulation?.mode === 'dynamic'}">Pohyb zo síl</button>` : ''}${state.mode==='simulate' ? '<details class="workflow-position-menu"><summary>Poloha simulácie</summary><div><button data-action="simulation-pause">Pozastaviť tu</button><button data-action="simulation-design">Vrátiť do návrhu</button><button data-action="simulation-bake">Poloha → návrh</button></div></details>' : ''}<button data-action="freedom-toggle" aria-pressed="${!!state.showFreedom}">Voľnosť</button><button data-action="trial-toggle" aria-pressed="${!!state.trial}">Skúšobný pohyb</button><button data-action="mechanism-kit">Zostavy</button><button data-action="motion-plan">Fázy pohybu</button>`;
     if (root._workflowMarkup !== markup) { root.innerHTML = markup; root._workflowMarkup = markup; }
     const heading=$('.scene-heading');if(heading){heading.style ||= {};const top=Math.max(34,root.hidden?34:root.getBoundingClientRect().height+12);heading.style.top=`${top}px`;const tools=$('.canvas-tools');if(tools){tools.style ||= {};tools.style.top=`${Math.max(108,top+75)}px`;}}
@@ -2627,7 +2743,7 @@
     if (!state.magic || action.startsWith('magic-') || action.startsWith('detect-') || action === 'pose-pick') return true;
     if (['help', 'close-modal', 'fit', 'zoom-in', 'zoom-out', 'tool-pan', 'toggle-sidebar', 'close-inspector'].includes(action)) return true;
     if (!magicWorking()) return false;
-    return ['undo', 'redo', 'tool-select', 'tool-connect', 'tool-measure', 'smart-snap', 'grid-snap', 'angle-snap', 'selection-settings', 'selection-connect', 'selection-support', 'selection-rail', 'selection-motor', 'snap-connect', 'snap-position', 'placement-mount', 'placement-cancel', 'check-model', 'grid', 'dimensions', 'select', 'visibility', 'sidebar-elements', 'sidebar-joints', 'toggle-inspector', 'inspector-geometry', 'inspector-joints', 'new-joint', 'edit-joint', 'delete-joint', 'new-dimension', 'edit-dimension', 'dimension-pick', 'delete-dimension', 'edit-numbers', 'edit-rotation', 'edit-pivot', 'edit-length', 'edit-thickness', 'add-menu', 'add-component', 'duplicate', 'delete', 'confirm-canvas-delete', 'canvas-add-guide', 'lock-selected', 'drive-selected', 'element-menu', 'edit-outline', 'edit-path', 'edit-com'].includes(action);
+    return ['undo', 'redo', 'tool-select', 'tool-connect', 'tool-measure', 'smart-snap', 'grid-snap', 'angle-snap', 'properties-overview', 'open-full-properties', 'construction', 'element-limits', 'connection-type', 'selection-settings', 'selection-connect', 'selection-support', 'selection-rail', 'selection-motor', 'snap-connect', 'snap-position', 'placement-mount', 'placement-cancel', 'check-model', 'grid', 'dimensions', 'select', 'visibility', 'sidebar-elements', 'sidebar-joints', 'toggle-inspector', 'inspector-geometry', 'inspector-joints', 'new-joint', 'edit-joint', 'delete-joint', 'new-dimension', 'edit-dimension', 'dimension-pick', 'delete-dimension', 'edit-numbers', 'edit-rotation', 'edit-pivot', 'edit-length', 'edit-thickness', 'add-menu', 'add-component', 'duplicate', 'delete', 'confirm-canvas-delete', 'canvas-add-guide', 'lock-selected', 'drive-selected', 'element-menu', 'edit-outline', 'edit-path', 'edit-com'].includes(action);
   }
 
   function startMagicImport() {
@@ -2676,7 +2792,7 @@
     if (step === 2) controls += `<label class="check-row"><input type="checkbox" data-magic-setting="auto-detect"${magic.detectEnabled ? ' checked' : ''}/><span>Aktivovať krok 2.5 · automaticky navrhnúť prvky z obrázka</span></label>`;
     if (step === 2.5) {
       const candidates = magic.detectCandidates || [], applied = magic.detectAdded?.some((id) => state.project.elements.some((e) => e.id === id));
-      controls = `<div class="magic-detection-actions"><button class="button button-secondary" data-action="magic-detection-region"${magic.busy || applied ? ' disabled' : ''}>Vybrať oblasť · 2 rohy</button><button class="button button-secondary" data-action="magic-detection-whole"${magic.busy || applied ? ' disabled' : ''}>Celý obrázok</button><span class="magic-note">${magic.detectRegion ? `Oblasť ${magic.detectRegion.width} × ${magic.detectRegion.height} px` : 'Celý obrázok · pri viacerých polohách vyberte iba jednu'}</span><button class="button button-dark" data-action="magic-detect"${magic.busy || applied ? ' disabled' : ''}>${magic.busy ? 'Rozpoznáva sa…' : 'Rozpoznať prvky'}</button>${magic.busy ? '<button class="button button-secondary" data-action="magic-stop-detection">Zrušiť detekciu</button>' : ''}<label class="magic-opacity">Citlivosť <input type="range" min="10" max="90" value="${magic.detectSensitivity ?? 50}" data-magic-setting="detect-sensitivity"${magic.busy || applied ? ' disabled' : ''}/></label><button class="button button-secondary" data-action="magic-skip-detection"${magic.busy ? ' disabled' : ''}>Pokračovať ručne</button></div><p class="magic-note" role="status">${magic.detectNote ? escape(magic.detectNote) : 'Spustite detekciu. Návrh nevytvára pohon a neoveruje funkciu mechanizmu.'}${applied ? ' Návrh už bol vložený. Vrátiť ho môžete cez Späť v kroku 3.' : ''}</p>${candidates.length ? `<fieldset class="magic-detection-review"${magic.busy || applied ? ' disabled' : ''}><legend>Rozpoznané prvky · ${candidates.length}</legend>${candidates.map((c, index) => `<div class="magic-detection-row"><label class="check-row"><input type="checkbox" data-magic-setting="detect-selected" data-detection="${c.id}"${c.selected ? ' checked' : ''}/><span>${index + 1}</span></label><select class="property-select" aria-label="Typ návrhu ${index + 1}" data-magic-setting="detect-type" data-detection="${c.id}">${(c.points.length === 1 ? ['bearing', 'node'] : ['ground', 'link', 'panel', 'rail', 'slot']).map((type) => `<option value="${type}"${c.type === type ? ' selected' : ''}>${escape(typeNames[type])}</option>`).join('')}</select><span>${c.evidence?.manual ? 'Ručne upravený tvar' : `Tvar ${Math.round(c.confidence * 100)} % · odhad`} · ${c.motionEvidence ? ({ fixed: 'pevná časť · odhad', translation: 'posuvná väzba · odhad', rotation: 'otočná väzba · odhad', uncertain: 'nejasný pohyb' })[c.motionEvidence.kind] + ` (${c.motionEvidence.matches}/${c.motionEvidence.total} polôh)` : 'pohyb neoverený'}${c.evidence?.closedRegion ? ' · oblasť' : ''}</span><button class="button button-secondary" data-action="detect-edit" data-id="${escape(c.id)}">Upraviť</button>${c.motionEvidence?.kind === 'fixed' && c.points.length > 1 ? `<button class="button button-secondary" data-action="detect-fixed" data-id="${escape(c.id)}">Použiť odhad pevnej časti</button>` : ''}${c.points.length > 1 ? `<button class="button button-secondary" data-action="detect-edit" data-tool="detect-anchor" data-id="${escape(c.id)}">Pridať čap</button><button class="button button-secondary" data-action="detect-edit" data-tool="detect-split" data-id="${escape(c.id)}">Rozdeliť</button>` : `<button class="button button-secondary" data-action="detect-hole" data-role="hole" data-id="${escape(c.id)}">Otvor na vybranom telese</button><button class="button button-secondary" data-action="detect-hole" data-role="pin" data-id="${escape(c.id)}">Samostatný čap</button>`}<button class="button button-secondary" data-action="detect-delete" data-id="${escape(c.id)}">Odstrániť návrh</button>${c.anchors?.length && ['ground', 'link', 'panel'].includes(c.type) ? `<label class="check-row magic-detection-mounts"><input type="checkbox" data-magic-setting="detect-anchors" data-detection="${c.id}"${c.useAnchors !== false ? ' checked' : ''}/><span>Použiť montážne body · ${c.anchors.length} (overiť na obrázku)</span></label>` : ''}</div>`).join('')}<label class="check-row"><input type="checkbox" data-magic-setting="detect-joints"${magic.detectJoints !== false ? ' checked' : ''}/><span>Navrhnúť otočné väzby pri zhodných montážnych bodoch alebo koncoch (treba overiť)</span></label></fieldset><button class="button button-secondary" data-action="magic-apply-detection"${magic.busy || applied || !candidates.some((c) => c.selected) ? ' disabled' : ''}>Pridať vybrané prvky a pokračovať</button>` : ''}`;
+      controls = `<div class="magic-detection-actions"><button class="button button-secondary" data-action="magic-detection-region"${magic.busy || applied ? ' disabled' : ''}>Vybrať oblasť · 2 rohy</button><button class="button button-secondary" data-action="magic-detection-whole"${magic.busy || applied ? ' disabled' : ''}>Celý obrázok</button><span class="magic-note">${magic.detectRegion ? `Oblasť ${magic.detectRegion.width} × ${magic.detectRegion.height} px` : 'Celý obrázok · pri viacerých polohách vyberte iba jednu'}</span><button class="button button-dark" data-action="magic-detect"${magic.busy || applied ? ' disabled' : ''}>${magic.busy ? 'Rozpoznáva sa…' : 'Rozpoznať prvky'}</button>${magic.busy ? '<button class="button button-secondary" data-action="magic-stop-detection">Zrušiť detekciu</button>' : ''}<label class="magic-opacity">Citlivosť <input type="range" min="10" max="90" value="${magic.detectSensitivity ?? 50}" data-magic-setting="detect-sensitivity"${magic.busy || applied ? ' disabled' : ''}/></label><button class="button button-secondary" data-action="magic-skip-detection"${magic.busy ? ' disabled' : ''}>Pokračovať ručne</button></div><p class="magic-note" role="status">${magic.detectNote ? escape(magic.detectNote) : 'Spustite detekciu. Návrh nevytvára pohon a neoveruje funkciu mechanizmu.'}${applied ? ' Návrh už bol vložený. Vrátiť ho môžete cez Späť v kroku 3.' : ''}</p>${candidates.length ? `<fieldset class="magic-detection-review"${magic.busy || applied ? ' disabled' : ''}><legend>Rozpoznané prvky · ${candidates.length}</legend>${candidates.map((c, index) => `<div class="magic-detection-row${c.confidence<.75 || !c.motionEvidence || c.motionEvidence.kind==='uncertain' ? ' is-uncertain' : ''}"><label class="check-row"><input type="checkbox" data-magic-setting="detect-selected" data-detection="${c.id}"${c.selected ? ' checked' : ''}/><span>${index + 1}</span></label><select class="property-select" aria-label="Typ návrhu ${index + 1}" data-magic-setting="detect-type" data-detection="${c.id}">${(c.points.length === 1 ? ['bearing', 'node'] : ['ground', 'link', 'panel', 'rail', 'slot']).map((type) => `<option value="${type}"${c.type === type ? ' selected' : ''}>${escape(typeNames[type])}</option>`).join('')}</select><span>${c.evidence?.manual ? 'Ručne upravený tvar' : `Tvar ${Math.round(c.confidence * 100)} % · odhad`} · ${c.motionEvidence ? ({ fixed: 'pevná časť · odhad', translation: 'posuvná väzba · odhad', rotation: 'otočná väzba · odhad', uncertain: 'nejasný pohyb' })[c.motionEvidence.kind] + ` (${c.motionEvidence.matches}/${c.motionEvidence.total} polôh)` : 'pohyb neoverený'}${c.evidence?.closedRegion ? ' · oblasť' : ''}</span><button class="button button-secondary" data-action="detect-edit" data-id="${escape(c.id)}">Upraviť</button>${c.motionEvidence?.kind === 'fixed' && c.points.length > 1 ? `<button class="button button-secondary" data-action="detect-fixed" data-id="${escape(c.id)}">Použiť odhad pevnej časti</button>` : ''}${c.points.length > 1 ? `<button class="button button-secondary" data-action="detect-edit" data-tool="detect-anchor" data-id="${escape(c.id)}">Pridať čap</button><button class="button button-secondary" data-action="detect-edit" data-tool="detect-split" data-id="${escape(c.id)}">Rozdeliť</button>` : `<button class="button button-secondary" data-action="detect-hole" data-role="hole" data-id="${escape(c.id)}">Otvor na vybranom telese</button><button class="button button-secondary" data-action="detect-hole" data-role="pin" data-id="${escape(c.id)}">Samostatný čap</button>`}<button class="button button-secondary" data-action="detect-delete" data-id="${escape(c.id)}">Odstrániť návrh</button>${c.anchors?.length && ['ground', 'link', 'panel'].includes(c.type) ? `<label class="check-row magic-detection-mounts"><input type="checkbox" data-magic-setting="detect-anchors" data-detection="${c.id}"${c.useAnchors !== false ? ' checked' : ''}/><span>Použiť montážne body · ${c.anchors.length} (overiť na obrázku)</span></label>` : ''}</div>`).join('')}<label class="check-row"><input type="checkbox" data-magic-setting="detect-joints"${magic.detectJoints !== false ? ' checked' : ''}/><span>Navrhnúť otočné väzby pri zhodných montážnych bodoch alebo koncoch (treba overiť)</span></label></fieldset><button class="button button-secondary" data-action="magic-apply-detection"${magic.busy || applied || !candidates.some((c) => c.selected) ? ' disabled' : ''}>Pridať vybrané prvky a pokračovať</button>` : ''}`;
     }
     if(step===2.5&&window.KinmoAdvanced)controls+=`<div class="motion-evidence">${window.KinmoAdvanced.motionGroups(magic.detectCandidates||[]).map((g,i)=>`<p>${g.ids.length} časti · istota ${Math.round(g.confidence*100)} % · ${escape(g.reason)} <button data-action="detect-motion-group" data-index="${i}">Navrhnúť spoločné teleso (vonkajší obal)</button></p>`).join('')}${(magic.detectCandidates||[]).filter(c=>c.motionEvidence).map(c=>{const proof=window.KinmoAdvanced.evidence(c);return `<p>${escape(proof.reason)} · istota ${Math.round(proof.confidence*100)} % <button data-action="detect-motion-confirm" data-id="${escape(c.id)}"${proof.confidence<.5?' disabled':''}>${c.confirmedMotion?'Potvrdené':'Použiť návrh uloženia'}</button></p>`;}).join('')}</div>`;
     if (step === 3 || step === 4) {
@@ -2847,8 +2963,9 @@
   function reviewDetectedMechanism(result,magic) {
     const joints=result.project.connections.filter(j=>!state.project.connections.some(old=>old.id===j.id)),pose=K.solve(result.project,K.driveRange(result.project).min,{design:true,collisions:false}),bounds=K.bounds(result.project,[pose]);
     magic.review={...result,joints,revision:JSON.stringify(state.project)};
-    const preview=`<svg class="detection-review-preview" viewBox="${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}" role="img" aria-label="Rozpoznané telesá a očíslované navrhnuté spoje">${result.added.map(id=>{const e=result.project.elements.find(e=>e.id===id),p=pose.poses[id];return !p||e.parentId?'':p.outline?.length?`<polygon points="${p.outline.map(p=>p.x+','+p.y).join(' ')}" fill="#e5ecee" stroke="#708594" vector-effect="non-scaling-stroke"/>`:line(p.a,p.b,'stroke="#708594" stroke-width="5" vector-effect="non-scaling-stroke"');}).join('')}${joints.map((j,i)=>{const a=K.point(pose,j.a),b=K.point(pose,j.b);return `<g>${line(a,b,'stroke="#c64a24" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"')}<circle cx="${a.x}" cy="${a.y}" r="${bounds.width/70}" fill="#fff" stroke="#c64a24"/><text x="${a.x}" y="${a.y+bounds.width/230}" text-anchor="middle" font-size="${bounds.width/60}" fill="#c64a24">${i+1}</text></g>`;}).join('')}</svg>`;
-    modal('Obrysy rozpoznané · overte navrhnuté väzby',`<form id="magic-detection-review-form"><p>${result.added.length} prvkov prešlo kontrolou bodov a rozmerov. Tvar obrysu sám neurčuje funkciu spoja. Potvrďte iba spojenia, ktoré poznáte z mechanizmu.</p>${preview}<div class="detection-joint-review">${joints.map((j,i)=>`<label class="check-row"><input name="joint" type="checkbox" value="${escape(j.id)}"/><span>${i+1}. ${escape(result.project.elements.find(e=>e.id===j.a.elementId)?.name)} ↔ ${escape(result.project.elements.find(e=>e.id===j.b.elementId)?.name)} · neistý otočný spoj</span></label>`).join('')||'<p>Žiadne spojenie sa nenavrhuje automaticky. Obrysy možno vložiť a spojiť ručne.</p>'}</div><p class="section-description">Nepotvrdené väzby sa nevložia. Montážne body upravíte cez zelené čapy v detekcii alebo neskôr na plátne.</p><div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Späť k detekcii</button><button class="button button-dark">Vložiť obrysy a potvrdené väzby</button></div></form>`,true);
+    const overview=`<section class="detection-overview"><h3>Telesá</h3><ul>${result.added.map(id=>result.project.elements.find(e=>e.id===id)).filter(e=>e&&!['bearing','node'].includes(e.type)).map(e=>`<li>${escape(e.name)} · ${escape(typeNames[e.type])}</li>`).join('')}</ul><h3>Čapy a montážne body</h3><p>${result.added.map(id=>result.project.elements.find(e=>e.id===id)).filter(e=>e&&['bearing','node'].includes(e.type)).length} samostatných čapov / uzlov · ${joints.length} návrhov väzieb (nepotvrdené).</p><h3>Neisté tvary</h3><div>${(magic.detectCandidates||[]).filter(c=>c.selected&&(c.confidence<.75||!c.motionEvidence||c.motionEvidence.kind==='uncertain')).map(c=>`<button type="button" class="button button-secondary" data-action="detect-review-edit" data-id="${escape(c.id)}">Upraviť ${escape(typeNames[c.type])} · ${Math.round(c.confidence*100)} %</button>`).join('')||'<p>Bez tvarov s nízkou istotou; funkciu spoja aj tak overte.</p>'}</div></section>`;
+    const preview=`<svg class="detection-review-preview" viewBox="${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}" role="img" aria-label="Rozpoznané telesá a očíslované navrhnuté spoje">${magicImageSVG()}${result.added.map(id=>{const e=result.project.elements.find(e=>e.id===id),p=pose.poses[id];return !p||e.parentId?'':p.outline?.length?`<polygon points="${p.outline.map(p=>p.x+','+p.y).join(' ')}" fill="#e5ecee" fill-opacity=".35" stroke="#708594" vector-effect="non-scaling-stroke"/>`:line(p.a,p.b,'stroke="#708594" stroke-width="5" vector-effect="non-scaling-stroke"');}).join('')}${joints.map((j,i)=>{const a=K.point(pose,j.a),b=K.point(pose,j.b);return `<g>${line(a,b,'stroke="#c64a24" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"')}<circle cx="${a.x}" cy="${a.y}" r="${bounds.width/70}" fill="#fff" stroke="#c64a24"/><text x="${a.x}" y="${a.y+bounds.width/230}" text-anchor="middle" font-size="${bounds.width/60}" fill="#c64a24">${i+1}</text></g>`;}).join('')}</svg>`;
+    modal('Obrysy rozpoznané · overte navrhnuté väzby',`<form id="magic-detection-review-form"><p>${result.added.length} prvkov prešlo kontrolou bodov a rozmerov. Tvar obrysu sám neurčuje funkciu spoja. Potvrďte iba spojenia, ktoré poznáte z mechanizmu.</p>${overview}${preview}<div class="detection-joint-review">${joints.map((j,i)=>`<label class="check-row"><input name="joint" type="checkbox" value="${escape(j.id)}"/><span>${i+1}. ${escape(result.project.elements.find(e=>e.id===j.a.elementId)?.name)} ↔ ${escape(result.project.elements.find(e=>e.id===j.b.elementId)?.name)} · neistý otočný spoj</span></label>`).join('')||'<p>Žiadne spojenie sa nenavrhuje automaticky. Obrysy možno vložiť a spojiť ručne.</p>'}</div><p class="section-description">Nepotvrdené väzby sa nevložia. Montážne body upravíte cez zelené čapy v detekcii alebo neskôr na plátne.</p><div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Späť k detekcii</button><button class="button button-dark">Vložiť obrysy a potvrdené väzby</button></div></form>`,true);
   }
   function commitDetectedReview(data) {
     const magic=state.magic,review=magic?.review;if(!review||review.revision!==JSON.stringify(state.project))throw new Error('Detekcia alebo projekt sa zmenili. Návrh vytvorte znova.');
@@ -3879,6 +3996,19 @@
     'project-info': projectInfoModal,
     'help': helpModal,
     'settings': settingsModal,
+    'main-dimensions': () => { state.mainDimensions=!state.mainDimensions; renderScene(); $('[data-action="main-dimensions"]').setAttribute('aria-pressed',String(state.mainDimensions)); if (state.mainDimensions) { fitView(); renderScene(); } updateToolbar(); },
+    'dimensions-overview': dimensionsOverview,
+    'explain-movement': explainMovement,
+    'cycle-review': reviewCycle,
+    'cycle-position': (el) => { const review=state.cycleReview;if(!review||review.revision!==JSON.stringify(state.project)){toast('Model sa zmenil. Zopakujte kontrolu.',true);return;} const failure=review.review.failures[Number(el.dataset.index)];if(!failure)return;$('#modal').close();state.mode='simulate';setMotion(failure.motion);if(failure.keys[0])selectTarget(failure.keys[0]);state.diagnosticsOpen=true;renderScene();updateToolbar(); },
+    'explain-focus': (el) => { $('#modal').close(); selectTarget(el.dataset.key); state.diagnosticsOpen=true; state.showFreedom=true; renderScene(); if (el.dataset.kind==='joint') { const t=I.target(state.project,el.dataset.key); if(t?.joint&&!t.joint.builtin)jointModal(t.joint.id); } else propertiesOverview(); },
+    'properties-overview': propertiesOverview,
+    'open-full-properties': () => { $('#modal').close();setInspectorOpen(true); },
+    'element-limits': () => { const r=selectionReference();if(r)canvasDialog('limits',r); },
+    'detect-review-edit': (el) => { $('#modal').close();state.magic.review=null;state.magic.showImage=true;state.magic.tool='select';state.magic.detectEditing=el.dataset.id;renderMagicImport();renderScene();actions['detect-edit']({dataset:{id:el.dataset.id}}); },
+    'construction': constructionModal,
+    'issue-report': issueModal,
+    'connection-type': (el) => { const d=state.connectionReview;if(d){previewConnection(d.a,d.b,el.dataset.type,d.snap);if(state.connectionReview){state.connectionReview.snap=d.snap;state.connectionReview.transaction=d.transaction;}} },
     'diagnostics': () => { state.diagnosticsOpen = !state.diagnosticsOpen; state.diagnosticAnalysis = null; renderScene(); updateToolbar(); },
     'select-diagnostic': (el) => selectTarget(el.dataset.key),
     'edit-numbers': () => transformModal('move'),
@@ -3893,7 +4023,7 @@
     'selection-rail': (el) => { const r = selectionReference(); if (r) try { editCanvas(I.setRailMotion(state.project, r.elementId, el.dataset.moving === 'true', state.result), 'Uloženie vedenia bolo zmenené. Lineárny pohon riadi zvolenú časť.'); } catch (error) { toast(error.message, true); } },
     'selection-motor': () => { const r = selectionReference(); if (r) canvasDialog('motor', r); },
     'check-model': focusModelCheck,
-    'snap-connect': (el) => { try { submitSnapConnection(new Map([['type', el.dataset.type]])); } catch (error) { toast(error.message, true); } },
+    'snap-connect': (el) => { const snap=state.pendingSnap;if(!snap)return;const a=snap.source.ref||{elementId:snap.source.elementId,point:'a'},b=snap.target.ref||{elementId:snap.target.elementId,point:'a'};previewConnection(a,b,el.dataset.type,snap);if(state.connectionReview){state.connectionReview.snap=K.copy(snap);state.connectionReview.transaction=state.snapTransaction;} },
     'snap-position': dismissSnapChoices,
     'placement-cancel': () => setTool('select'),
     'placement-mount': (el) => { state.placementMount = el.dataset.point; state.placementPreview = null; const type = state.draggedPaletteType || state.insertingType || state.magic?.placementType; if (type) state.snapPreview = placementAt(type, state.pointer).preview; renderSmartSnapPreview(); renderPlacementTools(); },
@@ -4249,6 +4379,13 @@
     if (state.gifExport) { event.preventDefault(); return; }
     if(form.id==='advanced-perspective-form'){event.preventDefault();try{await rectifyMagic(new FormData(form));}catch(error){toast(error.message,true);}return;}
     if(form.id.startsWith('advanced-')){event.preventDefault();try{advancedSubmit(form,new FormData(form));}catch(error){toast(error.message,true);}return;}
+    if (['connection-review-form','construction-form','issue-form'].includes(form.id)) {
+      event.preventDefault(); const data=new FormData(form); try {
+        if(form.id==='connection-review-form')confirmConnection(data);
+        if(form.id==='construction-form'){const values=Object.fromEntries(['minLength','maxLength','restLength'].map(key=>[key,quantityValue(data,key,'mm',.1,5000)]));editCanvas(globalThis.KinmoUsability.elasticConstruction(state.project,form.dataset.id,values),'Konštrukčné rozmery boli upravené.');$('#modal').close();}
+        if(form.id==='issue-form'){const bundle=globalThis.KinmoUsability.issueBundle(state.project,state.result,{description:data.get('description'),mode:state.mode,selected:state.selectedElementIds,collisions:state.collisions});const text=JSON.stringify(bundle);if(new TextEncoder().encode(text).length>2*1024*1024)throw new Error('Diagnostický balík prekročil 2 MB. Zmenšite projekt.');download('kinematika-problem.json',text,'application/json');$('#modal').close();}
+      }catch(error){toast(error.message,true);}return;
+    }
     if (['reference-calibration-form','elastic-response-form','magic-detection-review-form','reference-attach-form', 'reference-form', 'kit-form', 'motion-plan-form', 'pose-alignment-form', 'impact-form'].includes(form.id)) {
       event.preventDefault(); try { workflowSubmit(form, new FormData(form)); } catch (error) { toast(error.message, true); } return;
     }
@@ -4514,11 +4651,15 @@
     document.addEventListener('change', onChange);
     document.addEventListener('input', (event) => {
       if (state.gifExport) return;
+      const construction=event.target.closest?.('#construction-form');
+      if(construction){try{const data=new FormData(construction),values=Object.fromEntries(['minLength','maxLength','restLength'].map(key=>[key,quantityValue(data,key,'mm',.1,5000)])),next=globalThis.KinmoUsability.elasticConstruction(state.project,construction.dataset.id,values),e=next.elements.find(e=>e.id===construction.dataset.id);$('#construction-feedback').textContent='Platné rozmery · zdvih '+fmt(e.maxLength-e.minLength,2)+' mm';}catch(error){$('#construction-feedback').textContent=error.message;}return;}
       if (event.target.closest?.('#gif-form')) { updateGIFEstimate(); return; }
       if (event.target.dataset?.magicSetting) onMagicSetting(event.target);
     });
     document.addEventListener('submit', onSubmit);
     document.addEventListener('keydown', onKeyboard);
+    document.addEventListener('pointerup', (event) => { if(event.pointerType==='touch'&&!$('#mechanism-canvas').contains(event.target))touchEnd(event); });
+    document.addEventListener('pointercancel', (event) => { if(event.pointerType==='touch'&&!$('#mechanism-canvas').contains(event.target))touchEnd(event); });
     document.addEventListener('keyup', (event) => { if (event.key === 'Alt') { state.snapSuppressed = false; const type = state.draggedPaletteType || state.insertingType || state.magic?.placementType; if (type) state.snapPreview = placementAt(type, state.pointer).preview; renderSmartSnapPreview(); } });
     window.addEventListener?.('blur', () => { state.snapSuppressed = false; });
     document.addEventListener('selectstart', (event) => { if (!canSelectText(event.target)) event.preventDefault(); });
@@ -4531,7 +4672,7 @@
     svg.addEventListener('contextmenu', onContextMenu);
     for (const selector of ['#model-tree', '#joint-list']) $(selector).addEventListener('contextmenu', onContextMenu);
     svg.addEventListener('pointerleave', () => { if (!state.drag) updateHover(null); });
-    svg.addEventListener('lostpointercapture', (event) => { if (state.drag) onPointerUp({ pointerId: event.pointerId, cancelled: true }); });
+    svg.addEventListener('lostpointercapture', onLostPointerCapture);
     svg.addEventListener('dragstart', (event) => event.preventDefault());
     svg.addEventListener('wheel', (event) => { event.preventDefault(); zoom(event.deltaY > 0 ? 1.08 : 0.925, worldPoint(event)); }, { passive: false });
     $('#palette').addEventListener('dragstart', (event) => {
@@ -4576,8 +4717,10 @@
       if (!file) return;
       try {
         if (file.size > 2 * 1024 * 1024) throw new Error('Projekt je príliš veľký. Limit je 2 MB.');
-        const imported = X.parseNative(await file.text());
+        const text=await file.text(), raw=JSON.parse(text), issue=raw.format==='kinematika-issue'?raw:null;
+        const restored=issue ? globalThis.KinmoUsability.restoreIssue(issue) : null, imported=restored ? restored.native : X.parseNative(text);
         replaceProject(imported.project, imported);
+        if(issue){state.mode=['edit','simulate'].includes(issue.reproduction?.mode)?issue.reproduction.mode:'edit';state.collisions=issue.reproduction?.collisions!==false;state.selectedElementIds=Array.isArray(issue.reproduction?.selected)?issue.reproduction.selected.filter(key=>I.target(state.project,key)):[];setMotion(K.clamp(Number(issue.reproduction?.motion)||0,K.driveRange(state.project).min,K.driveRange(state.project).max));state.result=restored.result;renderScene();updateToolbar();toast('Zobrazená je zaznamenaná poloha. Pri pohybe sa model znovu vypočíta.');}
       } catch (error) { toast(error.message || 'Projekt sa nepodarilo importovať.', true); }
       event.target.value = '';
     });

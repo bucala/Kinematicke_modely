@@ -1071,3 +1071,33 @@ a[aria-disabled="true"] { pointer-events: none; opacity: .45; }
   .play-button { width: 40px; height: 40px; }
   .workspace-tabs, .workspace-tab { height: 40px; }
 }
+.main-dimensions-toggle { font-size: 11px; padding: 7px; border: 1px solid var(--border); border-radius: 5px; white-space: nowrap; }
+.main-dimensions-toggle[aria-pressed="true"] { background: var(--accent-pale); color: var(--accent-ink); }
+.main-dimensions text { paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; }
+.dimension-metrics { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 0; }
+.explanation-list, .cycle-failures { display: flex; flex-direction: column; gap: 8px; }
+.explanation-list button, .cycle-failures button { text-align: left; white-space: normal; line-height: 1.5; }
+.cycle-failures { max-height: 50dvh; overflow-y: auto; }
+.connection-preview { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+.connection-preview svg { width: 100%; height: 220px; }
+.connection-type-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.connection-type-choices [aria-pressed="true"] { background: var(--accent-pale); border-color: var(--accent); }
+.properties-overview details { border-bottom: 1px solid var(--border); padding: 8px 0; }
+.properties-overview summary { padding: 8px 0; cursor: pointer; font-weight: 600; }
+.properties-overview details > div { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; }
+.properties-overview button { border: 1px solid var(--border); border-radius: 5px; padding: 10px; }
+#construction-feedback { color: var(--accent-ink); line-height: 1.6; }
+@media (max-width: 640px) {
+  .main-dimensions-toggle { min-height: 36px; }
+  .properties-overview button { min-height: 44px; width: 100%; text-align: left; }
+  .stage-toggles { flex-wrap: wrap; }
+  .selection-summary button { min-height: 44px; }
+}
+.detection-overview { padding: 12px; border: 1px solid var(--border); border-radius: 6px; margin: 12px 0; }
+.detection-overview h3 { font-size: 13px; margin: 10px 0 6px; }
+.detection-overview ul { max-height: 120px; overflow-y: auto; }
+.detection-overview button { margin: 3px; }
+.magic-detection-row.is-uncertain { background: var(--accent-pale); border-left: 3px solid var(--accent); padding: 6px; }
+.elastic-lengths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.elastic-lengths > div { display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
+.elastic-lengths span { color: var(--secondary); }
