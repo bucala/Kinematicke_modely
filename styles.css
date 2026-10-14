@@ -8,9 +8,9 @@
   --border: #e2e8f0;
   --paper: #ffffff;
   --canvas: #f8fafc;
-  --surface-subtle: #f1f5f9;
+  --surface-subtle: #ffffff;
   --accent: #4f46e5;
-  --accent-pale: #eef2ff;
+  --accent-pale: #f3f4f6;
   --accent-soft: var(--accent-pale);
   --accent-ink: #4338ca;
   --on-accent: #ffffff;
@@ -33,9 +33,9 @@
   --border: #e2e8f0;
   --paper: #ffffff;
   --canvas: #f8fafc;
-  --surface-subtle: #f1f5f9;
+  --surface-subtle: #ffffff;
   --accent: #4f46e5;
-  --accent-pale: #eef2ff;
+  --accent-pale: #f3f4f6;
   --accent-ink: #4338ca;
   --on-accent: #ffffff;
   --grid-small: #edf1f6;
@@ -50,9 +50,9 @@
   --border: #dfe7e2;
   --paper: #ffffff;
   --canvas: #f9f9fb;
-  --surface-subtle: #f3f6f4;
+  --surface-subtle: #ffffff;
   --accent: #3b7a57;
-  --accent-pale: #e8f0ec;
+  --accent-pale: #f3f4f6;
   --accent-ink: #2d6245;
   --on-accent: #ffffff;
   --grid-small: #edf0ee;
@@ -67,9 +67,9 @@
   --border: #dce4eb;
   --paper: #ffffff;
   --canvas: #f4f6f8;
-  --surface-subtle: #edf2f6;
+  --surface-subtle: #ffffff;
   --accent: #0284c7;
-  --accent-pale: #e0f2fe;
+  --accent-pale: #f3f4f6;
   --accent-ink: #0369a1;
   --on-accent: #07111f;
   --grid-small: #e9eef3;
@@ -84,9 +84,9 @@
   --border: #e4e4e7;
   --paper: #ffffff;
   --canvas: #fafafa;
-  --surface-subtle: #f4f4f5;
+  --surface-subtle: #ffffff;
   --accent: #d97706;
-  --accent-pale: #fff4e5;
+  --accent-pale: #f3f4f6;
   --accent-ink: #92400e;
   --on-accent: #18181b;
   --grid-small: #f0f0f1;
@@ -1255,3 +1255,75 @@ dialog::backdrop { background: #10182066; backdrop-filter: blur(4px); }
 [data-theme] .button-dark:disabled { opacity: .5; }
 .skin-picker > div { grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); }
 @media (max-width: 640px) { .skin-picker > div { grid-template-columns: minmax(0, 1fr); } }
+
+/* White secondary UI surfaces; the active accent is carried by text and outlines. */
+[data-theme] :is(.selection-summary button, .manipulation-tools button, .mobile-tools-dialog button) { background: var(--paper); color: var(--ink); border-color: var(--border); }
+[data-theme] .component-name { color: var(--ink); }
+[data-theme] .component-name small { color: var(--secondary); }
+.mobile-menu-button, .mobile-workflow-button, .mobile-selection-button { display: none; }
+.mobile-tools-dialog section { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; }
+.mobile-tools-dialog h3 { font-size: 13px; color: var(--secondary); margin: 0 0 4px; }
+.mobile-tools-dialog button { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 12px; text-align: left; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; white-space: normal; }
+.mobile-tools-dialog button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-ink); }
+.mobile-tools-dialog .workflow-position-menu { display: block; }
+.mobile-tools-dialog .workflow-position-menu > div, .mobile-tools-dialog #model-checks details > div { position: static; display: flex; flex-direction: column; gap: 8px; max-height: none; box-shadow: none; border: 0; padding: 8px 0; }
+.mobile-tools-dialog .workflow-position-menu:not([open]) > div { display: none; }
+.mobile-tools-dialog details > div { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+.mobile-tools-dialog details:not([open]) > div { display: none; }
+.mobile-tools-dialog summary { padding: 12px; min-height: 44px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+@media (max-width: 640px) {
+  .app-header { padding: 10px 12px; row-gap: 6px; }
+  .project-name { padding: 6px 0; min-height: 36px; }
+  .header-actions .button { min-height: 44px; }
+  .context-bar { flex-wrap: nowrap; min-height: 52px; padding: 0 12px; gap: 6px; }
+  .workspace-tabs { gap: 12px; flex-shrink: 0; }
+  .workspace-tab { font-size: 12px; min-height: 44px; }
+  .context-right { margin-left: auto; overflow: visible; gap: 4px; }
+  .context-right > :not([data-action="toggle-sidebar"]):not(.mobile-menu-button) { display: none; }
+  .context-right [data-action="toggle-sidebar"] { width: auto; min-height: 44px; gap: 4px; padding: 6px; }
+  .context-right [data-action="toggle-sidebar"]::after { content: 'Prvky'; font-size: 12px; }
+  .mobile-menu-button { display: flex; align-items: center; gap: 4px; padding: 6px; min-height: 44px; font-size: 12px; }
+  .stage-header { flex-wrap: nowrap; padding: 6px 12px; min-height: 52px; background: var(--paper); }
+  .mode-switch { flex: 1; }
+  .mode-switch button { flex: 1; min-height: 40px; font-size: 12px; }
+  .stage-toggles { display: none; }
+  .workflow-tools { left: 8px; right: auto; top: 8px; max-width: 110px; overflow: visible; }
+  .workflow-tools > :not(.mobile-workflow-button) { display: none; }
+  .workflow-tools .mobile-workflow-button { display: block; min-height: 44px; font-size: 12px; padding: 10px 12px; }
+  .scene-heading, .scene-status { display: none; }
+  .canvas-tools { top: auto !important; bottom: 58px; left: 8px; right: 8px; display: flex; flex-direction: row; gap: 2px; max-height: 52px; overflow-x: auto; overflow-y: hidden; padding: 3px; }
+  .canvas-tools .icon-button { width: 44px; height: 44px; flex: 0 0 44px; }
+  .canvas-tools .tool-divider { width: 1px; height: 32px; margin: 6px 2px; flex-shrink: 0; }
+  .selection-dock { left: 122px; right: 8px; top: 8px; bottom: auto; flex-wrap: nowrap; }
+  .selection-dock .manipulation-tools, .selection-dock .model-checks { display: none; }
+  .selection-summary { width: 100%; border: 0; box-shadow: none !important; padding: 0; background: transparent !important; }
+  .selection-summary > :not(.mobile-selection-button) { display: none; }
+  .selection-summary .mobile-selection-button { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 44px; padding: 10px; font-size: 12px; }
+  .phase-switcher { left: 8px; right: 144px; max-width: none; bottom: 8px; }
+  .phase-switcher button { min-height: 40px; }
+  .zoom-control { bottom: 8px; right: 8px; }
+  .zoom-control .icon-button { width: 36px; height: 40px; }
+  .mobile-tools-dialog .workflow-position-menu > div { left: auto; right: auto; top: auto; }
+  [data-editor-overlay="manipulation"] > .handle-value, .edit-axes text, [data-editor-overlay="freedom"] text { display: none; }
+  .canvas-instruction { top: 60px; left: 8px; right: 8px; max-width: none; font-size: 12px; }
+  #toast { bottom: 112px; font-size: 12px; }
+}
+
+/* Small interface labels use readable token colours, including the inspector. */
+[data-theme] :is(.brand-studio, .small-tag, .section-label, .section-label > span, .count-pill, .component-add, .add-element-button, .empty-inspector p, .empty-projects, .control-point-row > span, .inspector-footer .button, .units-tag span, .zoom-control > span:not(.zoom-divider)) { color: var(--secondary); }
+[data-theme] .estimated-note { color: var(--warning-ink); }
+[data-theme] :is(.segmented button span, .scene-heading p span, .axis-widget > span, .axis-widget i) { color: var(--secondary); }
+[data-theme] .canvas-instruction { color: var(--ink); background: var(--paper); border-color: var(--border); }
+@media (max-width: 640px) {
+  .phase-switcher { right: 174px; }
+  .phase-switcher button, .zoom-control .icon-button { min-height: 44px; height: 44px; }
+  .phase-switcher strong, .phase-switcher small { font-size: 11px; }
+  .zoom-control > span:not(.zoom-divider) { font-size: 11px; }
+  .canvas-instruction { transform: none; }
+  .sidebar-scroll { padding-bottom: 16px; }
+  .component-name { font-size: 13px; }
+  .component-name small { font-size: 11px; }
+  .component-card { min-height: 60px; }
+}
+[data-theme] :is(.component-symbol, .selection-icon) { background: var(--paper); border-color: var(--border); --icon-bg: var(--paper); }
+[data-theme] :is(.rail-label, .slot-label, .panel-label, .arm-label, .angle-label, .panel-dimension, .trace-label, .measure-label, .dimension-label) { fill: var(--secondary); paint-order: stroke; stroke: var(--paper); stroke-width: 2px; stroke-linejoin: round; }

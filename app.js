@@ -369,7 +369,7 @@
           ${ib('warning', 'diagnostics', 'Diagnostika konkrétnych väzieb', false, 'aria-controls="diagnostics-panel" aria-expanded="false"')}
           <div class="panel-toggles" aria-label="Voliteľné panely">${ib('chart', 'profileVisible', 'Zobraziť pohybový profil', state.profileVisible, 'aria-controls="motion-profile-panel" aria-expanded="false" aria-pressed="false"')}${ib('play', 'timelineVisible', 'Zobraziť prehrávanie časovej osi', state.timelineVisible, 'aria-controls="playback-panel" aria-expanded="false" aria-pressed="false"')}</div>
           ${ib('panel', 'toggle-inspector', 'Zobraziť vlastnosti', false, 'aria-controls="properties-panel" aria-expanded="false"')}
-          ${ib('menu', 'toggle-sidebar', 'Zobraziť prvky')}
+          ${ib('menu', 'toggle-sidebar', 'Zobraziť prvky')}<button class="mobile-menu-button" data-action="mobile-tools" aria-haspopup="dialog">${icon('menu',18)}Ponuka</button>
         </div>
       </nav>
       <section id="magic-wizard" class="magic-wizard" aria-labelledby="magic-title" hidden></section>
@@ -1182,7 +1182,7 @@
     const el = $('#selection-summary');
     el.hidden = !state.selectedElementIds.length;
     const target = I.target(state.project, state.selectedElementIds.at(-1)), editable = target?.element && !target.element.primary && state.mode === 'edit';
-    el.innerHTML = `<span>${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'}</span><button data-action="selection-settings"${editable ? '' : ' disabled'}>Spojenia / uloženie…</button><button data-action="properties-overview">Vlastnosti…</button>`;
+    el.innerHTML = `<span>${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'}</span><button data-action="selection-settings"${editable ? '' : ' disabled'}>Spojenia / uloženie…</button><button data-action="properties-overview">Vlastnosti…</button><button class="mobile-selection-button" data-action="mobile-selection" aria-haspopup="dialog">${escape(target?.element?.name || 'Upraviť výber')}</button>`;
   }
 
   function jointPoints(joint, result = state.result) {
@@ -1204,6 +1204,7 @@
     if (!enabled) { toolbar.innerHTML = ''; return ''; }
     const single = selected.length === 1 ? selected[0] : null, canLength = single && ['link', 'panel', 'ground', 'rail'].includes(single.type) && !single.outline.length;
     toolbar.innerHTML = `${canThickness ? '<button data-action="edit-thickness">Hrúbka / priemer</button>' : ''}${canTransform ? `<button data-action="edit-numbers">${icon('ruler', 13)}X / Y</button><button data-action="edit-rotation">${icon('reset', 13)}Uhol</button><button data-action="edit-pivot">${icon('target', 13)}Bod otáčania</button>${canLength ? '<button data-action="edit-length">Dĺžka</button>' : ''}` : ''}`;
+    if (window.innerWidth <= 640 && !state.mobileHandles) return '';
     const origin = state.editPivot || W.pivot(state.project, state.selectedElementIds, state.result), size = 42 / scale, radius = 66 / scale, knob = 6 / scale;
     const handle = (kind, at, label, shape = 'circle', extra = '') => `<g data-edit-handle="${kind}" ${extra} class="edit-handle ${kind}" role="button" tabindex="0" aria-label="${escape(label)}. ${kind === 'pivot' ? 'Kliknite na výber uzla alebo zadanie X / Y.' : 'Potiahnite alebo kliknite na presné číselné zadanie.'}"><title>${escape(label)}</title>${shape === 'circle' ? `<circle cx="${at.x}" cy="${at.y}" r="${knob}"/>` : `<rect x="${at.x - knob}" y="${at.y - knob}" width="${2 * knob}" height="${2 * knob}" rx="${2 / scale}"/>`}</g>`;
     let content = `<g data-editor-overlay="manipulation"><g class="edit-axes" pointer-events="none">${line(origin, { x: origin.x + size, y: origin.y }, 'class="edit-axis-x" vector-effect="non-scaling-stroke"')}${line(origin, { x: origin.x, y: origin.y + size }, 'class="edit-axis-y" vector-effect="non-scaling-stroke"')}<circle cx="${origin.x}" cy="${origin.y}" r="${radius}" class="edit-rotation-ring" vector-effect="non-scaling-stroke"/><text x="${origin.x + size + 10 / scale}" y="${origin.y + 4 / scale}" font-size="${11 / scale}">X</text><text x="${origin.x + 10 / scale}" y="${origin.y + size}" font-size="${11 / scale}">Y</text></g>`;
@@ -2578,8 +2579,25 @@
     const extraTools = `<button data-action="explain-movement">Prečo sa nehýbe?</button><button data-action="cycle-review">Overiť celý cyklus</button><button data-action="dimensions-overview">Prehľad rozmerov</button><button data-action="issue-report">Nahlásiť problém</button>`;
     const advanced=window.KinmoAdvanced?`<details class="workflow-position-menu"><summary>Ďalšie nástroje</summary><div>${extraTools}${[['hub','Spoločný čap'],['drives','Viac pohonov'],['contacts','Kontakt a dorazy'],['planes','Skupiny / roviny'],['measure','Meranie v čase'],['variants','Varianty'],['revisions','Automatické verzie'],['learn','Príklady']].map(([tab,label])=>`<button data-action="advanced-open" data-tab="${tab}">${label}</button>`).join('')}</div></details>`:'';
     const markup = `${advanced}${state.phasePick ? '<button data-action="plan-pick-done">Použiť polohu</button><button data-action="plan-pick-cancel">Zrušiť výber</button>' : ''}${imported ? `<button data-action="reference-toggle" aria-pressed="${!!reference?.visible}"${reference ? '' : ' title="Doplniť pôvodný obrázok staršieho Magic projektu"'}>Predloha</button>${reference ? '<button data-action="reference-settings" aria-label="Nastaviť predlohu">◐</button>' : ''}` : ''}${(state.project.elements.some(K.isElastic)||state.project.connections.some(j=>j.contact?.enabled)) ? `<button data-action="force-motion" aria-pressed="${state.project.simulation?.mode === 'dynamic'}">Pohyb zo síl</button>` : ''}${state.mode==='simulate' ? '<details class="workflow-position-menu"><summary>Poloha simulácie</summary><div><button data-action="simulation-pause">Pozastaviť tu</button><button data-action="simulation-design">Vrátiť do návrhu</button><button data-action="simulation-bake">Poloha → návrh</button></div></details>' : ''}<button data-action="freedom-toggle" aria-pressed="${!!state.showFreedom}">Voľnosť</button><button data-action="trial-toggle" aria-pressed="${!!state.trial}">Skúšobný pohyb</button><button data-action="mechanism-kit">Zostavy</button><button data-action="motion-plan">Fázy pohybu</button>`;
-    if (root._workflowMarkup !== markup) { root.innerHTML = markup; root._workflowMarkup = markup; }
+    if (root._workflowMarkup !== markup) { root.innerHTML = markup + '<button class="mobile-workflow-button" data-action="mobile-workflow" aria-haspopup="dialog">Nástroje</button>'; root._workflowMarkup = markup; }
     const heading=$('.scene-heading');if(heading){heading.style ||= {};const top=Math.max(34,root.hidden?34:root.getBoundingClientRect().height+12);heading.style.top=`${top}px`;const tools=$('.canvas-tools');if(tools){tools.style ||= {};tools.style.top=`${Math.max(108,top+75)}px`;}}
+  }
+
+  function mobileToolsModal(kind = 'app') {
+    let title, content;
+    if (kind === 'workflow') {
+      renderWorkflowTools(); renderModelChecks();
+      title = 'Nástroje mechanizmu';
+      content = `<section><h3>Pohyb a zostavy</h3>${$('#workflow-tools')._workflowMarkup || ''}</section><section><h3>Kontrola modelu</h3>${$('#model-checks').innerHTML}</section>`;
+    } else if (kind === 'selection') {
+      const e = currentElement(); title = e?.name || 'Vybraný prvok';
+      content = `<section><h3>Prvok a väzby</h3><button data-action="selection-settings"${e && !e.primary && state.mode === 'edit' ? '' : ' disabled'}>Spojenia a uloženie</button><button data-action="properties-overview"${e ? '' : ' disabled'}>Vlastnosti prvku</button></section>${!$('#manipulation-tools').hidden ? `<section><h3>Geometria</h3>${$('#manipulation-tools').innerHTML}<button data-action="mobile-handles" aria-pressed="${!!state.mobileHandles}">${state.mobileHandles ? 'Skryť' : 'Zobraziť'} úchyty na plátne</button></section>` : ''}`;
+    } else {
+      title = 'Ponuka pracovného priestoru';
+      const controls = [['undo','Späť'],['redo','Znova'],['settings','Vzhľad a nastavenia'],['diagnostics','Diagnostika väzieb'],['toggle-inspector','Inšpektor vlastností'],['profileVisible','Pohybový profil'],['timelineVisible','Časová os'],['help','Pomoc']];
+      content = `<section><h3>Pracovný priestor</h3>${controls.map(([action,label])=>`<button data-action="${action}"${action === 'undo' && !state.history.length || action === 'redo' && !state.future.length ? ' disabled' : ''}>${label}</button>`).join('')}</section><section><h3>Zobrazenie plátna</h3>${[['grid','Mriežka'],['main-dimensions','Hlavné rozmery'],['dimensions','Kóty'],['ghosts','Krajné polohy'],['trace','Trajektórie'],['labels','Názvy a texty']].map(([action,label])=>`<button data-action="${action}" aria-pressed="${!!state[({grid:'grid','main-dimensions':'mainDimensions',dimensions:'dimensions',ghosts:'ghosts',trace:'trace',labels:'labels'})[action]]}">${label}</button>`).join('')}</section>`;
+    }
+    modal(title, `<div class="mobile-tools-dialog">${content}</div>`);
   }
 
   function referenceSVG() {
@@ -2773,7 +2791,7 @@
     if (!state.magic || action.startsWith('magic-') || action.startsWith('detect-') || action === 'pose-pick') return true;
     if (['help', 'close-modal', 'fit', 'zoom-in', 'zoom-out', 'tool-pan', 'toggle-sidebar', 'close-inspector'].includes(action)) return true;
     if (!magicWorking()) return false;
-    return ['undo', 'redo', 'tool-select', 'tool-connect', 'tool-measure', 'smart-snap', 'grid-snap', 'angle-snap', 'properties-overview', 'open-full-properties', 'construction', 'element-limits', 'connection-type', 'selection-settings', 'selection-connect', 'selection-support', 'selection-rail', 'selection-motor', 'snap-connect', 'snap-preview', 'snap-position', 'placement-mount', 'placement-cancel', 'check-model', 'grid', 'dimensions', 'select', 'visibility', 'sidebar-elements', 'sidebar-joints', 'toggle-inspector', 'inspector-geometry', 'inspector-joints', 'new-joint', 'edit-joint', 'delete-joint', 'new-dimension', 'edit-dimension', 'dimension-pick', 'delete-dimension', 'edit-numbers', 'edit-rotation', 'edit-pivot', 'edit-length', 'edit-thickness', 'add-menu', 'add-component', 'duplicate', 'delete', 'confirm-canvas-delete', 'canvas-add-guide', 'lock-selected', 'drive-selected', 'element-menu', 'edit-outline', 'edit-path', 'edit-com'].includes(action);
+    return ['undo', 'redo', 'tool-select', 'tool-connect', 'tool-measure', 'smart-snap', 'grid-snap', 'angle-snap', 'mobile-tools', 'mobile-selection', 'mobile-handles', 'properties-overview', 'open-full-properties', 'construction', 'element-limits', 'connection-type', 'selection-settings', 'selection-connect', 'selection-support', 'selection-rail', 'selection-motor', 'snap-connect', 'snap-preview', 'snap-position', 'placement-mount', 'placement-cancel', 'check-model', 'grid', 'dimensions', 'select', 'visibility', 'sidebar-elements', 'sidebar-joints', 'toggle-inspector', 'inspector-geometry', 'inspector-joints', 'new-joint', 'edit-joint', 'delete-joint', 'new-dimension', 'edit-dimension', 'dimension-pick', 'delete-dimension', 'edit-numbers', 'edit-rotation', 'edit-pivot', 'edit-length', 'edit-thickness', 'add-menu', 'add-component', 'duplicate', 'delete', 'confirm-canvas-delete', 'canvas-add-guide', 'lock-selected', 'drive-selected', 'element-menu', 'edit-outline', 'edit-path', 'edit-com'].includes(action);
   }
 
   function startMagicImport() {
@@ -4032,6 +4050,10 @@
     'cycle-review': reviewCycle,
     'cycle-position': (el) => { const review=state.cycleReview;if(!review||review.revision!==JSON.stringify(state.project)){toast('Model sa zmenil. Zopakujte kontrolu.',true);return;} const failure=review.review.failures[Number(el.dataset.index)];if(!failure)return;$('#modal').close();state.mode='simulate';setMotion(failure.motion);if(failure.keys[0])selectTarget(failure.keys[0]);state.diagnosticsOpen=true;renderScene();updateToolbar(); },
     'explain-focus': (el) => { $('#modal').close(); selectTarget(el.dataset.key); state.diagnosticsOpen=true; state.showFreedom=true; renderScene(); if (el.dataset.kind==='joint') { const t=I.target(state.project,el.dataset.key); if(t?.joint&&!t.joint.builtin)jointModal(t.joint.id); } else propertiesOverview(); },
+    'mobile-handles': () => { state.mobileHandles = !state.mobileHandles; renderScene(); },
+    'mobile-tools': () => mobileToolsModal(),
+    'mobile-workflow': () => mobileToolsModal('workflow'),
+    'mobile-selection': () => mobileToolsModal('selection'),
     'properties-overview': propertiesOverview,
     'open-full-properties': () => { $('#modal').close();setInspectorOpen(true); },
     'element-limits': () => { const r=selectionReference();if(r)canvasDialog('limits',r); },
@@ -4674,7 +4696,7 @@
       if (button && !button.disabled) {
         if (!magicActionAllowed(button.dataset.action)) { toast('Najskôr dokončite alebo zrušte Magic import.', true); return; }
         document.querySelectorAll('#workflow-tools details[open], #model-checks details[open]').forEach((el) => { el.open = false; });
-        if (button.closest('.binding-dialog')) $('#modal').close();
+        if (button.closest('.binding-dialog, .mobile-tools-dialog')) $('#modal').close();
         actions[button.dataset.action]?.(button, event); return;
       }
       const component = event.target.closest('[data-component]');

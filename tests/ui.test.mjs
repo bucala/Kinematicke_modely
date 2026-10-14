@@ -93,7 +93,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'mobileToolsModal', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -682,6 +682,7 @@ test('Five modern palettes use the requested neutral surfaces and accessible acc
     for(const [name,value] of [['canvas',canvas],['paper',paper],['ink',ink],['accent',accent]])assert(block.includes(`--${name}: ${value};`));
     const token=name=>block.match(new RegExp(`--${name}: (#[a-f0-9]+);`))[1];
     for(const bg of [canvas,paper])for(const text of ['ink','secondary','muted'])assert(contrast(token(text),bg)>=4.5,`${theme} ${text} on ${bg}`);
+    if(theme!=='dark')assert.equal(token('surface-subtle'),'#ffffff');
     assert(contrast(token('on-accent'),accent)>=4.5,`${theme} primary button`);
     assert(contrast(token('accent-ink'),token('accent-pale'))>=4.5,`${theme} active item`);
     assert(source.includes(`['${theme}',`));
@@ -2156,4 +2157,23 @@ test('The connection tool picks an overlapping pin before a selected slot endpoi
  context.selectTarget('n:guide:a');state.tool='connect';
  context.onPointerDown(pointer(200,100));assert.equal(state.pendingJoint.elementId,'pin');
  context.onPointerDown(pointer(200,100));assert.equal(state.project.connections.length,1);assert.equal(state.project.connections[0].type,'point-path');assert(!context.dialog);
+});
+
+
+test('Mobile menus keep workflow and display actions reachable and selection menus never edit the model',()=>{
+ const {context,state,element}=controller(390),before=JSON.stringify(state.project);
+ context.mobileToolsModal('workflow');
+ for(const action of ['freedom-toggle','trial-toggle','mechanism-kit','motion-plan'])assert(context.dialog.html.includes(`data-action="${action}"`));
+ context.mobileToolsModal();
+ for(const action of ['settings','undo','redo','dimensions','main-dimensions','labels','diagnostics'])assert(context.dialog.html.includes(`data-action="${action}"`));
+ context.selectTarget('e:body');element('#manipulation-tools').hidden=false;element('#manipulation-tools').innerHTML='<button data-action="edit-thickness">Hrúbka</button>';
+ context.mobileToolsModal('selection');assert(context.dialog.html.includes('selection-settings'));assert(context.dialog.html.includes('edit-thickness'));assert.equal(JSON.stringify(state.project),before);assert.equal(state.history.length,0);
+});
+
+
+test('Mobile geometry handles are opt-in while precise editing commands stay available',()=>{
+ const {context,state,element}=controller(390);context.selectTarget('e:body');
+ assert.equal(context.manipulationSVG(1),'');assert(!element('#manipulation-tools').hidden);assert(element('#manipulation-tools').innerHTML.includes('edit-length'));
+ context.mobileToolsModal('selection');assert(context.dialog.html.includes('mobile-handles'));
+ state.mobileHandles=true;assert(context.manipulationSVG(1).includes('data-edit-handle="length"'));assert.equal(state.history.length,0);
 });

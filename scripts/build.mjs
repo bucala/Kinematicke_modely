@@ -1,6 +1,7 @@
-import { mkdir, copyFile, writeFile } from 'node:fs/promises';
+import { mkdir, copyFile, writeFile, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fusionArchive } from './archive.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -10,6 +11,13 @@ for (const file of ['index.html', 'app.js', 'advanced.js', 'usability.js', 'work
   await mkdir(path.dirname(path.join(destination, file)), { recursive: true });
   await copyFile(path.join(root, file), path.join(destination, file));
 }
+// One content version for scripts and CSS prevents mixing a cached UI with a newer skin.
+const html = await readFile(path.join(destination, 'index.html'), 'utf8');
+const references = [...html.matchAll(/(?:src|href)="\.\/([^"?]+\.(?:js|css))"/g)].map(match => match[1]);
+const versionHash = createHash('sha256');
+for (const file of references) versionHash.update(await readFile(path.join(destination, file)));
+const version = versionHash.digest('hex').slice(0, 12);
+await writeFile(path.join(destination, 'index.html'), html.replace(/((?:src|href)="\.\/[^"?]+\.(?:js|css))"/g, `$1?v=${version}"`));
 await mkdir(path.join(destination, 'cad'), { recursive: true });
 await writeFile(path.join(destination, 'cad', 'KinmoFusion.zip'), await fusionArchive(root));
 console.log('Hotovo. Statická aplikácia je pripravená v priečinku dist/.');
