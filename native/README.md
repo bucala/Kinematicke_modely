@@ -1,4 +1,4 @@
-> **Archív od 16. 10. 2026:** Windows a Android sa už nevytvárajú ani nepublikujú. Aktívne publikovanie je iba webové cez `.github/workflows/ci.yml`. Nasledujúce postupy sú historické; existujúci kľúč ani balíky sa nemažú.
+> **Archív od 16. 10. 2026:** Windows a Android sa už nevytvárajú ani nepublikujú. Aktívne publikovanie je iba webové cez Cloudflare Workers Builds; `.github/workflows/ci.yml` zabezpečuje validáciu. Nasledujúce postupy sú historické; existujúci kľúč ani balíky sa nemažú.
 
 # Priame Windows a Android aplikácie
 

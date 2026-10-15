@@ -201,7 +201,7 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 
 ## 2026-10-16 · 2.3: publikovanie iba webovej aplikácie
 
-- Windows a Android release workflow bol odstránený. Aktívny workflow Kinematika web overí aplikáciu a na main publikuje iba web do Cloudflare; nepotrebuje .NET, Android SDK ani podpisové Android secrets.
-- Verzia webového vydania sa zvyšuje automaticky. Pull requesty spúšťajú iba validáciu.
+- Windows a Android release workflow bol odstránený. Aktívny workflow Kinematika web overí aplikáciu; existujúce Cloudflare Workers Builds z main publikuje iba web do Cloudflare; nepotrebuje .NET, Android SDK ani podpisové Android secrets.
+- Zostava automaticky zaznamená presný commit. Web publikuje iba Workers Builds; GitHub Actions nevykonáva duplicitné nasadenie. Pull requesty spúšťajú validáciu.
 - Ponuka stiahnutia EXE/APK bola odstránená z desktopového aj mobilného rozhrania. Webový balík neobsahuje natívny klient; build vyčistí predchádzajúce generované súbory.
 - Nové natívne balíky ani R2 objekty sa nevytvárajú. Doterajšie zdroje, podpisové zálohy a vydané archívne balíky sa nemažú; ich existujúce URL zostávajú obsluhované pôvodným bindingom.

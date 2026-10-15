@@ -999,7 +999,7 @@ V **Ďalšie nástroje → Debug režim** (na mobile tiež **Ponuka**) zapnite p
 
 Doplnok Fusion **1.2.0** rozlišuje zaneprázdnenie a odmietnutie udalosti. Pri odmietnutej automatickej udalosti použite tlačidlo **Kinmo: importovať čakajúci výkres** vo Fusion; neopakujte odoslanie. [Podrobný postup](cad/KinmoFusion/README.md).
 
-**Od 16. 10. 2026 sa publikuje iba webová aplikácia.** Workflow **Kinematika web** overí zmeny a po úspešných kontrolách na vetve `main` nasadí web do Cloudflare. Verzia webu rastie automaticky podľa čísla behu. Windows/Android buildy a ich ponuka v aplikácii boli vypnuté; podpisové Android secrets sa pri publikovaní nepoužívajú. Existujúce natívne zdroje a vydané balíky ostávajú archívom.
+**Od 16. 10. 2026 sa publikuje iba webová aplikácia.** Workflow **Kinematika web** overí zmeny; existujúca Git-integrácia **Cloudflare Workers Builds** z vetvy `main` nasadí web príkazom `npm run deploy`. Publikovanie prebehne po kontrolách a do údajov zostavy sa automaticky pridá presný commit. Windows/Android buildy a ich ponuka v aplikácii boli vypnuté; podpisové Android secrets sa pri publikovaní nepoužívajú. Existujúce natívne zdroje a vydané balíky ostávajú archívom.
 
 ### Vačka, kontaktná plocha, elektromotor a jazyky (2.2)
 

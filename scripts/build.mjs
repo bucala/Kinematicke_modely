@@ -2,6 +2,7 @@ import { mkdir, copyFile, writeFile, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fusionArchive } from './archive.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,7 +16,12 @@ for (const file of ['index.html', 'build-info.js', 'debug.js', 'contacts.js', 'i
 }
 // One content version for scripts and CSS prevents mixing a cached UI with a newer skin.
 const packageInfo = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
-await writeFile(path.join(destination, 'build-info.js'), `globalThis.KinmoBuild = Object.freeze(${JSON.stringify({version:process.env.KINMO_VERSION||packageInfo.version,revision:process.env.KINMO_REVISION||'local',platform:process.env.KINMO_PLATFORM||'web',builtAt:new Date().toISOString()})});`);
+let revision = process.env.KINMO_REVISION || process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA;
+if (!revision) {
+  try { revision = execFileSync('git', ['rev-parse', 'HEAD'], {cwd:root,stdio:['ignore','pipe','ignore']}).toString().trim(); }
+  catch { revision = 'local'; }
+}
+await writeFile(path.join(destination, 'build-info.js'), `globalThis.KinmoBuild = Object.freeze(${JSON.stringify({version:process.env.KINMO_VERSION||packageInfo.version,revision,platform:process.env.KINMO_PLATFORM||'web',builtAt:new Date().toISOString()})});`);
 const html = await readFile(path.join(destination, 'index.html'), 'utf8');
 const references = [...html.matchAll(/(?:src|href)="\.\/([^"?]+\.(?:js|css))"/g)].map(match => match[1]);
 const versionHash = createHash('sha256');

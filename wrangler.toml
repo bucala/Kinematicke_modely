@@ -7,7 +7,7 @@ compatibility_date = "2026-10-09"
 directory = "./dist"
 binding = "ASSETS"
 
-# Shared native release storage, prepared by npm run deploy before Worker upload.
+# Existing native release archive only; web publishing does not create new objects.
 [[r2_buckets]]
 binding = "RELEASES"
 bucket_name = "kinematika-releases"

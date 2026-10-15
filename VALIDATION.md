@@ -461,8 +461,8 @@ Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez z
 
 ## 2026-10-16 · Publikovanie iba webu
 
-- Používateľ ukončil tvorbu Windows/Android aplikácií. native-release.yml odstránený, ci.yml obsahuje validate a publish webu s podmienkou main mimo pull requestov. Žiadny aktívny workflow nepoužíva Android signing, SDK ani .NET.
-- `npm run check`, `npm test` (784/784), `npm run build` a YAML parser prešli. Reálne spustený shell krok verzovania zapísal správnu jednoradkovú hodnotu KINMO_VERSION=2.3.1123 pre skúšobný run 123.
+- Používateľ ukončil tvorbu Windows/Android aplikácií. native-release.yml odstránený, ci.yml obsahuje iba validáciu webu; publikovanie prebieha cez existujúce Workers Builds z main. Žiadny aktívny workflow nepoužíva Android signing, SDK ani .NET.
+- `npm run check`, `npm test` (784/784), `npm run build` a YAML parser prešli. Predbežný GitHub krok verzovania bol otestovaný a následne odstránený pri zjednotení publikovania cez Workers Builds. Finálny build používa package.json a automatické SHA commitu.
 - Chromium: desktopová ani mobilná ponuka neobsahuje native-downloads; natívny klient sa nenačíta a mobilná ponuka sa otvorí bez JS výnimiek. dist neobsahuje native-client.js a index ho nereferencuje.
 - Webový deploy už nevolá ensure-release-bucket ani publish-release. Existujúci R2 binding/archívne endpointy sú zachované pre predchádzajúce odkazy. Aktívna diagnostika už dostupnosť archívneho R2 nevyžaduje.
-- Výsledok nového vzdialeného webového workflow a produkčné načítanie treba overiť po pushi.
+- Po prvom pushi c03e622 prešiel GitHub webový validate/publish aj produkčná kontrola menu. Produkcia zároveň odhalila druhý deploy cez existujúce Workers Builds. Finálna konfigurácia ponecháva publikovanie iba Workers Builds a GitHub workflow iba validuje; build automaticky zachytí SHA aj v Cloudflare. Výsledok finálneho nasadenia sa overí po pushi.

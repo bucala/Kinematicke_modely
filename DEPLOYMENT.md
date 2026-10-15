@@ -2,9 +2,9 @@
 
 ## Aktívne publikovanie od 16. 10. 2026: iba web
 
-Používateľ ukončil nové Windows a Android vydania. Aktívny workflow je **Kinematika web** (`.github/workflows/ci.yml`): kontroly syntaxe, testy mechanizmov a izolovaného Fusion doplnku, statický build; po úspechu na main nasleduje webový deploy. Pull requesty publikovanie nespúšťajú. Android SDK, .NET a podpisové secrets sa nepoužívajú. `native-release.yml` bol odstránený.
+Používateľ ukončil nové Windows a Android vydania. Aktívny GitHub workflow je **Kinematika web** (`.github/workflows/ci.yml`): kontroly syntaxe, testy mechanizmov a izolovaného Fusion doplnku, statický build. Publikuje výhradne existujúca Git-integrácia **Cloudflare Workers Builds** z vetvy main cez `npm run deploy`; tento príkaz pred nasadením vykoná kontroly. GitHub Actions nespúšťa druhý deploy. Pull requesty spúšťajú kontroly. Android SDK, .NET a podpisové secrets sa nepoužívajú. `native-release.yml` bol odstránený.
 
-Webový job používa iba CLOUDFLARE_API_TOKEN a CLOUDFLARE_ACCOUNT_ID, nastaví KINMO_PLATFORM=web, SHA commitu a automatickú verziu major.minor.(1000 + číslo behu). Manuálny `npm run deploy` už nespúšťa prípravu bucketu ani publikovanie natívnych súborov. Ponuka sťahovania EXE/APK bola odstránená z desktopového aj mobilného UI; natívny klient sa do webového balíka nezahŕňa.
+Cloudflare Workers Builds používa svoju nasadzovaciu autorizáciu. Webová verzia vychádza z package.json; SHA sa automaticky načíta z KINMO_REVISION/WORKERS_CI_COMMIT_SHA/GITHUB_SHA alebo lokálneho Git HEAD. Manuálny `npm run deploy` už nespúšťa prípravu bucketu ani publikovanie natívnych súborov. Ponuka sťahovania EXE/APK bola odstránená z desktopového aj mobilného UI; natívny klient sa do webového balíka nezahŕňa.
 
 Existujúci R2 binding slúži výhradne na zachovanie už vydaných archívnych URL. Webový workflow nevytvára nové buckety ani objekty a nemení staré balíky. Historické natívne zdroje a postupy nižšie nie sú aktívnym procesom publikovania.
 
