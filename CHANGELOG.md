@@ -165,3 +165,9 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 - Kontaktná definícia bod/valček/plochá hrana, náhľad obrysu a zvýraznenie hrany; uloženie lokálnej plochy a indexu hrany. Pasívny vozík má samostatnú súradnicu po pevnom vedení, rešpektuje konce a rozmerové zmeny. Diagnostika aj kreslenie používajú tú istú kontaktnú geometriu.
 - Elektromotor ako nový prvok: rozmerové a menovité elektrické/mechanické údaje, redukcia, smer, otáčanie a osový bod pre pevné prepojenie. Dáta sa uchovajú v natívnom súbore, CAD má obrys telesa a hriadeľa. Číselný vstup podporuje desatinnú čiarku a W/kW, V/mV/kV, rpm.
 - Prepínanie SK/EN/DE, slovenčina predvolene, lokálny katalóg UI a zachovanie používateľských dát. Aktualizované dynamické texty sa prekladajú bez servera. Nezaradené technické texty používajú SK fallback.
+
+## 2026-10-15 · 2.2.1: obrázkový návod a kontextová nápoveda
+
+- Otáznik v hlavičke alebo F1 otvorí vyhľadateľný návod s 29 témami: všetkých 13 typov prvkov a 16 pracovných postupov. Každá téma má vlastnú SVG schému, vysvetlenie a postup. Vyhľadávanie rozumie aj textu bez diakritiky.
+- Skrátený obsah rovnakého návodu sa zobrazí po 2 sekundách nad prvkom v knižnici, telesom alebo uzlom na plátne a podporovanými ovládacími tlačidlami. Pri kliknutí, ťahaní, rolovaní alebo otvorení ponuky sa skryje; pri prehrávaní a na dotykových vstupoch sa neotvára.
+- Návod rešpektuje aktívnu farebnú tému a na mobile používa jeden stĺpec. Klávesové skratky zostávajú súčasťou návodu.

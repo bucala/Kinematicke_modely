@@ -413,3 +413,12 @@ Zoznam publikovaných súborov v `push-github.ps1` zahŕňa nové moduly, testy,
 - Celé JS/Python regresie, syntax a statický build. Natívne platformové vydania zostavuje existujúci Actions workflow po pushi; vzdialený CI/deploy sa tu nepotvrdzuje.
 
 Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez zlyhania; statický build prešiel.
+
+## 2026-10-15 · 2.2.1
+
+- `npm run check`, `npm test` (773/773) a `npm run build` prešli.
+- Chromium: nápoveda nad kulisou v knižnici nie je viditeľná po 1,2 s, po 2,3 s obsahuje správnu tému; na plátne samostatne overená vačka. Odchod kurzora skryje kartu.
+- Chromium: kliknutie pred uplynutím oneskorenia zruší naplánovanú kartu. Kontextová ponuka a otvorenie návodu skryjú zobrazenú kartu. Overené umiestnenie vo výreze a otvorenie návodu cez F1.
+- Overené všetkých 13 typov knižnice a 29 rozdielnych textov; všetkých 29 SVG schém prešlo XML parserom bez chyby.
+- Návod: rozbalenie témy kulisy, vyhľadanie „pruzina“ bez diakritiky (dve pružiny), zobrazenie pri šírke 390 px bez vodorovného pretekania; kontrola svetlého aj tmavého vzhľadu. Žiadne JavaScript výnimky počas týchto scenárov.
+- `help.js` je zahrnutý v zdrojovom serveri aj statickom distribučnom balíku; SVG schémy nevyžadujú sieť ani externé obrázky.

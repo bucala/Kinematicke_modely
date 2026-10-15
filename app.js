@@ -3820,7 +3820,7 @@
   }
 
   function helpModal() {
-    modal('Malé štúdio. Veľké možnosti.', `<p class="modal-description">Kliknite na uzol, člen alebo kruhovú značku väzby. Shift pridáva do výberu; Ctrl prepína prekryté entity; kliknutie na pozadie výber zruší. Pravé tlačidlo otvorí úpravy bez otvárania panelu vlastností.</p><div class="help-steps"><div><span>01</span><p><strong>Poskladajte model.</strong>Pretiahnite prvky na plátno alebo pravým tlačidlom pridajte bod a podzostavu. Nástrojom J spojte uzly.</p></div><div><span>02</span><p><strong>Dolaďte geometriu.</strong>Kontextová ponuka mení súradnice, typ väzby, fixáciu, pohon a limity. Člen možno rozdeliť stredovým otočným uzlom.</p></div><div><span>03</span><p><strong>Uveďte ho do pohybu.</strong>Simulácia vynúti väzby. Otočný pohon používa ω, lineárny v; tuhosť tuhého ramena je iba referenčný údaj.</p></div></div><div class="shortcut-grid">${[['Space', 'Prehrať / pozastaviť'], ['V / H', 'Výber / posun plátna'], ['J / M', 'Spojenie / meranie'], ['F', 'Ukotviť / uvoľniť vybrané uzly'], ['Shift + F', 'Prispôsobiť pohľad'], ['Shift + F10', 'Kontextová ponuka výberu'], ['Ctrl + S', 'Uložiť projekt'], ['Ctrl + Z', 'Späť'], ['Delete / Backspace', 'Odstrániť výber'], ['Esc', 'Zavrieť ponuku / zrušiť výber']].map(([key, label]) => `<div><kbd>${key}</kbd><span>${label}</span></div>`).join('')}</div><p class="help-disclaimer">Kolízie sú geometrické, v jednej 2D rovine. Aplikácia nenahrádza pevnostný výpočet ani overenie bezpečnosti fyzického výrobku. Pôvodné šablóny upravujte vo voľnej kópii.</p>`, true);
+    modal('Obrázkový návod · prvky a funkcie', globalThis.KinmoHelp.manual(), true);
   }
 
   function tracePointOptions(element, point) {
@@ -4926,5 +4926,6 @@
   renderTree(); renderInspector(); updateHeader(); updateToolbar();
   globalThis.KinmoDebug?.attach(debugSnapshot);
   wireEvents();globalThis.KinmoI18n?.attach(state.language,()=>[state.project.name,...state.project.elements.map(e=>e.name)]);
+  globalThis.KinmoHelp.attach({elementType:id=>state.project.elements.find(e=>e.id===id)?.type, blocked:()=>!!(state.playing || state.drag || state.contextMenuState.isOpen || state.magic), open:helpModal});
   requestAnimationFrame(animate);
 })();
