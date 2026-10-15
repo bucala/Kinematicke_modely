@@ -58,3 +58,19 @@ Pred širšou distribúciou overte nový projekt, KINMO uloženie/otvorenie, Mag
 - **Android: `Failed to find package 'tools'`:** ide o vyradený SDK balík z predvolených vstupov `android-actions/setup-android@v3`. Workflow explicitne inštaluje `platform-tools`; platformu `android-35` a `build-tools;35.0.0` inštaluje nasledujúci krok. SDK licencie sa akceptujú štandardným mechanizmom akcie.
 - **Windows: EXE sa zostavilo, ale `No files were found ... artifacts/*.exe`:** PowerShell pri GUI programe spustenom operátorom `&` nemusí čakať na ukončenie; `$LASTEXITCODE` potom nemusí patriť self-testu. Workflow používa `Start-Process -Wait -PassThru`, kontroluje priamo jeho návratový kód a až potom kopíruje verzované EXE. Self-test pri chybe neotvára blokujúci dialóg.
 - Chýbajúce EXE, APK alebo manifest teraz znamenajú chybu upload kroku, nie úspešný job s varovaním. Publikovanie do R2 naďalej vyžaduje oba balíky a ich overenie.
+
+## Jeden spoločný secret ANDROID_SECRETS
+
+Namiesto troch samostatných Android secrets môžete uložiť **jeden Repository secret `ANDROID_SECRETS`**. Jeho hodnota musí byť JSON objekt s tromi položkami (obsah JSON súboru z podpisového balíka):
+
+```json
+{
+  "ANDROID_KEYSTORE_BASE64": "BASE64_OBSAHU_EXISTUJUCEHO_KEYSTORE",
+  "ANDROID_KEYSTORE_PASSWORD": "HESLO_KEYSTORE",
+  "ANDROID_KEY_ALIAS": "kinematika"
+}
+```
+
+Nevkladajte celý ZIP, Base64 ZIPu ani iba názov súboru. Názvy položiek musia presne sedieť. Samostatné secrets s rovnakými názvami majú prednosť pred položkami JSON. Workflow nevytvára nový kľúč; používa dodaný existujúci podpis. Pred sprístupnením údajov ďalšiemu kroku ich jednotlivo maskuje v GitHub logoch a súbor keystore zapisuje iba do dočasného priečinka runnera s oprávneniami 0600.
+
+Po zmene workflow použite **nový beh z vetvy main**. Opätovné spustenie starého behu používa jeho pôvodnú verziu workflow, ktorá spoločný secret nemusí podporovať. Cloudflare secrets na publikovanie ostávajú samostatné podľa tabuľky vyššie.

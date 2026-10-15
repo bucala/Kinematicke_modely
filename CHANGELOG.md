@@ -182,3 +182,9 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 - Android SDK setup už nepoužíva vyradený balík `tools`; explicitne inštaluje `platform-tools` a zachováva SDK 35/build-tools 35.0.0.
 - Windows release čaká na dokončenie GUI self-testu cez `Start-Process -Wait -PassThru`, potom overí a skopíruje EXE na nahratie. Chyba self-testu neotvára dialóg vyžadujúci obsluhu.
 - Upload chýbajúcich EXE, APK alebo release manifestu skončí chybou. Natívne joby majú časové limity.
+
+## 2026-10-15 · Podpora spoločného Android secretu
+
+- Android workflow rozumie JSON objektu `ANDROID_SECRETS`, ktorý bol viditeľný na dodanom screenshote nastavení repozitára. Zachováva aj podporu troch samostatných secrets s prednosťou pred JSON hodnotami.
+- Príprava podpisu kontroluje úplnosť údajov, Base64 a formát keystore bez vypisovania citlivých hodnôt. Jednotlivé údaje maskuje pred odovzdaním ďalším krokom a nezakladá nový podpisový kľúč.
+- Overenie podpisových údajov prebieha pred inštaláciou Android SDK.

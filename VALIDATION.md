@@ -437,3 +437,10 @@ Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez z
 - PyYAML overil syntaktickú správnosť workflow. `npm run build`, príprava oboch natívnych web balíkov a 8 testov publikovania prešli.
 - Lokálne `assembleDebug --offline` s JDK 21/Gradle 8.10.2/SDK 35: 32 úloh, build úspešný. APK podpis v2 overený cez `apksigner verify`; APK obsahuje aktuálne index.html, help.js a engine.js. Ide o debug APK, nie produkčnú podpísanú verziu.
 - `.NET 8 dotnet publish --no-restore -c Release -r win-x64 --self-contained true` s jednosúborovým výstupom prešlo. Výsledok je Windows x64 GUI PE executable. Windows proces ani PowerShell self-test sa na Linuxe nespúšťali; túto časť a produkčný Android podpis musí potvrdiť nový beh Actions.
+
+## 2026-10-15 · JSON secret ANDROID_SECRETS
+
+- Dodaný screenshot ukazuje Repository secret `ANDROID_SECRETS`; pôvodný workflow čítal iba tri samostatné názvy. Nový ZIP stále končil kontrolou prázdneho `KEYSTORE_BASE64`.
+- Workflow teraz volá `scripts/prepare-android-signing.mjs` hneď po príprave Node. Podporuje JSON bundle aj samostatné secrets; Gradle preberá validované KINMO_* hodnoty cez GITHUB_ENV a neprepisuje ich prázdnymi výrazmi secrets.*.
+- `npm run check`, `npm test` (780/780), `npm run build` a PyYAML kontrola workflow prešli. Tri nové regresie overujú JSON aj individuálne hodnoty/prednosť, bezpečné odmietnutie chybných vstupov a zápis rovnakého kľúča s maskovaním a oprávneniami 0600. Testovacie údaje sú syntetické.
+- Obsah skutočného GitHub secretu nebol dostupný ani vypísaný. Podpísaný produkčný APK a publikovanie musí overiť nový beh workflow z main; opakované spustenie starého behu používa pôvodný workflow.

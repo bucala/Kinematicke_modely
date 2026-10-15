@@ -53,3 +53,34 @@ test('A concurrent bucket creation is accepted, while a failed creation reports 
   count=0;
   await assert.rejects(()=>ensureReleaseBucket(bucketConfig,async()=>new Response('{}',{status:[404,403,404][count++]})),/HTTP 403.*aktivujte R2 Object Storage/);
 });
+
+const {signingValues, prepareSigning} = await import('../scripts/prepare-android-signing.mjs');
+const testStore=Buffer.alloc(256,7);testStore[0]=0x30;
+const testSigning={ANDROID_KEYSTORE_BASE64:testStore.toString('base64'),ANDROID_KEYSTORE_PASSWORD:'fixture%password',ANDROID_KEY_ALIAS:'fixture-alias'};
+test('Android accepts the existing ANDROID_SECRETS JSON bundle and separate secrets take precedence',()=>{
+ const json={ANDROID_SECRETS:JSON.stringify(testSigning)};
+ assert.deepEqual(signingValues(json).bytes,testStore);
+ assert.equal(signingValues({...json,ANDROID_KEYSTORE_PASSWORD:'override'}).password,'override');
+ assert.equal(signingValues({...testSigning,ANDROID_SECRETS:'old invalid JSON'}).alias,'fixture-alias');
+});
+test('Android rejects missing, malformed or unsafe signing values without exposing their contents',()=>{
+ assert.throws(()=>signingValues({ANDROID_SECRETS:'private invalid input'}),error=>!error.message.includes('private invalid input')&&error.message.includes('JSON'));
+ assert.throws(()=>signingValues({ANDROID_SECRETS:JSON.stringify({ANDROID_KEY_ALIAS:'fixture'})}),/ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD/);
+ assert.throws(()=>signingValues({...testSigning,ANDROID_KEYSTORE_PASSWORD:'secret\nINJECT=bad'}),/konce riadkov/);
+ assert.throws(()=>signingValues({...testSigning,ANDROID_KEYSTORE_BASE64:'@invalid-base64'}),/Base64/);
+ assert.throws(()=>signingValues({...testSigning,ANDROID_KEYSTORE_BASE64:Buffer.alloc(256,80).toString('base64')}),/nie ZIP alebo JSON/);
+});
+test('Android prepares the same key with restricted permissions and masks JSON fields before publishing job variables',async()=>{
+ const folder=await mkdtemp(path.join(os.tmpdir(),'kinmo-signing-'));
+ const events=[];
+ try {
+  const envFile=path.join(folder,'job.env');
+  await prepareSigning({ANDROID_SECRETS:JSON.stringify(testSigning),RUNNER_TEMP:folder,GITHUB_ENV:envFile},line=>events.push(line));
+  const {readFile,stat}=await import('node:fs/promises');
+  assert.deepEqual(await readFile(path.join(folder,'release.keystore')),testStore);
+  const output=await readFile(envFile,'utf8');assert.ok(output.includes('KINMO_KEYSTORE_PASSWORD=fixture%password\n'));assert.ok(output.includes('KINMO_KEY_ALIAS=fixture-alias\n'));
+  assert.equal(events[1],'::add-mask::fixture%25password');
+  assert.ok(events.slice(0,3).every(line=>line.startsWith('::add-mask::')));
+  if(process.platform!=='win32')assert.equal((await stat(path.join(folder,'release.keystore'))).mode&0o777,0o600);
+ } finally {await rm(folder,{recursive:true,force:true});}
+});
