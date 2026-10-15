@@ -74,3 +74,9 @@ Namiesto troch samostatných Android secrets môžete uložiť **jeden Repositor
 Nevkladajte celý ZIP, Base64 ZIPu ani iba názov súboru. Názvy položiek musia presne sedieť. Samostatné secrets s rovnakými názvami majú prednosť pred položkami JSON. Workflow nevytvára nový kľúč; používa dodaný existujúci podpis. Pred sprístupnením údajov ďalšiemu kroku ich jednotlivo maskuje v GitHub logoch a súbor keystore zapisuje iba do dočasného priečinka runnera s oprávneniami 0600.
 
 Po zmene workflow použite **nový beh z vetvy main**. Opätovné spustenie starého behu používa jeho pôvodnú verziu workflow, ktorá spoločný secret nemusí podporovať. Cloudflare secrets na publikovanie ostávajú samostatné podľa tabuľky vyššie.
+
+## Cloudflare: neplatná HTTP hlavička
+
+Chyba `Headers.append ... is an invalid header value` znamená chybný formát hodnoty ešte pred odoslaním požiadavky, nie odpoveď Cloudflare o oprávneniach. V Repository secret `CLOUDFLARE_API_TOKEN` má byť iba samotný token na jednom riadku; nie overovací curl príkaz, JSON odpoveď, text `Bearer`, úvodzovky ani viac tokenov.
+
+Workflow pred R2 a Wranglerom odstráni okrajové medzery/CRLF z tokenu a ID účtu, overí formát a maskuje očistený token v logoch. Vnútorné konce riadkov alebo ďalší text sa neodstraňujú odhadom: krok vypíše názov chybného secretu bez jeho hodnoty. Opravte príslušný Repository secret. Po aktualizácii workflow použite nový beh z main.

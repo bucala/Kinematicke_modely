@@ -1,13 +1,12 @@
 // Both Workers Builds and native releases may run first; prepare their shared bucket.
 import path from 'node:path';
+import {cloudflareCredentials} from './prepare-cloudflare.mjs';
 
 export const RELEASE_BUCKET = 'kinematika-releases';
 
 export async function ensureReleaseBucket(config = process.env, fetchRequest = globalThis.fetch) {
-  const account = config.CLOUDFLARE_ACCOUNT_ID || '065e3003eb4c6bd1bffe7afa184eb5c4';
-  const token = config.CLOUDFLARE_API_TOKEN;
+  const {account, token} = cloudflareCredentials(config, '065e3003eb4c6bd1bffe7afa184eb5c4');
   const bucket = config.KINMO_RELEASE_BUCKET || RELEASE_BUCKET;
-  if (!token) throw new Error('Chýba CLOUDFLARE_API_TOKEN. Nastavte nasadzovací token s oprávnením Workers Scripts: Edit a Workers R2 Storage: Edit v nastaveniach buildu.');
   const base = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/r2/buckets`;
   const url = `${base}/${encodeURIComponent(bucket)}`;
   const headers = { Authorization: `Bearer ${token}` };

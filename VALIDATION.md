@@ -444,3 +444,10 @@ Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez z
 - Workflow teraz volá `scripts/prepare-android-signing.mjs` hneď po príprave Node. Podporuje JSON bundle aj samostatné secrets; Gradle preberá validované KINMO_* hodnoty cez GITHUB_ENV a neprepisuje ich prázdnymi výrazmi secrets.*.
 - `npm run check`, `npm test` (780/780), `npm run build` a PyYAML kontrola workflow prešli. Tri nové regresie overujú JSON aj individuálne hodnoty/prednosť, bezpečné odmietnutie chybných vstupov a zápis rovnakého kľúča s maskovaním a oprávneniami 0600. Testovacie údaje sú syntetické.
 - Obsah skutočného GitHub secretu nebol dostupný ani vypísaný. Podpísaný produkčný APK a publikovanie musí overiť nový beh workflow z main; opakované spustenie starého behu používa pôvodný workflow.
+
+## 2026-10-15 · Cloudflare credential formatting
+
+- Dodaný ZIP `logs_105147342899.zip`: oba natívne balíky sa stiahli, manifest sa vytvoril a nahral. Publikovanie skončilo pred API požiadavkou chybou `Headers.append ... is an invalid header value`; maskovaná hodnota v hlavičke obsahovala koniec riadka. Tento log nepotvrdzuje prijatie tokenu Cloudflare ani jeho oprávnenia.
+- Spoločná funkcia validuje account/token bez uvedenia hodnôt do diagnostiky a normalizuje ich okraje. GitHub prípravný krok maskuje očistený token a cez GITHUB_ENV ho sprístupní R2 publisheru aj Wrangleru.
+- `npm run check`, `npm test` (783/783), `npm run build` a YAML parser prešli. Tri nové regresie overujú normalizáciu, bezpečné zastavenie pred fetchom pri viacriadkovom/chybnom vstupe a maskovaný zápis pre ďalšie kroky. Existujúci úplný publish test navyše vytvára skutočné Headers pri každom mock API volaní s okrajovým CRLF na vstupe, vrátane object uploadov a overovania kontrolných súčtov.
+- Skutočnú hodnotu GitHub secretu nemožno z maskovaného logu opraviť. Ak obsahuje vnútorný koniec riadka alebo príkaz namiesto tokenu, používateľ ho musí nahradiť jedným platným tokenom. Živé publikovanie týmto lokálnym overením potvrdené nie je.

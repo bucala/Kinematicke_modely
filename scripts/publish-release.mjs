@@ -3,6 +3,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {ensureReleaseBucket} from './ensure-release-bucket.mjs';
+import {cloudflareCredentials} from './prepare-cloudflare.mjs';
 export function validateVersion(value) { if(!/^\d+\.\d+\.\d+$/.test(value)||value.split('.').some(n=>Number(n)>65535))throw Error('Invalid release version');return value; }
 export function compareVersions(a,b) { const x=validateVersion(a).split('.').map(Number),y=validateVersion(b).split('.').map(Number);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]-y[i];return 0; }
 export async function createManifest(folder,version) {
@@ -15,8 +16,7 @@ export async function createManifest(folder,version) {
   const manifest={version,publishedAt:new Date().toISOString(),files};await writeFile(path.join(folder,'latest.json'),JSON.stringify(manifest,null,2)+'\n');return manifest;
 }
 export async function publish(folder,version,config=process.env,fetchRequest=globalThis.fetch) {
-  const account=config.CLOUDFLARE_ACCOUNT_ID,token=config.CLOUDFLARE_API_TOKEN;
-  if(!account||!token)throw Error('Cloudflare credentials required');
+  const {account,token}=cloudflareCredentials(config);
   const bucket=config.KINMO_RELEASE_BUCKET||'kinematika-releases';
   await ensureReleaseBucket(config, fetchRequest);
   const base=`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/r2/buckets/${encodeURIComponent(bucket)}/objects/`;

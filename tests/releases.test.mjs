@@ -7,13 +7,14 @@ test('Publishing verifies both uploads before promotion and refuses downgrade or
  const folder=await mkdtemp(path.join(os.tmpdir(),'kinmo-publish-'));
  const objects=new Map(),operations=[];let corrupt=false;
  const fetchMock=async (url,options={})=>{
+   assert.equal(new Headers(options.headers).get('Authorization'),'Bearer mock-no-real-token');
    if(!url.includes('/objects/'))return new Response('{}');
    const key=decodeURIComponent(url.split('/objects/')[1]);
    if(options.method==='PUT'){operations.push(key);objects.set(key,Buffer.from(options.body));return new Response('{}');}
    if(!objects.has(key))return new Response('',{status:404});
    return new Response(corrupt&&key.endsWith('.apk')?'bad':objects.get(key));
  };
- const config={CLOUDFLARE_ACCOUNT_ID:'test',CLOUDFLARE_API_TOKEN:'mock-no-real-token'};
+ const config={CLOUDFLARE_ACCOUNT_ID:' test\n',CLOUDFLARE_API_TOKEN:' mock-no-real-token\r\n'};
  try {
   for(const extension of ['exe','apk'])await writeFile(path.join(folder,`KinematikaStudio-2.1.0.${extension}`),Buffer.concat([Buffer.from(extension==='exe'?'MZ':'PK'),Buffer.alloc(1000)]));
   corrupt=true;await assert.rejects(()=>publish(folder,'2.1.0',config,fetchMock),/checksum/);assert.ok(!objects.has('latest.json'));
@@ -83,4 +84,26 @@ test('Android prepares the same key with restricted permissions and masks JSON f
   assert.ok(events.slice(0,3).every(line=>line.startsWith('::add-mask::')));
   if(process.platform!=='win32')assert.equal((await stat(path.join(folder,'release.keystore'))).mode&0o777,0o600);
  } finally {await rm(folder,{recursive:true,force:true});}
+});
+
+const {cloudflareCredentials,prepareCloudflare}=await import('../scripts/prepare-cloudflare.mjs');
+test('Cloudflare strips accidental outer whitespace without modifying the source credentials',()=>{
+ const input={CLOUDFLARE_ACCOUNT_ID:' test-account\r\n',CLOUDFLARE_API_TOKEN:' \nmock-token\r\n '};
+ const before=JSON.stringify(input);assert.deepEqual(cloudflareCredentials(input),{account:'test-account',token:'mock-token'});assert.equal(JSON.stringify(input),before);
+});
+test('Cloudflare rejects multiline tokens before fetch without echoing secret material',async()=>{
+ const token='private-token\nprivate-second-line';let called=false;
+ await assert.rejects(()=>ensureReleaseBucket({CLOUDFLARE_API_TOKEN:token},async()=>{called=true;}),error=>error.message.includes('CLOUDFLARE_API_TOKEN')&&!error.message.includes('private-'));
+ assert.equal(called,false);
+ for(const value of ['Bearer private-token','"private-token"','{"token":"private-token"}'])assert.throws(()=>cloudflareCredentials({CLOUDFLARE_ACCOUNT_ID:'test',CLOUDFLARE_API_TOKEN:value}),/samotný token/);
+ assert.throws(()=>cloudflareCredentials({CLOUDFLARE_API_TOKEN:'   \r\n'}),/CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN/);
+});
+test('Cloudflare exports masked single-line values for subsequent Wrangler steps',async()=>{
+ const folder=await mkdtemp(path.join(os.tmpdir(),'kinmo-cloudflare-env-'));
+ try {
+  const file=path.join(folder,'job.env'),events=[];
+  await prepareCloudflare({GITHUB_ENV:file,CLOUDFLARE_ACCOUNT_ID:' test-account\n',CLOUDFLARE_API_TOKEN:' mock-token\r\n'},line=>events.push(line));
+  const {readFile}=await import('node:fs/promises');
+  assert.equal(await readFile(file,'utf8'),'CLOUDFLARE_ACCOUNT_ID=test-account\nCLOUDFLARE_API_TOKEN=mock-token\n');assert.equal(events[0],'::add-mask::mock-token');assert.ok(!events[1].includes('mock-token'));
+ }finally{await rm(folder,{recursive:true,force:true});}
 });

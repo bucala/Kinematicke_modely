@@ -188,3 +188,8 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 - Android workflow rozumie JSON objektu `ANDROID_SECRETS`, ktorý bol viditeľný na dodanom screenshote nastavení repozitára. Zachováva aj podporu troch samostatných secrets s prednosťou pred JSON hodnotami.
 - Príprava podpisu kontroluje úplnosť údajov, Base64 a formát keystore bez vypisovania citlivých hodnôt. Jednotlivé údaje maskuje pred odovzdaním ďalším krokom a nezakladá nový podpisový kľúč.
 - Overenie podpisových údajov prebieha pred inštaláciou Android SDK.
+
+## 2026-10-15 · Cloudflare token a konce riadkov
+
+- Spoločná validácia Cloudflare údajov odstraňuje okrajové medzery/CRLF pred R2 požiadavkami. Viacriadkový alebo inak chybný token odmietne bez vypísania citlivej hodnoty.
+- GitHub publish krok odovzdá očistené a maskované údaje aj Wrangleru. Nahrádza nejasné zlyhanie `Headers.append ... invalid header value` konkrétnym pokynom na opravu secretu.
