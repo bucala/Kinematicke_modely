@@ -458,3 +458,11 @@ Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez z
 - R2 bucket aj R2 list: HTTP 403, Cloudflare API **10042**, **Please enable R2 through the Cloudflare Dashboard**. Ide o konkrétnu aktiváciu služby, nie o preukázané chybné GitHub credentials. Token v samostatnom cloudovom prostredí je naďalej odmietaný; nemožno ho zamieňať s platným GitHub secretom.
 - Oprava prípravy R2 rozpozná 10042 a zastaví sa s presným odkazom na dashboard. Regresia potvrdzuje jediné GET volanie a žiadny pokus o vytvorenie/deštrukciu bucketu pri neaktivovanej službe.
 - `node --test tests/releases.test.mjs`: 15/15; `npm run check` prešlo. Produkčné publikovanie zostáva podmienené aktiváciou R2 vlastníkom účtu v dashboarde.
+
+## 2026-10-16 · Publikovanie iba webu
+
+- Používateľ ukončil tvorbu Windows/Android aplikácií. native-release.yml odstránený, ci.yml obsahuje validate a publish webu s podmienkou main mimo pull requestov. Žiadny aktívny workflow nepoužíva Android signing, SDK ani .NET.
+- `npm run check`, `npm test` (784/784), `npm run build` a YAML parser prešli. Reálne spustený shell krok verzovania zapísal správnu jednoradkovú hodnotu KINMO_VERSION=2.3.1123 pre skúšobný run 123.
+- Chromium: desktopová ani mobilná ponuka neobsahuje native-downloads; natívny klient sa nenačíta a mobilná ponuka sa otvorí bez JS výnimiek. dist neobsahuje native-client.js a index ho nereferencuje.
+- Webový deploy už nevolá ensure-release-bucket ani publish-release. Existujúci R2 binding/archívne endpointy sú zachované pre predchádzajúce odkazy. Aktívna diagnostika už dostupnosť archívneho R2 nevyžaduje.
+- Výsledok nového vzdialeného webového workflow a produkčné načítanie treba overiť po pushi.

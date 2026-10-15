@@ -198,3 +198,10 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 
 - Čítacia diagnostika v GitHub Actions potvrdila platný token a správny účet. Skutočnou príčinou R2 HTTP 403 je API kód 10042: služba R2 ešte nie je aktivovaná.
 - Príprava bucketu rozpoznáva 10042 a odkazuje priamo na aktiváciu R2 v cieľovom účte; táto odpoveď sa už nezamieňa s chybným API tokenom.
+
+## 2026-10-16 · 2.3: publikovanie iba webovej aplikácie
+
+- Windows a Android release workflow bol odstránený. Aktívny workflow Kinematika web overí aplikáciu a na main publikuje iba web do Cloudflare; nepotrebuje .NET, Android SDK ani podpisové Android secrets.
+- Verzia webového vydania sa zvyšuje automaticky. Pull requesty spúšťajú iba validáciu.
+- Ponuka stiahnutia EXE/APK bola odstránená z desktopového aj mobilného rozhrania. Webový balík neobsahuje natívny klient; build vyčistí predchádzajúce generované súbory.
+- Nové natívne balíky ani R2 objekty sa nevytvárajú. Doterajšie zdroje, podpisové zálohy a vydané archívne balíky sa nemažú; ich existujúce URL zostávajú obsluhované pôvodným bindingom.

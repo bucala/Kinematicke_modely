@@ -1,5 +1,14 @@
 # GitHub a Cloudflare Worker
 
+## Aktívne publikovanie od 16. 10. 2026: iba web
+
+Používateľ ukončil nové Windows a Android vydania. Aktívny workflow je **Kinematika web** (`.github/workflows/ci.yml`): kontroly syntaxe, testy mechanizmov a izolovaného Fusion doplnku, statický build; po úspechu na main nasleduje webový deploy. Pull requesty publikovanie nespúšťajú. Android SDK, .NET a podpisové secrets sa nepoužívajú. `native-release.yml` bol odstránený.
+
+Webový job používa iba CLOUDFLARE_API_TOKEN a CLOUDFLARE_ACCOUNT_ID, nastaví KINMO_PLATFORM=web, SHA commitu a automatickú verziu major.minor.(1000 + číslo behu). Manuálny `npm run deploy` už nespúšťa prípravu bucketu ani publikovanie natívnych súborov. Ponuka sťahovania EXE/APK bola odstránená z desktopového aj mobilného UI; natívny klient sa do webového balíka nezahŕňa.
+
+Existujúci R2 binding slúži výhradne na zachovanie už vydaných archívnych URL. Webový workflow nevytvára nové buckety ani objekty a nemení staré balíky. Historické natívne zdroje a postupy nižšie nie sú aktívnym procesom publikovania.
+
+
 ## Dohodnutý cieľ
 
 - Existujúci verejný repozitár: [bucala/Kinematicke_modely](https://github.com/bucala/Kinematicke_modely).

@@ -1,3 +1,5 @@
+> **Archív od 16. 10. 2026:** Windows a Android sa už nevytvárajú ani nepublikujú. Aktívne publikovanie je iba webové cez `.github/workflows/ci.yml`. Nasledujúce postupy sú historické; existujúci kľúč ani balíky sa nemažú.
+
 # Priame Windows a Android aplikácie
 
 Editor je zabalený lokálne: internet netreba na kreslenie, simuláciu ani súbory. Cloudflare slúži na stiahnutie nových verzií. Uložené projekty ostávajú v profile aplikácie; web, Windows a Android majú samostatné úložiská. Prenášajte ich cez KINMO súbor.

@@ -1,4 +1,4 @@
-name: Validate Kinematika
+name: Kinematika web
 
 on:
   push:
@@ -40,3 +40,37 @@ jobs:
 
       - name: Build static application
         run: npm run build
+
+  publish:
+    name: Publish web to Cloudflare
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: web-production
+      cancel-in-progress: false
+    env:
+      KINMO_REVISION: ${{ github.sha }}
+      KINMO_PLATFORM: web
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version-file: '.node-version'}
+      - name: Set web release version
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync,appendFileSync} from 'node:fs';
+          const [major,minor]=JSON.parse(readFileSync('package.json','utf8')).version.split('.');
+          const build=1000+Number(process.env.GITHUB_RUN_NUMBER);
+          if(!Number.isSafeInteger(build))throw new Error('Invalid web build number');
+          appendFileSync(process.env.GITHUB_ENV,`KINMO_VERSION=${major}.${minor}.${build}\n`);
+          JS
+      - name: Validate Cloudflare credentials
+        run: node scripts/prepare-cloudflare.mjs
+      - name: Build and deploy web
+        run: |
+          npm run build
+          npx --yes wrangler@4 deploy --config wrangler.toml

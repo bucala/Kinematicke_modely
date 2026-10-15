@@ -7,8 +7,8 @@ for(const [label,route,required] of [
  ['User token','/user/tokens/verify',false],
  ['Account token',`/accounts/${account}/tokens/verify`,false],
  ['Account','/accounts',false],
- ['R2 bucket',`/accounts/${account}/r2/buckets/kinematika-releases`,true],
- ['R2 list',`/accounts/${account}/r2/buckets`,true],
+ ['R2 bucket',`/accounts/${account}/r2/buckets/kinematika-releases`,false],
+ ['R2 list',`/accounts/${account}/r2/buckets`,false],
  ['Workers',`/accounts/${account}/workers/scripts`,true],
 ]) {
  try {

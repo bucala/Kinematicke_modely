@@ -1,4 +1,4 @@
-import { mkdir, copyFile, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, copyFile, writeFile, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,10 @@ import { fusionArchive } from './archive.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const destination = path.join(root, 'dist');
+// dist contains generated output only; remove retired assets from previous builds.
+await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
-for (const file of ['index.html', 'build-info.js', 'debug.js', 'contacts.js', 'i18n.js', 'help.js', 'native-client.js', 'app.js', 'advanced.js', 'usability.js', 'workflow.js', 'engine.js', 'double-drawer.js', 'editor.js', 'interaction.js', 'workbench.js', 'magic-import.js', 'magic-detection.js', 'context-menu.js', 'physics.js', 'slot-outline.js', 'scene-export.js', 'gif-export.js', 'exports.js', 'cad.js', 'styles.css', 'favicon.svg', '_headers', 'projects/dvojite-sklopeny-suflik-reference.png', ...['pdfmake.min.js', 'vfs_fonts.js', 'LICENSE', 'Roboto-LICENSE.txt', 'PROVENANCE.md'].map((file) => `vendor/pdfmake/${file}`)]) {
+for (const file of ['index.html', 'build-info.js', 'debug.js', 'contacts.js', 'i18n.js', 'help.js', 'app.js', 'advanced.js', 'usability.js', 'workflow.js', 'engine.js', 'double-drawer.js', 'editor.js', 'interaction.js', 'workbench.js', 'magic-import.js', 'magic-detection.js', 'context-menu.js', 'physics.js', 'slot-outline.js', 'scene-export.js', 'gif-export.js', 'exports.js', 'cad.js', 'styles.css', 'favicon.svg', '_headers', 'projects/dvojite-sklopeny-suflik-reference.png', ...['pdfmake.min.js', 'vfs_fonts.js', 'LICENSE', 'Roboto-LICENSE.txt', 'PROVENANCE.md'].map((file) => `vendor/pdfmake/${file}`)]) {
   await mkdir(path.dirname(path.join(destination, file)), { recursive: true });
   await copyFile(path.join(root, file), path.join(destination, file));
 }

@@ -1,1 +1,1 @@
-globalThis.KinmoBuild = Object.freeze({ version: '2.2.1', revision: 'development', platform: 'web' });
+globalThis.KinmoBuild = Object.freeze({ version: '2.3.0', revision: 'development', platform: 'web' });

@@ -1,7 +1,7 @@
 {
   "name": "kinematika-studio",
   "private": true,
-  "version": "2.2.1",
+  "version": "2.3.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/server.mjs",
@@ -10,6 +10,6 @@
     "test": "node --test tests/workflow.test.mjs tests/kinematics.test.mjs tests/export-integration.test.mjs tests/ui.test.mjs tests/magic-import.test.mjs tests/magic-detection.test.mjs tests/context-menu.test.mjs tests/scene-export.test.mjs tests/advanced.test.mjs tests/usability.test.mjs tests/debug.test.mjs tests/releases.test.mjs tests/fusion-geometry.test.mjs tests/motor-surface.test.mjs",
     "precheck": "node --check magic-detection.js && node --check tests/magic-detection.test.mjs && node --check tests/context-menu.test.mjs",
     "check": "node --check workflow.js && node --check tests/workflow.test.mjs && node --check engine.js && node --check double-drawer.js && node --check editor.js && node --check interaction.js && node --check workbench.js && node --check magic-import.js && node --check context-menu.js && node --check physics.js && node --check slot-outline.js && node --check scene-export.js && node --check gif-export.js && node --check exports.js && node --check cad.js && node --check app.js && node --check scripts/server.mjs && node --check scripts/build.mjs && node --check scripts/archive.mjs && node --check tests/cases.js && node --check tests/editor-cases.js && node --check tests/interaction-cases.js && node --check tests/workbench-cases.js && node --check tests/magic-import-cases.js && node --check tests/physics-cases.js && node --check tests/export-cases.js && node --check tests/gif-decoder.js && node --check tests/gif-cases.js && node --check tests/export-integration.test.mjs && node --check tests/ui.test.mjs && node --check tests/magic-import.test.mjs && node --check tests/scene-export.test.mjs && node --check tests/browser.js && node --check usability.js && node --check advanced.js && node --check tests/advanced.test.mjs && node --check debug.js && node --check native-client.js && node --check cloudflare/worker.mjs && node --check scripts/native-assets.mjs && node --check scripts/publish-release.mjs && node --check scripts/ensure-release-bucket.mjs && node --check scripts/prepare-android-signing.mjs && node --check scripts/prepare-cloudflare.mjs && node --check contacts.js && node --check i18n.js && node --check help.js",
-    "deploy": "npm run check && npm test && npm run build && node --use-env-proxy scripts/ensure-release-bucket.mjs && npx --yes wrangler@4 deploy --config wrangler.toml"
+    "deploy": "npm run check && npm test && npm run build && npx --yes wrangler@4 deploy --config wrangler.toml"
   }
 }
