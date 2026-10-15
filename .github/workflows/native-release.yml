@@ -25,6 +25,7 @@ jobs:
   windows:
     needs: version
     runs-on: windows-latest
+    timeout-minutes: 15
     env:
       KINMO_VERSION: ${{ needs.version.outputs.version }}
       KINMO_REVISION: ${{ github.sha }}
@@ -39,17 +40,30 @@ jobs:
       - run: node scripts/native-assets.mjs windows
         env: {PYTHON: python}
       - run: dotnet publish native/windows/Kinematika.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:KinmoVersion=$env:KINMO_VERSION -o artifacts/windows
-      - run: |
-          & artifacts/windows/KinematikaStudio.exe --self-test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item artifacts/windows/KinematikaStudio.exe "artifacts/KinematikaStudio-$env:KINMO_VERSION.exe"
+      - name: Verify Windows application and prepare download
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'artifacts/windows/KinematikaStudio.exe').Path
+          # A WinExe launched with & can return before its process exits.
+          $process = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          if ($null -eq $process.ExitCode -or $process.ExitCode -ne 0) {
+            throw "Windows self-test failed (exit code: $($process.ExitCode))."
+          }
+          $package = "artifacts/KinematikaStudio-$env:KINMO_VERSION.exe"
+          Copy-Item -LiteralPath $exe -Destination $package -ErrorAction Stop
+          if ((Get-Item -LiteralPath $package).Length -lt 1000) {
+            throw 'Windows download is missing or invalid.'
+          }
+          Get-FileHash -LiteralPath $package -Algorithm SHA256
       - uses: actions/upload-artifact@v4
         with:
           name: windows
           path: artifacts/*.exe
+          if-no-files-found: error
   android:
     needs: version
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       KINMO_VERSION: ${{ needs.version.outputs.version }}
       KINMO_VERSION_CODE: ${{ needs.version.outputs.code }}
@@ -62,6 +76,10 @@ jobs:
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '21'}
       - uses: android-actions/setup-android@v3
+        with:
+          # The action default includes the retired SDK package "tools".
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.10.2'}
@@ -85,6 +103,7 @@ jobs:
         with:
           name: android
           path: artifacts/*.apk
+          if-no-files-found: error
   publish:
     needs: [version, windows, android]
     runs-on: ubuntu-latest
@@ -101,7 +120,7 @@ jobs:
         with: {path: artifacts, merge-multiple: true}
       - run: node scripts/publish-release.mjs artifacts --manifest-only
       - uses: actions/upload-artifact@v4
-        with: {name: release-manifest, path: artifacts/latest.json}
+        with: {name: release-manifest, path: artifacts/latest.json, if-no-files-found: error}
       - name: Publish to Cloudflare R2 and deploy application
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo 'Configure Cloudflare secrets to publish. Build artifacts remain downloadable in Actions.'; exit 1; }

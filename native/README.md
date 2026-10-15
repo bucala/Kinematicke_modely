@@ -52,3 +52,9 @@ Pri prvom vydaní použite pripravený súkromný podpisový balík. Súbor s he
 ## Akceptácia na zariadeniach
 
 Pred širšou distribúciou overte nový projekt, KINMO uloženie/otvorenie, Magic import obrázka, simuláciu, debug export, reštart aplikácie a aktualizáciu APK s ponechanými projektmi. Živý Fusion import testujte na Windows s aktualizovaným doplnkom. Cross build a overenie APK podpisu nenahrádzajú tieto testy.
+
+## Diagnostika natívneho CI
+
+- **Android: `Failed to find package 'tools'`:** ide o vyradený SDK balík z predvolených vstupov `android-actions/setup-android@v3`. Workflow explicitne inštaluje `platform-tools`; platformu `android-35` a `build-tools;35.0.0` inštaluje nasledujúci krok. SDK licencie sa akceptujú štandardným mechanizmom akcie.
+- **Windows: EXE sa zostavilo, ale `No files were found ... artifacts/*.exe`:** PowerShell pri GUI programe spustenom operátorom `&` nemusí čakať na ukončenie; `$LASTEXITCODE` potom nemusí patriť self-testu. Workflow používa `Start-Process -Wait -PassThru`, kontroluje priamo jeho návratový kód a až potom kopíruje verzované EXE. Self-test pri chybe neotvára blokujúci dialóg.
+- Chýbajúce EXE, APK alebo manifest teraz znamenajú chybu upload kroku, nie úspešný job s varovaním. Publikovanie do R2 naďalej vyžaduje oba balíky a ich overenie.

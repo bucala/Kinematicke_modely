@@ -429,3 +429,11 @@ Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez z
 - Oprava: `npm run deploy` pripraví R2 bucket pred Wranglerom. Publikovanie natívnych balíkov používa rovnakú funkciu.
 - `npm run check`, `npm test` (777/777) a `npm run build` prešli. Štyri nové regresie preverujú zachovanie existujúceho bucketu, vytvorenie pri 404, odmietnuté oprávnenia/chýbajúci token a súbeh dvoch buildov vrátane neúspešného vytvorenia.
 - CLI bez tokenu skončí nenulovým kódom s konkrétnym vysvetlením. Živé vytvorenie R2 a úspešné produkčné nasadenie sa lokálne neoverili: prostredie stále nemá Cloudflare credential binding. Treba overiť následný Workers Builds log.
+
+## 2026-10-15 · Natívne CI: Android SDK a Windows artifact
+
+- ZIP `logs_105113960042.zip` obsahuje beh pre commit `981a631`: Android zlyhal pri inštalácii vyradeného SDK balíka `tools`. Windows `dotnet publish` prešlo, ale nevznikol verzovaný EXE artifact na nahratie; upload skončil iba varovaním. Publikovanie oboch platforiem preto nebolo doložené.
+- Workflow opravený: explicitné SDK `platform-tools`, následne platforma 35/build-tools 35.0.0; Windows GUI self-test cez `Start-Process -Wait -PassThru`, kontrola návratového kódu a kopírovaného súboru. Všetky uploady odmietajú prázdny výsledok.
+- PyYAML overil syntaktickú správnosť workflow. `npm run build`, príprava oboch natívnych web balíkov a 8 testov publikovania prešli.
+- Lokálne `assembleDebug --offline` s JDK 21/Gradle 8.10.2/SDK 35: 32 úloh, build úspešný. APK podpis v2 overený cez `apksigner verify`; APK obsahuje aktuálne index.html, help.js a engine.js. Ide o debug APK, nie produkčnú podpísanú verziu.
+- `.NET 8 dotnet publish --no-restore -c Release -r win-x64 --self-contained true` s jednosúborovým výstupom prešlo. Výsledok je Windows x64 GUI PE executable. Windows proces ani PowerShell self-test sa na Linuxe nespúšťali; túto časť a produkčný Android podpis musí potvrdiť nový beh Actions.

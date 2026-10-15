@@ -12,7 +12,11 @@ static class Program {
             if (args.Contains("--self-test")) { if (!File.Exists(Path.Combine(assets,"index.html"))) throw new Exception("Missing web assets"); return; }
             ApplicationConfiguration.Initialize();
             Application.Run(new Studio(assets));
-        } catch (Exception error) { MessageBox.Show("Kinematika sa nedá spustiť.\n" + error.Message, "Kinematika Studio", MessageBoxButtons.OK, MessageBoxIcon.Error); Environment.ExitCode=1; }
+        } catch (Exception error) {
+            if (args.Contains("--self-test")) Console.Error.WriteLine("Self-test failed: " + error.Message);
+            else MessageBox.Show("Kinematika sa nedá spustiť.\n" + error.Message, "Kinematika Studio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Environment.ExitCode=1;
+        }
     }
     static string ExtractAssets() {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Kinematika.Web.zip") ?? throw new Exception("Missing embedded assets");

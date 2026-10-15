@@ -176,3 +176,9 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 
 - Workers Builds teraz pripravia `kinematika-releases` ešte pred nasadením Workeru; chýbajúci bucket už nemusí najprv vytvoriť natívny release workflow. Existujúce objekty sa nemenia.
 - Spoločná príprava R2 pre web a natívne aplikácie bezpečne zvláda súbežné vytvorenie úložiska. Pri chýbajúcom tokene, neaktívnom R2 alebo nedostatočných oprávneniach vypíše potrebné kroky.
+
+## 2026-10-15 · Oprava natívnych buildov z GitHub Actions logov
+
+- Android SDK setup už nepoužíva vyradený balík `tools`; explicitne inštaluje `platform-tools` a zachováva SDK 35/build-tools 35.0.0.
+- Windows release čaká na dokončenie GUI self-testu cez `Start-Process -Wait -PassThru`, potom overí a skopíruje EXE na nahratie. Chyba self-testu neotvára dialóg vyžadujúci obsluhu.
+- Upload chýbajúcich EXE, APK alebo release manifestu skončí chybou. Natívne joby majú časové limity.
