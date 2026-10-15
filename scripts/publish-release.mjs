@@ -2,6 +2,7 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
+import {ensureReleaseBucket} from './ensure-release-bucket.mjs';
 export function validateVersion(value) { if(!/^\d+\.\d+\.\d+$/.test(value)||value.split('.').some(n=>Number(n)>65535))throw Error('Invalid release version');return value; }
 export function compareVersions(a,b) { const x=validateVersion(a).split('.').map(Number),y=validateVersion(b).split('.').map(Number);for(let i=0;i<3;i++)if(x[i]!==y[i])return x[i]-y[i];return 0; }
 export async function createManifest(folder,version) {
@@ -17,10 +18,7 @@ export async function publish(folder,version,config=process.env,fetchRequest=glo
   const account=config.CLOUDFLARE_ACCOUNT_ID,token=config.CLOUDFLARE_API_TOKEN;
   if(!account||!token)throw Error('Cloudflare credentials required');
   const bucket=config.KINMO_RELEASE_BUCKET||'kinematika-releases';
-  const bucketURL=`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/r2/buckets`;
-  const bucketResponse=await fetchRequest(bucketURL+'/'+encodeURIComponent(bucket),{headers:{Authorization:`Bearer ${token}`}});
-  if(bucketResponse.status===404){const created=await fetchRequest(bucketURL,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({name:bucket})});if(!created.ok)throw Error(`R2 bucket creation failed (${created.status})`);}
-  else if(!bucketResponse.ok)throw Error(`R2 bucket check failed (${bucketResponse.status})`);
+  await ensureReleaseBucket(config, fetchRequest);
   const base=`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/r2/buckets/${encodeURIComponent(bucket)}/objects/`;
   async function request(key,method='GET',body,contentType) {
     const response=await fetchRequest(base+encodeURIComponent(key),{method,headers:{Authorization:`Bearer ${token}`,...(contentType?{'Content-Type':contentType}:{})},body});

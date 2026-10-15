@@ -22,3 +22,34 @@ test('Publishing verifies both uploads before promotion and refuses downgrade or
   await assert.rejects(()=>publish(folder,'2.1.0',config,fetchMock),/newer/);assert.equal(operations.length,previous);
  }finally{await rm(folder,{recursive:true,force:true});}
 });
+
+const {ensureReleaseBucket} = await import('../scripts/ensure-release-bucket.mjs');
+const bucketConfig = {CLOUDFLARE_ACCOUNT_ID:'test-account', CLOUDFLARE_API_TOKEN:'mock-not-a-secret'};
+test('Deployment preserves an existing R2 bucket without creating or modifying objects', async () => {
+  const calls=[];
+  const bucket=await ensureReleaseBucket(bucketConfig, async (url,options)=>{calls.push({url,method:options.method||'GET'});return new Response('{}');});
+  assert.equal(bucket,'kinematika-releases');
+  assert.deepEqual(calls,[{url:'https://api.cloudflare.com/client/v4/accounts/test-account/r2/buckets/kinematika-releases',method:'GET'}]);
+});
+test('Deployment creates the missing named R2 bucket before Worker upload', async () => {
+  const calls=[];
+  const result=await ensureReleaseBucket(bucketConfig, async (url,options)=>{
+    calls.push({url,...options});return new Response('{}',{status:options.method==='POST'?200:404});
+  });
+  assert.equal(result,'kinematika-releases');assert.equal(calls.length,2);
+  assert.equal(calls[1].method,'POST');assert.deepEqual(JSON.parse(calls[1].body),{name:'kinematika-releases'});
+});
+test('R2 authorization and account errors stop deployment without creating a replacement bucket', async () => {
+  const calls=[];
+  await assert.rejects(()=>ensureReleaseBucket(bucketConfig,async (url,options)=>{calls.push(options.method||'GET');return new Response('{}',{status:403});}),/HTTP 403.*Workers R2 Storage: Edit/);
+  assert.deepEqual(calls,['GET']);
+  let contacted=false;
+  await assert.rejects(()=>ensureReleaseBucket({},async()=>{contacted=true;}),/CLOUDFLARE_API_TOKEN/);
+  assert.equal(contacted,false);
+});
+test('A concurrent bucket creation is accepted, while a failed creation reports the required account setup', async () => {
+  let count=0;
+  assert.equal(await ensureReleaseBucket(bucketConfig,async()=>new Response('{}',{status:[404,409,200][count++]})),'kinematika-releases');
+  count=0;
+  await assert.rejects(()=>ensureReleaseBucket(bucketConfig,async()=>new Response('{}',{status:[404,403,404][count++]})),/HTTP 403.*aktivujte R2 Object Storage/);
+});

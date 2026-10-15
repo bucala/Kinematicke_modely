@@ -171,3 +171,8 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 - Otáznik v hlavičke alebo F1 otvorí vyhľadateľný návod s 29 témami: všetkých 13 typov prvkov a 16 pracovných postupov. Každá téma má vlastnú SVG schému, vysvetlenie a postup. Vyhľadávanie rozumie aj textu bez diakritiky.
 - Skrátený obsah rovnakého návodu sa zobrazí po 2 sekundách nad prvkom v knižnici, telesom alebo uzlom na plátne a podporovanými ovládacími tlačidlami. Pri kliknutí, ťahaní, rolovaní alebo otvorení ponuky sa skryje; pri prehrávaní a na dotykových vstupoch sa neotvára.
 - Návod rešpektuje aktívnu farebnú tému a na mobile používa jeden stĺpec. Klávesové skratky zostávajú súčasťou návodu.
+
+## 2026-10-15 · Oprava nasadenia pri chýbajúcom R2 úložisku
+
+- Workers Builds teraz pripravia `kinematika-releases` ešte pred nasadením Workeru; chýbajúci bucket už nemusí najprv vytvoriť natívny release workflow. Existujúce objekty sa nemenia.
+- Spoločná príprava R2 pre web a natívne aplikácie bezpečne zvláda súbežné vytvorenie úložiska. Pri chýbajúcom tokene, neaktívnom R2 alebo nedostatočných oprávneniach vypíše potrebné kroky.

@@ -7,7 +7,7 @@ compatibility_date = "2026-10-09"
 directory = "./dist"
 binding = "ASSETS"
 
-# Native application release distribution. Create this bucket before deployment.
+# Shared native release storage, prepared by npm run deploy before Worker upload.
 [[r2_buckets]]
 binding = "RELEASES"
 bucket_name = "kinematika-releases"

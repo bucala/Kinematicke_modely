@@ -422,3 +422,10 @@ Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez z
 - Overené všetkých 13 typov knižnice a 29 rozdielnych textov; všetkých 29 SVG schém prešlo XML parserom bez chyby.
 - Návod: rozbalenie témy kulisy, vyhľadanie „pruzina“ bez diakritiky (dve pružiny), zobrazenie pri šírke 390 px bez vodorovného pretekania; kontrola svetlého aj tmavého vzhľadu. Žiadne JavaScript výnimky počas týchto scenárov.
 - `help.js` je zahrnutý v zdrojovom serveri aj statickom distribučnom balíku; SVG schémy nevyžadujú sieť ani externé obrázky.
+
+## 2026-10-15 · Workers Builds a chýbajúci R2 bucket
+
+- Dodaný produkčný build log: 773 úspešných testov, úspešný statický build/upload, zlyhanie Worker version upload s kódom 10085 (`kinematika-releases` neexistuje). Úspešné nahratie assets neznamenalo úspešné nasadenie aplikácie.
+- Oprava: `npm run deploy` pripraví R2 bucket pred Wranglerom. Publikovanie natívnych balíkov používa rovnakú funkciu.
+- `npm run check`, `npm test` (777/777) a `npm run build` prešli. Štyri nové regresie preverujú zachovanie existujúceho bucketu, vytvorenie pri 404, odmietnuté oprávnenia/chýbajúci token a súbeh dvoch buildov vrátane neúspešného vytvorenia.
+- CLI bez tokenu skončí nenulovým kódom s konkrétnym vysvetlením. Živé vytvorenie R2 a úspešné produkčné nasadenie sa lokálne neoverili: prostredie stále nemá Cloudflare credential binding. Treba overiť následný Workers Builds log.

@@ -123,6 +123,16 @@ Pri použití Workers Builds netreba vytvárať paralelný deploy workflow ani u
 
 ## 2026-10-14 · Windows/Android cez GitHub Actions a R2
 
-`wrangler.toml` teraz pridáva Worker `cloudflare/worker.mjs`, statický binding ASSETS a R2 RELEASES (`kinematika-releases`). Web ostáva statickou klientskou aplikáciou; download endpointy obsluhuje Worker. Pre nasadenie musí existovať R2 bucket. Nový workflow bucket vytvorí po nastavení Cloudflare secrets a vytvorí/publikuje oba natívne balíky. Ak existujúce Workers Builds nasadia skôr, bez bucketu môžu zlyhať; po vytvorení spustite nasadenie znova.
+`wrangler.toml` teraz pridáva Worker `cloudflare/worker.mjs`, statický binding ASSETS a R2 RELEASES (`kinematika-releases`). Web ostáva statickou klientskou aplikáciou; download endpointy obsluhuje Worker. Pre nasadenie musí existovať R2 bucket. GitHub workflow aj `npm run deploy` overia bucket a pri jeho absencii ho vytvoria pred publikovaním. Vyžadujú aktivované R2 a príslušné oprávnenie tokenu; podrobnosti a diagnostika chyby 10085 sú nižšie.
 
 Postup secrets, trvalého Android podpisu, verzovania a buildov je v [native/README.md](native/README.md). Používateľ potvrdil priame `.exe`/`.apk` stiahnutie a nastavenie GitHub secrets. V tomto prostredí chýba Cloudflare token a API sieťový prístup; vykonal sa iba lokálny Wrangler dry run. Push sám nepotvrdzuje úspech Actions ani produkcie.
+
+## 2026-10-15 · Oprava Workers Builds: chýbajúci R2 bucket (10085)
+
+Dodaný produkčný log verzie 2.2.1 potvrdil 773 úspešných JS testov, build aj nahratie statických súborov. Nasadenie Workeru zlyhalo pri vytváraní verzie: `R2 bucket 'kinematika-releases' not found` (10085). Nahratie assets samo osebe neznamená nasadenie novej verzie.
+
+`npm run deploy` teraz pred Wranglerom spustí `scripts/ensure-release-bucket.mjs`: overí existujúce úložisko a iba pri HTTP 404 vytvorí chýbajúci bucket. Rovnaký postup používa publikovanie natívnych aplikácií; súbežné vytvorenie druhým buildom je bezpečné. Žiadny bucket ani uložené balíky sa neodstraňujú.
+
+**Jednorazová príprava účtu:** v Cloudflare otvorte **R2 Object Storage** a aktivujte službu, ak ešte nie je aktívna. Nasadzovací token vo Workers Builds musí mať pre cieľový účet `Workers Scripts: Edit` a `Workers R2 Storage: Edit`. Alternatívne vytvorte bucket **kinematika-releases** ručne v účte `065e3003eb4c6bd1bffe7afa184eb5c4`; existujúce úložisko už skript len overí. Rovnaké oprávnenie R2 potrebuje GitHub Actions na publikovanie EXE/APK. Token zadávajte cez zabezpečené nastavenia, nie do repozitára ani chatu.
+
+Ponechajte Deploy command **npm run deploy**. Po pushi opravy má Git-integrácia spustiť nový build; ak nie, použite Retry deployment. Úspech treba potvrdiť v novom Cloudflare logu a na produkčnej URL.
