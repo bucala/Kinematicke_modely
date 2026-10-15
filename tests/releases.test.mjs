@@ -107,3 +107,9 @@ test('Cloudflare exports masked single-line values for subsequent Wrangler steps
   assert.equal(await readFile(file,'utf8'),'CLOUDFLARE_ACCOUNT_ID=test-account\nCLOUDFLARE_API_TOKEN=mock-token\n');assert.equal(events[0],'::add-mask::mock-token');assert.ok(!events[1].includes('mock-token'));
  }finally{await rm(folder,{recursive:true,force:true});}
 });
+
+test('Cloudflare API 10042 identifies inactive R2 instead of incorrectly requesting a new token',async()=>{
+ const calls=[];
+ await assert.rejects(()=>ensureReleaseBucket(bucketConfig,async(url,options)=>{calls.push(options.method||'GET');return Response.json({success:false,errors:[{code:10042,message:'Please enable R2 through the Cloudflare Dashboard.'}]},{status:403});}),error=>error.message.includes('API 10042')&&error.message.includes('/test-account/r2/overview')&&error.message.includes('nežiada zmenu API tokenu'));
+ assert.deepEqual(calls,['GET']);
+});

@@ -136,3 +136,11 @@ Dodaný produkčný log verzie 2.2.1 potvrdil 773 úspešných JS testov, build 
 **Jednorazová príprava účtu:** v Cloudflare otvorte **R2 Object Storage** a aktivujte službu, ak ešte nie je aktívna. Nasadzovací token vo Workers Builds musí mať pre cieľový účet `Workers Scripts: Edit` a `Workers R2 Storage: Edit`. Alternatívne vytvorte bucket **kinematika-releases** ručne v účte `065e3003eb4c6bd1bffe7afa184eb5c4`; existujúce úložisko už skript len overí. Rovnaké oprávnenie R2 potrebuje GitHub Actions na publikovanie EXE/APK. Token zadávajte cez zabezpečené nastavenia, nie do repozitára ani chatu.
 
 Ponechajte Deploy command **npm run deploy**. Po pushi opravy má Git-integrácia spustiť nový build; ak nie, použite Retry deployment. Úspech treba potvrdiť v novom Cloudflare logu a na produkčnej URL.
+
+## Overená príčina 403: Cloudflare R2 API 10042
+
+Cielený GitHub Actions beh `38809329063` overil nasadzovací token tam, kde ho používa publish job: user-token verify HTTP 200/active, zoznam účtov HTTP 200 s cieľovým účtom a Workers HTTP 200. R2 bucket aj zoznam bucketov vrátili HTTP 403 s kódom **10042** a správou **Please enable R2 through the Cloudflare Dashboard**. Pre toto zlyhanie nie je dôvod meniť platný GitHub token.
+
+Jednorazovo dokončite aktiváciu **R2 Object Storage** v [cieľovom účte](https://dash.cloudflare.com/065e3003eb4c6bd1bffe7afa184eb5c4/r2/overview). Cloudflare túto aktiváciu vyžaduje priamo v dashboarde; samotné vytvorenie API tokenu službu neaktivuje. Po aktivácii zopakujte publish job; chýbajúci bucket vytvorí pripravený skript. Úvodné podmienky/fakturáciu služby potvrdzuje vlastník účtu.
+
+`scripts/ensure-release-bucket.mjs` teraz kód 10042 rozpozná a vypíše presný odkaz na aktiváciu namiesto všeobecného pokynu meniť oprávnenia. Diagnostický workflow **Diagnose Cloudflare access** je dostupný aj cez workflow_dispatch a vypisuje iba výsledky čítacích API kontrol, bez hodnoty tokenu.

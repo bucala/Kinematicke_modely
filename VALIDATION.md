@@ -451,3 +451,10 @@ Posledná kompletná kontrola 2.2.0: **773 JS testov a 30 Python testov**, bez z
 - Spoločná funkcia validuje account/token bez uvedenia hodnôt do diagnostiky a normalizuje ich okraje. GitHub prípravný krok maskuje očistený token a cez GITHUB_ENV ho sprístupní R2 publisheru aj Wrangleru.
 - `npm run check`, `npm test` (783/783), `npm run build` a YAML parser prešli. Tri nové regresie overujú normalizáciu, bezpečné zastavenie pred fetchom pri viacriadkovom/chybnom vstupe a maskovaný zápis pre ďalšie kroky. Existujúci úplný publish test navyše vytvára skutočné Headers pri každom mock API volaní s okrajovým CRLF na vstupe, vrátane object uploadov a overovania kontrolných súčtov.
 - Skutočnú hodnotu GitHub secretu nemožno z maskovaného logu opraviť. Ak obsahuje vnútorný koniec riadka alebo príkaz namiesto tokenu, používateľ ho musí nahradiť jedným platným tokenom. Živé publikovanie týmto lokálnym overením potvrdené nie je.
+
+## 2026-10-15 · Živá diagnostika GitHub Cloudflare credentials
+
+- Diagnostický workflow bol vytvorený v `9c2f9c7` a skutočne spustený v Actions ako run `38809329063`. User token: HTTP 200, active; Accounts: HTTP 200, targetAccount true; Workers: HTTP 200. Account-token verify 401 je očakávané pre používateľský token a nie je povinnou kontrolou.
+- R2 bucket aj R2 list: HTTP 403, Cloudflare API **10042**, **Please enable R2 through the Cloudflare Dashboard**. Ide o konkrétnu aktiváciu služby, nie o preukázané chybné GitHub credentials. Token v samostatnom cloudovom prostredí je naďalej odmietaný; nemožno ho zamieňať s platným GitHub secretom.
+- Oprava prípravy R2 rozpozná 10042 a zastaví sa s presným odkazom na dashboard. Regresia potvrdzuje jediné GET volanie a žiadny pokus o vytvorenie/deštrukciu bucketu pri neaktivovanej službe.
+- `node --test tests/releases.test.mjs`: 15/15; `npm run check` prešlo. Produkčné publikovanie zostáva podmienené aktiváciou R2 vlastníkom účtu v dashboarde.

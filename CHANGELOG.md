@@ -193,3 +193,8 @@ Jedna mierka neopravuje perspektívu ani skreslenie fotografie. Finish dokončuj
 
 - Spoločná validácia Cloudflare údajov odstraňuje okrajové medzery/CRLF pred R2 požiadavkami. Viacriadkový alebo inak chybný token odmietne bez vypísania citlivej hodnoty.
 - GitHub publish krok odovzdá očistené a maskované údaje aj Wrangleru. Nahrádza nejasné zlyhanie `Headers.append ... invalid header value` konkrétnym pokynom na opravu secretu.
+
+## 2026-10-15 · Presná diagnostika neaktivovaného R2
+
+- Čítacia diagnostika v GitHub Actions potvrdila platný token a správny účet. Skutočnou príčinou R2 HTTP 403 je API kód 10042: služba R2 ešte nie je aktivovaná.
+- Príprava bucketu rozpoznáva 10042 a odkazuje priamo na aktiváciu R2 v cieľovom účte; táto odpoveď sa už nezamieňa s chybným API tokenom.
