@@ -60,6 +60,16 @@
     if (e?.movingRail) return e.drive && ['a', 'b'].includes(point);
     return e?.primary && (e.role === 'carrier' || p.kind === 'drawer' && point === 'b') || (e?.drive || e?.primary) && K.carriagePoints.includes(point);
   };
+  // Shaft coupling transfers angle; a support or an eccentric pin permits rotation.
+  function suggestJoint(project, a, b) {
+    const element = r => project.elements.find(e => e.id === r.elementId);
+    const guide = [a, b].find(r => r.point === 'curve');
+    if (guide) return element(guide)?.type === 'cam' ? 'cam-contact' : element(guide)?.type === 'rail' ? 'prismatic' : 'point-path';
+    const shaft = [a, b].find(r => element(r)?.type === 'motor' && r.point === 'a');
+    if (!shaft) return 'revolute';
+    const other = element(shaft === a ? b : a), body = root(project, other);
+    return body && !body.locked && !body.primary && !['ground', 'bearing', 'node', 'slot', 'rail'].includes(body.type) && !K.isElastic(body) ? 'fixed' : 'revolute';
+  }
   function fixed(project, r, visited = new Set()) {
     const identity = nodeKey(r); if (visited.has(identity)) return false; visited.add(identity);
     const e = project.elements.find((v) => v.id === r.elementId), { body, point: rootPoint } = rootReference(project, e, r.point);
@@ -68,12 +78,17 @@
       return mounts.some((other) => fixed(project, other, visited));
     }
     if (!body) return false;
-    if (body.type === 'rail' && !railDriven(project, body, rootPoint)) return true;
-    if (body.type === 'ground' || (!body.primary && body.locked && !body.drive) || body.type === 'slot') return true;
+    if (body.type === 'rail' && !body.primary) {
+      const carriage = K.carriagePoints.includes(rootPoint);
+      if (body.movingRail ? carriage : !carriage) return true;
+      // A locked guide does not lock its passive carriage (and vice versa).
+    } else if (body.type === 'rail' && !railDriven(project, body, rootPoint)) return true;
+    if (body.type === 'ground' || (!body.primary && body.locked && !body.drive && body.type !== 'rail') || body.type === 'slot') return true;
     if (e === body && body.drive && body.driveMode === 'rotary' && r.point === body.drivePivot) return true;
     return project.connections.some((j) => ['revolute', 'fixed'].includes(j.type || 'revolute') && [j.a, j.b].some((a, i) => {
       if (!same(a, r)) return false;
-      const other = root(project, project.elements.find((v) => v.id === [j.b, j.a][i].elementId));
+      const otherRef = [j.b, j.a][i], other = root(project, project.elements.find((v) => v.id === otherRef.elementId));
+      if (other?.type === 'rail') return fixed(project, otherRef, visited);
       return other?.type === 'ground' || (!other?.primary && other?.locked);
     }));
   }
@@ -267,16 +282,20 @@
     if (e.type === 'rail' && K.carriagePoints.includes(r.point)) {
       const delta = { x: at.x - pose[r.point].x, y: at.y - pose[r.point].y }, axis = K.along({ x: 0, y: 0 }, 1, pose.angle);
       const travel = delta.x * axis.x + delta.y * axis.y;
-      e.carriageOffset += travel;
-      const v = K.rotate({ x: delta.x - travel * axis.x, y: delta.y - travel * axis.y }, -parentAngle);
-      e.x += v.x; e.y += v.y;
+      if (!e.drive && !e.movingRail) e.carriageOffset = K.clamp(e.carriageOffset + travel, 0, e.length);
+      else {
+        // Repositioning a driven guide by its mounting point is a geometry edit.
+        e.carriageOffset += travel;
+        const v = K.rotate({ x: delta.x - travel * axis.x, y: delta.y - travel * axis.y }, -parentAngle);
+        e.x += v.x; e.y += v.y;
+      }
       return;
     }
     if (K.isElastic(e) && K.elasticMount(p, e, r.point)) throw new Error('Montážny bod je pripojený. Najskôr ho odpojte alebo upravte nosné teleso.');
     if (e.type === 'slot') {
       e.controls[r.point === 'a' ? 0 : e.controls.length - 1] = K.localPoint({ a: pose.controlOrigin, angle: pose.angle }, at);
       if (e.curveSemicircle) e.curveRadius = K.distance(e.controls[0], e.controls[1]) / 2;
-    } else if (['bearing', 'node'].includes(e.type)) {
+    } else if (['bearing', 'node'].includes(e.type) || ['cam', 'motor'].includes(e.type) && r.point === 'a') {
       const v = localOrigin(at); e.x = v.x; e.y = v.y;
     } else if (r.point === 'c') e.localC = K.localPoint(pose, at);
     else {
@@ -529,7 +548,7 @@
     return hitTargets(candidates, at, nodeRadius, jointRadius)[0] || null;
   }
   global.KinmoInteraction = Object.freeze({
-    nodeKey, elementKey, jointKey, dimensionKey, controlKey, outlineKey, pathKey, controlPoints, pointKeys, target, reference, validSelection, select, fixed, status, root, hitTest, hitTargets, setRailMotion,
+    nodeKey, elementKey, jointKey, dimensionKey, controlKey, outlineKey, pathKey, controlPoints, pointKeys, target, reference, validSelection, select, fixed, status, root, suggestJoint, hitTest, hitTargets, setRailMotion,
     addNode, disconnect, disconnectBody, toggleBodyFixed, setJoint, toggleFixed, deleteSelection, setCoordinates, transformPoints, translate,
     setDriver, setLimits, setJointLimits, setProperties, addPOI, addCamFollower, split, insertAssembly, removeControl, insertControl, setControlPoint, semicircle,
   });

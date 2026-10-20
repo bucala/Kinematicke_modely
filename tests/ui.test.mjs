@@ -911,7 +911,10 @@ for (const modifier of ['shiftKey', 'metaKey']) test(`A handle does not swallow 
 test('The pivot chooser is offset from the selected node hit area', () => {
   const { context, state } = controller(); context.selectTarget('n:body:a');
   const html = context.manipulationSVG(1), origin = state.result.poses.body.a;
-  assert.match(html, new RegExp(`data-edit-handle="pivot"[^]*?<rect x="${origin.x - 24}" y="${origin.y - 24}"`));
+  const match = html.match(/data-edit-handle="pivot"[^]*?<rect x="([^"]+)" y="([^"]+)"/);
+  assert.ok(match); const at = {x:Number(match[1])+6,y:Number(match[2])+6};
+  assert.ok(at.x < origin.x && at.y < origin.y);
+  assert.ok(context.K.distance(at,origin) >= 30);
   assert.match(html, /Kliknite na výber uzla/);
 });
 
@@ -2202,4 +2205,35 @@ test('Fusion connection checking immediately shows progress, reports errors visi
  release({});await pending;assert.equal(status.dataset.state,'ready');assert(!button.disabled);
  context.CAD.status=async()=>{calls++;throw Error('Port 8765 nie je dostupný');};
  await context.checkFusionConnection(button);assert.equal(status.dataset.state,'error');assert.equal(status.textContent,'Port 8765 nie je dostupný');assert(!button.disabled);assert.equal(calls,2);
+});
+
+test('Manipulation handles leave every real port accessible across element types and zoom levels',()=>{
+ const {context,state}=controller(),K=context.K;
+ for(const type of K.TYPES)for(const scale of [.3,1,3]){
+  const e={...K.makeElement(type,100,150),id:'audit-body',length:type==='link'?42:K.makeElement(type).length,angle:31};
+  state.project=K.validateProject({...K.preset('custom'),elements:[e]});state.result=context.E.design(state.project,0);state.selectedElementIds=['e:audit-body'];state.selected=e.id;
+  const html=context.manipulationSVG(scale),pins=K.pointKeys(e).map(point=>K.point(state.result,{elementId:e.id,point})),handles=[];
+  for(const match of html.matchAll(/data-edit-handle="([^"]+)"[^]*?<(circle|rect) ([^>]+)>/g)){
+   const attrs=Object.fromEntries([...match[3].matchAll(/([a-z]+)="([^"]+)"/g)].map(m=>[m[1],Number(m[2])]));
+   const at=match[2]==='circle'?{x:attrs.cx,y:attrs.cy}:{x:attrs.x+attrs.width/2,y:attrs.y+attrs.height/2};
+   assert.ok(pins.every(p=>K.distance(p,at)*scale>=29.99),`${type}.${match[1]} covers a port at zoom ${scale}`);
+   assert.ok(handles.every(p=>K.distance(p,at)*scale>=29.99),`${type}.${match[1]} covers a handle`);handles.push(at);
+  }
+  assert.ok(handles.length,`${type} has its size handle`);
+ }
+});
+test('Connection tool couples motor shaft rigidly and leaves the eccentric pin revolute',()=>{
+ for(const point of ['a','b']){
+  const {context,state}=controller(),K=context.K,m={...K.makeElement('motor',100,100),id:'motor'},link={...K.makeElement('link',point==='a'?100:120,100),id:'driven-link'};
+  state.project=K.validateProject({...K.preset('custom'),elements:[m,link]});state.result=context.E.design(state.project,0);
+  context.connectPoint({elementId:m.id,point});context.connectPoint({elementId:link.id,point:'a'});
+  assert.equal(state.project.connections.length,1);assert.equal(state.project.connections[0].type,point==='a'?'fixed':'revolute');
+ }
+});
+test('Dragging a passive carriage port moves the carriage instead of the locked guide',()=>{
+ const {context,state}=controller(),K=context.K,rail={...K.makeElement('rail',100,100),id:'rail',drive:false,locked:true,carriageOffset:50};
+ state.project=K.validateProject({...K.preset('custom'),elements:[rail]});state.result=context.E.design(state.project,0);
+ const at=state.result.poses.rail.ct;context.onPointerDown(pointer(at.x,at.y));assert.deepEqual(Array.from(state.drag.keys),['n:rail:ct']);
+ context.onPointerMove(pointer(at.x+30,at.y+20));context.onPointerUp({pointerId:1});
+ assert.equal(state.project.elements[0].carriageOffset,80);assert.equal(state.project.elements[0].x,100);assert.equal(state.project.elements[0].y,100);
 });

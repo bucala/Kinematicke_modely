@@ -44,14 +44,14 @@
   };
   const isElastic = (element) => ELASTIC_TYPES.includes(element?.type);
   const carriagePoints = ['c', 'ct', 'cb'];
-  const pointKeys = (e) => ['bearing', 'node', 'cam','motor'].includes(e.type) ? ['a'] : e.type === 'rail' ? ['a', 'b', ...carriagePoints] : e.type === 'panel' ? ['a', 'b', 'c'] : ['a', 'b'];
+  const pointKeys = (e) => ['bearing', 'node', 'cam'].includes(e.type) ? ['a'] : e.type === 'rail' ? ['a', 'b', ...carriagePoints] : e.type === 'panel' ? ['a', 'b', 'c'] : ['a', 'b'];
   function carriageReference(project,rail,reference){
     if(reference.elementId===rail.id)return carriagePoints.includes(reference.point);
     let element=project.elements.find(e=>e.id===reference.elementId),seen=new Set();
     while(element?.parentId&&!seen.has(element.id)){seen.add(element.id);if(element.parentId===rail.id)return carriagePoints.includes(element.parentPoint||'a');element=project.elements.find(e=>e.id===element.parentId);}return false;
   }
   const defaultTracePoint = (e) => e?.type === 'rail' ? 'c' : e && pointKeys(e).includes('b') ? 'b' : 'a';
-  const pointName = (key) => ({ ct: 'Vrch vozíka', cb: 'Spodok vozíka' })[key] || key.toUpperCase();
+  const pointName = (key, element) => (element?.type === 'motor' ? ({ a: 'A · os hriadeľa', b: 'B · výstupný čap' })[key] : null) || ({ ct: 'Vrch vozíka', cb: 'Spodok vozíka' })[key] || key.toUpperCase();
   function carriageGeometry(element, pose) {
     const frame = { a: pose.c || pose.a, angle: pose.angle }, w = element.carriageWidth || 24, h = element.carriageHeight || 30;
     return {

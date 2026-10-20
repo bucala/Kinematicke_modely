@@ -140,11 +140,35 @@
     updateAnchors(p, descendants(p, [id]));
     return K.validateProject(p);
   }
+  // Clearance is measured in screen pixels, independent of model units and zoom.
+  // Move along the handle's action axis so dragging keeps its original meaning.
+  function clearHandle(at, direction, occupied, scale = 1, clearance = 30) {
+    if (!(scale > 0) || !Number.isFinite(scale)) throw new Error('Neplatná mierka úchytov.');
+    const length = Math.hypot(direction.x, direction.y);
+    if (!length) throw new Error('Úchyt potrebuje smer.');
+    const axis = { x: direction.x / length, y: direction.y / length };
+    // Each obstacle excludes a finite interval on the action ray. Jump past it
+    // instead of using a capped search which could still overlap a dense model.
+    const radius = clearance / scale; let travel = 0;
+    for (let pass = 0; pass <= occupied.length; pass++) {
+      let next = travel;
+      for (const p of occupied) {
+        const dx = p.x - at.x, dy = p.y - at.y, projection = dx * axis.x + dy * axis.y;
+        const perpendicular = dx * axis.y - dy * axis.x;
+        if (Math.abs(perpendicular) >= radius) continue;
+        const half = Math.sqrt(radius * radius - perpendicular * perpendicular);
+        if (travel > projection - half && travel < projection + half) next = Math.max(next, projection + half + .01 / scale);
+      }
+      if (next === travel) break;
+      travel = next;
+    }
+    return { x: at.x + travel * axis.x, y: at.y + travel * axis.y };
+  }
   function thickness(element) {
     if (!element || element.primary) return null;
     const key = element.type==='motor'?'motorDiameter':K.isElastic(element) ? 'diameter' : ['bearing', 'node', 'cam'].includes(element.type) ? 'radius' : ['slot', 'rail'].includes(element.type) ? 'slotWidth' : 'width';
     const span = key === 'width' && element.outline?.length ? Math.max(...element.outline.map(p => p.y)) - Math.min(...element.outline.map(p => p.y)) : 0;
-    return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : element.type === 'rail' ? 'Šírka vedenia' : element.type === 'slot' ? 'Šírka drážky' : 'Hrúbka' };
+    return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: element.type === 'motor' ? 'Priemer telesa' : key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : element.type === 'rail' ? 'Šírka vedenia' : element.type === 'slot' ? 'Šírka drážky' : 'Hrúbka' };
   }
   function setThickness(project, id, value) {
     const p = K.copy(project), e = p.elements.find((e) => e.id === id), size = thickness(e);
@@ -360,7 +384,7 @@
       if (options.axis === 'x' && Math.abs(point.y - at.y) > .00001 || options.axis === 'y' && Math.abs(point.x - at.x) > .00001) return;
       const adjustment = { x: point.x - at.x, y: point.y - at.y };
       const targetName = project.elements.find((e) => e.id === target.elementId)?.name;
-      const label = (targetName ? `${targetName} · ` : '') + ({ endpoint: target.ref ? K.pointName(target.ref.point) + ' · montážny bod' : 'Uzlový bod', midpoint: 'Stred člena', guide: 'Vodiaca krivka', 'cam-contact': 'Vačkový kontakt · valček', axis: 'Stredová os', edge: 'Obrys / hrana', trajectory: 'Trajektória', 'alignment-x': 'Zarovnanie X', 'alignment-y': 'Zarovnanie Y' })[kind];
+      const label = (targetName ? `${targetName} · ` : '') + ({ endpoint: target.ref ? K.pointName(target.ref.point, project.elements.find(e => e.id === target.elementId)) + ' · montážny bod' : 'Uzlový bod', midpoint: 'Stred člena', guide: 'Vodiaca krivka', 'cam-contact': 'Vačkový kontakt · valček', axis: 'Stredová os', edge: 'Obrys / hrana', trajectory: 'Trajektória', 'alignment-x': 'Zarovnanie X', 'alignment-y': 'Zarovnanie Y' })[kind];
       candidates.push({ source: K.copy(source), target: K.copy(target), point: { x: point.x, y: point.y }, delta: { x: delta.x + adjustment.x, y: delta.y + adjustment.y }, kind, distance, tier, label, priority: options.cursor ? K.distance(source.at, options.cursor) : 0 });
     };
     const targets = destinations.flatMap((e) => snapPoints(project, e, result));
@@ -444,7 +468,7 @@
     const path = result.poses[b.elementId]?.path, second = b.point === 'curve' && first && path?.length ? target.type === 'cam' ? K.nearestOnCam(first, result.poses[b.elementId], source.radius) : K.nearestOnPath(first, path) : K.point(result, b);
     if (!first || !second || K.distance(first, second) > K.TOLERANCE) throw new Error('Body sa už nezhodujú. Najskôr ich znova prichyťte.');
     if (p.connections.some((j) => [j.a, j.b].some((r) => r.elementId === a.elementId && r.point === a.point) && [j.a, j.b].some((r) => r.elementId === b.elementId && r.point === b.point))) throw new Error('Tieto body už majú väzbu. Jej typ zmeňte cez úpravu kĺbu.');
-    const mode = type || (b.point === 'curve' ? target?.type === 'cam' ? 'cam-contact' : target?.type === 'rail' ? 'prismatic' : 'point-path' : 'revolute');
+    const mode = type || I.suggestJoint(p, a, b);
     if (b.point === 'curve' ? !['prismatic', 'point-path', 'cam-contact'].includes(mode) : !['revolute', 'fixed'].includes(mode)) throw new Error('Typ spojenia nezodpovedá prichytenému bodu.');
     const value = ['prismatic', 'fixed'].includes(mode) ? angle(result.poses[b.elementId].angle - result.poses[a.elementId].angle) : 0;
     return I.setJoint(p, a, { type: mode, other: b, value });
@@ -601,7 +625,7 @@
     });
   }
   global.KinmoWorkbench = Object.freeze({
-    parseNumber, applyDimension, preferredEnd, bodies, descendants, pivot, transform, setLength, thickness, setThickness, constraints, diagnose, analyzeSweep, findSnap, findPlacementSnap, placement, connectSnap,
+    parseNumber, applyDimension, preferredEnd, bodies, descendants, pivot, clearHandle, transform, setLength, thickness, setThickness, constraints, diagnose, analyzeSweep, findSnap, findPlacementSnap, placement, connectSnap,
     collectionLimits, normalizeRecord, normalizeCollection, serializeCollection, mergeCollection,
     captureAssembly, insertAssembly, createRevision, restoreRevision, compareDimensions,
   });

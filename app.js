@@ -629,7 +629,7 @@
     active = state.selectedElementIds.includes(identity);
     scale ||= Math.hypot(...['a', 'b'].map((v) => $('#mechanism-canvas').getScreenCTM()?.[v] || 0)) || 1;
     const r = 5 / scale;
-    return `<g data-element="${escape(id)}" data-point="${key}" data-selection-key="${escape(identity)}" class="joint-node node-${kind}${active ? ' active' : ''}${state.hoveredTargetId === identity ? ' hovered' : ''}" role="button" tabindex="0" aria-pressed="${active}" aria-label="Uzol ${escape(label || `${state.project.elements.find((e) => e.id === id)?.name} · ${key.toUpperCase()}`)}, ${({ fixed: 'pevný', driven: 'poháňaný', free: 'voľný' })[kind]}">
+    return `<g data-element="${escape(id)}" data-point="${key}" data-selection-key="${escape(identity)}" class="joint-node node-${kind}${active ? ' active' : ''}${state.hoveredTargetId === identity ? ' hovered' : ''}" role="button" tabindex="0" aria-pressed="${active}" aria-label="Uzol ${escape(label || `${state.project.elements.find((e) => e.id === id)?.name} · ${K.pointName(key, state.project.elements.find(e => e.id === id))}`)}, ${({ fixed: 'pevný', driven: 'poháňaný', free: 'voľný' })[kind]}">
       <circle cx="${point.x}" cy="${point.y}" r="${(window.innerWidth<=640 ? 22 : 11) / scale}" fill="transparent" stroke="none"/>
       <circle class="node-ring" cx="${point.x}" cy="${point.y}" r="${r}" fill="var(--paper)" stroke="var(--node-${kind})" stroke-width="1.7" vector-effect="non-scaling-stroke"/>
       <circle cx="${point.x}" cy="${point.y}" r="${1.7 / scale}" fill="var(--node-${kind})" stroke="none"/>
@@ -816,7 +816,7 @@
       const pose = result.poses[e.id];
       if (!pose) continue;
       for (const key of I.pointKeys(e)) {
-        const label = state.tool === 'connect' ? `${typeCodes[e.type]} · ${key.toUpperCase()}` : e.primary && state.project.kind === 'drawer' && e.id === 'panel-1' ? ({ a: 'B', b: 'C', c: 'A' })[key] : '';
+        const label = state.tool === 'connect' ? `${typeCodes[e.type]} · ${K.pointName(key, e)}` : e.primary && state.project.kind === 'drawer' && e.id === 'panel-1' ? ({ a: 'B', b: 'C', c: 'A' })[key] : '';
         if (pose[key]) content += node(e.id, key, pose[key], label, false, scale);
       }
     }
@@ -1211,27 +1211,37 @@
     toolbar.innerHTML = `${canThickness ? '<button data-action="edit-thickness">Hrúbka / priemer</button>' : ''}${canTransform ? `<button data-action="edit-numbers">${icon('ruler', 13)}X / Y</button><button data-action="edit-rotation">${icon('reset', 13)}Uhol</button><button data-action="edit-pivot">${icon('target', 13)}Bod otáčania</button>${canLength ? '<button data-action="edit-length">Dĺžka</button>' : ''}` : ''}`;
     if (window.innerWidth <= 640 && !state.mobileHandles) return '';
     const origin = state.editPivot || W.pivot(state.project, state.selectedElementIds, state.result), size = 42 / scale, radius = 66 / scale, knob = 6 / scale;
+    const occupied = state.project.elements.filter(e => e.visible).flatMap(e => {
+      const pose = state.result.poses[e.id];
+      if (!pose) return [];
+      const controls = e.type === 'slot' && e.id === state.selected && !e.primary ? I.controlPoints(state.project, e).map(p => K.worldPoint({a:pose.controlOrigin || pose.a,angle:pose.angle},p)) : [];
+      return [...I.pointKeys(e).map(key => pose[key]), ...controls, ...(pose.path || []), ...(pose.outline || [])].filter(Boolean);
+    });
+    const reserve = (at, direction) => { const point = W.clearHandle(at, direction, occupied, scale); occupied.push(point); return point; };
     const handle = (kind, at, label, shape = 'circle', extra = '') => `<g data-edit-handle="${kind}" ${extra} class="edit-handle ${kind}" role="button" tabindex="0" aria-label="${escape(label)}. ${kind === 'pivot' ? 'Kliknite na výber uzla alebo zadanie X / Y.' : 'Potiahnite alebo kliknite na presné číselné zadanie.'}"><title>${escape(label)}</title>${shape === 'circle' ? `<circle cx="${at.x}" cy="${at.y}" r="${knob}"/>` : `<rect x="${at.x - knob}" y="${at.y - knob}" width="${2 * knob}" height="${2 * knob}" rx="${2 / scale}"/>`}</g>`;
     let content = `<g data-editor-overlay="manipulation"><g class="edit-axes" pointer-events="none">${line(origin, { x: origin.x + size, y: origin.y }, 'class="edit-axis-x" vector-effect="non-scaling-stroke"')}${line(origin, { x: origin.x, y: origin.y + size }, 'class="edit-axis-y" vector-effect="non-scaling-stroke"')}<circle cx="${origin.x}" cy="${origin.y}" r="${radius}" class="edit-rotation-ring" vector-effect="non-scaling-stroke"/><text x="${origin.x + size + 10 / scale}" y="${origin.y + 4 / scale}" font-size="${11 / scale}">X</text><text x="${origin.x + 10 / scale}" y="${origin.y + size}" font-size="${11 / scale}">Y</text></g>`;
     if (!canTransform) content = '<g data-editor-overlay="manipulation">';
     if (canTransform) {
-    content += handle('move-x', { x: origin.x + size, y: origin.y }, 'Posun vybraných členov v osi X');
-    content += handle('move-y', { x: origin.x, y: origin.y + size }, 'Posun vybraných členov v osi Y');
-    content += handle('rotate', { x: origin.x + radius, y: origin.y }, 'Otočenie vybraných členov okolo zvoleného bodu');
-    const pivotKnob = { x: origin.x - 18 / scale, y: origin.y - 18 / scale };
+    const moveX = reserve({ x: origin.x + size, y: origin.y }, {x:1,y:0}), moveY = reserve({ x: origin.x, y: origin.y + size }, {x:0,y:1});
+    content += handle('move-x', moveX, 'Posun vybraných členov v osi X');
+    content += handle('move-y', moveY, 'Posun vybraných členov v osi Y');
+    const rotateAt = reserve({ x: origin.x + radius, y: origin.y }, {x:1,y:0});
+    content += line(origin, rotateAt, 'class="edit-rotation-ring" vector-effect="non-scaling-stroke" pointer-events="none"');
+    content += handle('rotate', rotateAt, 'Otočenie vybraných členov okolo zvoleného bodu');
+    const pivotKnob = reserve({ x: origin.x - 18 / scale, y: origin.y - 18 / scale }, {x:-1,y:-1});
     content += line(origin, pivotKnob, 'stroke="var(--secondary)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" pointer-events="none"');
     content += handle('pivot', pivotKnob, 'Zvoliť bod otáčania', 'rect');
     if (canLength) {
       const pose = state.result.poses[single.id], target = I.target(state.project, state.selectedElementIds.at(-1));
       const fixedEnd = target?.point === 'b' || single.drive && single.drivePivot === 'b' ? 'b' : 'a', end = pose[fixedEnd === 'a' ? 'b' : 'a'];
-      const offset = K.rotate({ x: 0, y: -17 / scale }, pose.angle), at = { x: end.x + offset.x, y: end.y + offset.y };
+      const offset = K.rotate({ x: 0, y: -17 / scale }, pose.angle), at = reserve({ x: end.x + offset.x, y: end.y + offset.y }, offset);
       content += line(end, at, 'stroke="var(--secondary)" vector-effect="non-scaling-stroke" pointer-events="none"');
       content += handle('length', at, 'Upraviť dĺžku člena', 'rect', `data-fixed-end="${fixedEnd}"`) + `<text x="${at.x+10/scale}" y="${at.y+4/scale}" class="handle-value" font-size="${11/scale}" pointer-events="none">L ${fmt(single.length,1)} mm</text>`;
     }
     }
     if (canThickness) {
-      const pose = state.result.poses[single.id], size = W.thickness(single), base = ['bearing', 'node', 'cam'].includes(single.type) ? pose.a : { x: (pose.a.x + pose.b.x)/2, y: (pose.a.y + pose.b.y)/2 };
-      const at = K.along(base, size.value / 2 + 12 / scale, pose.angle - 90);
+      const pose = state.result.poses[single.id], size = W.thickness(single), base = ['bearing', 'node', 'cam', 'motor'].includes(single.type) ? pose.a : { x: (pose.a.x + pose.b.x)/2, y: (pose.a.y + pose.b.y)/2 };
+      const at = reserve(K.along(base, size.value / 2 + 12 / scale, pose.angle - 90), K.along({x:0,y:0}, 1, pose.angle - 90));
       content += line(base, at, 'stroke="var(--secondary)" vector-effect="non-scaling-stroke" pointer-events="none"');
       content += handle('thickness', at, `${size.label} člena`, 'rect') + `<text x="${at.x+10/scale}" y="${at.y+4/scale}" class="handle-value" font-size="${11/scale}" pointer-events="none">${escape(size.label)} ${fmt(size.value,1)} mm</text>`;
     }
@@ -1251,7 +1261,7 @@
     }
     if (kind === 'rotate') fields += number('angle', 'Relatívne otočenie (°, kladné proti hodinovým ručičkám)', 0, -360, 360);
     if (['rotate', 'pivot'].includes(kind)) {
-      fields += `<label class="property-field"><span>Bod otáčania podľa uzla</span><select class="property-select" name="pivot-reference"><option value="">Vlastné X / Y</option>${state.project.elements.flatMap((e) => I.pointKeys(e).filter((key) => state.result.poses[e.id]?.[key]).map((key) => `<option value="${escape(`${e.id}|${key}`)}">${escape(e.name)} · ${key.toUpperCase()}</option>`)).join('')}</select></label>`;
+      fields += `<label class="property-field"><span>Bod otáčania podľa uzla</span><select class="property-select" name="pivot-reference"><option value="">Vlastné X / Y</option>${state.project.elements.flatMap((e) => I.pointKeys(e).filter((key) => state.result.poses[e.id]?.[key]).map((key) => `<option value="${escape(`${e.id}|${key}`)}">${escape(e.name)} · ${escape(K.pointName(key, e))}</option>`)).join('')}</select></label>`;
       fields += number('px', 'Bod otáčania X (mm)', origin.x) + number('py', 'Bod otáčania Y (mm)', origin.y);
     }
     if (kind === 'thickness') { if (!e) return; const size = W.thickness(e); fields += number('thickness', `${size.label} (mm)`, size.value, .1, 500); }
@@ -1474,6 +1484,8 @@
     if (!preview) return;
     const target = state.project.elements.find((e) => e.id === preview.target.elementId), source = state.project.elements.find((e) => e.id === preview.source.elementId);
     const types = preview.kind === 'cam-contact' ? [['cam-contact', 'Kontakt vačky']] : preview.target.ref?.point === 'curve' ? [...(target?.type === 'rail' ? [['prismatic', 'Posuvne']] : []), ['point-path', 'Otočne v dráhe']] : K.isElastic(source) || K.isElastic(target) ? [['revolute', 'Otočne']] : [['revolute', 'Otočne'], ['fixed', 'Napevno']];
+    const suggested = I.suggestJoint(state.project, preview.source.ref || {elementId: source?.id, point:'a'}, preview.target.ref || {elementId: target?.id, point:'a'});
+    types.sort((a,b) => Number(b[0] === suggested) - Number(a[0] === suggested));
     el.innerHTML = `<span>${escape(source?.name || 'Prvok')} ↔ ${escape(target?.name || 'Montážny bod')}</span>${preview.alternatives?.length>1 ? `<label>Cieľ spojenia<select class="property-select" data-setting="connection-target">${preview.alternatives.map((p,i)=>`<option value="${i}"${p.target.elementId===preview.target.elementId&&p.target.ref.point===preview.target.ref.point?' selected':''}>${escape(p.label)}</option>`).join('')}</select></label>` : ''}<div>${types.map(([type, label]) => `<button type="button" data-action="snap-connect" data-type="${type}">${label}</button>`).join('')}<button type="button" data-action="snap-preview" data-type="${types[0][0]}">Náhľad…</button><button type="button" data-action="snap-position">Len poloha</button></div><small>Vyberte typ spojenia · Escape ponechá polohu · Späť vráti celé prichytenie</small>`;
     const matrix = $('#mechanism-canvas').getScreenCTM(), area = $('#canvas-area').getBoundingClientRect();
     if (matrix) { el.style ||= {}; el.style.left = `${Math.max(12, Math.min(area.width - 300, preview.point.x * matrix.a + preview.point.y * matrix.c + matrix.e - (area.left || 0) + 16))}px`; el.style.top = `${Math.max(12, Math.min((area.height || 450) - 110, preview.point.x * matrix.b + preview.point.y * matrix.d + matrix.f - (area.top || 0) + 16))}px`; }
@@ -1613,7 +1625,7 @@
       item('disconnect-body', 'Odpojiť všetky väzby tohto člena a jeho bodov', { disabled: readonly || !joints.length && !t.element.parentId }),
       ...(t.element.type === 'rail' ? [item('rail-motion', t.element.movingRail ? 'Pohyblivý vozík, pevné vedenie' : 'Pohyblivé vedenie, pevný vozík', { disabled: readonly || !!t.element.parentId })] : []),
       item('fix-body', t.element.locked || t.element.type === 'ground' ? 'Uvoľniť celé teleso' : 'Ukotviť celé teleso', { disabled: readonly || K.isElastic(t.element) || ['slot', 'rail'].includes(t.element.type) }),
-      { label: 'Priradiť / upraviť pohon na uzle', disabled: readonly || K.isElastic(t.element) || !!t.element.parentId || ['ground', 'slot'].includes(t.element.type), items: I.pointKeys(t.element).filter((key) => ['a', 'b'].includes(key) || key === 'c' && t.element.type === 'panel').map((key) => item(`motor-${key}`, `Uzol ${K.pointName(key)}`)) },
+      { label: 'Priradiť / upraviť pohon na uzle', disabled: readonly || K.isElastic(t.element) || !!t.element.parentId || ['ground', 'slot'].includes(t.element.type), items: I.pointKeys(t.element).filter((key) => ['cam', 'motor'].includes(t.element.type) ? key === 'a' : ['a', 'b'].includes(key) || key === 'c' && t.element.type === 'panel').map((key) => item(`motor-${key}`, `Uzol ${K.pointName(key, t.element)}`)) },
       item('coordinates', 'Súradnice začiatku A…'),
       { separator: true },
       item('split', 'Rozdeliť rameno v polovici', { disabled: readonly || t.element.type !== 'link' || !!t.element.outline?.length }),
@@ -1964,7 +1976,7 @@
     if (duplicate) { toast('Táto väzba už existuje.', true); state.pendingJoint = null; updateToolbar(); renderScene(); return; }
     if (state.project.connections.length >= 240) { toast('Bol dosiahnutý maximálny počet väzieb.', true); return; }
     const guide = a.point === 'curve' ? ea : b.point === 'curve' ? eb : null;
-    previewConnection(a,b,guide?.type === 'cam' ? 'cam-contact' : guide ? 'point-path' : 'revolute');
+    previewConnection(a,b,guide?.type === 'cam' ? 'cam-contact' : guide ? 'point-path' : I.suggestJoint(state.project, a, b));
   }
 
   function touchStart(event) {
@@ -2096,7 +2108,7 @@
         } else {
           if (!nodeReference || !I.fixed(state.project, nodeReference)) state.drag = {
             kind: 'selection', pointerId: event.pointerId, start: point, clientStart: { x: event.clientX, y: event.clientY },
-            keys: nodeReference && K.isElastic(e) ? [I.nodeKey(nodeReference)] : nodeReference && !['node', 'bearing'].includes(e.type) && !preserveGroup ? [I.elementKey(e.id)] : [...state.selectedElementIds], mount: nodeReference && !K.isElastic(e) && !['node', 'bearing'].includes(e.type) && !preserveGroup ? nodeReference : null, projectBefore: K.copy(state.project), resultBefore: K.copy(state.result),
+            keys: nodeReference && (K.isElastic(e) || e.type === 'rail' && K.carriagePoints.includes(nodeReference.point)) ? [I.nodeKey(nodeReference)] : nodeReference && !['node', 'bearing'].includes(e.type) && !preserveGroup ? [I.elementKey(e.id)] : [...state.selectedElementIds], mount: nodeReference && !K.isElastic(e) && !(e.type === 'rail' && K.carriagePoints.includes(nodeReference.point)) && !['node', 'bearing'].includes(e.type) && !preserveGroup ? nodeReference : null, projectBefore: K.copy(state.project), resultBefore: K.copy(state.result),
             historyBefore: [...state.history], historySelectionsBefore: [...state.historySelections],
             futureBefore: state.future, futureSelectionsBefore: state.futureSelections, moved: false, clickSingle: preserveGroup ? hit : null,
             anchor: nodeReference ? K.point(state.result, nodeReference) : pose.a, nodeConnection: !preserveGroup ? nodeReference : null,
@@ -2442,7 +2454,7 @@
     const info=e.type==='motor'?globalThis.KinmoSurfaces.motor(e):null,next=I.setDriver(project,{elementId:id,point:'a'},{enabled:true,mode:'rotary',speed:info?info.outputRPM*6:45,min:0,max:360,continuous:true},E.design(project,state.motion));
     next.simulation.mode='kinematic';editCanvas(next,'Otočný pohon bol zapnutý.');state.direction=info?.outputRPM<0?-1:1;state.mode='simulate';state.motion=state.direction<0?360:0;recalculate(false);updateToolbar();renderInspector();state.playing=!state.result.blocked;updateMotion();$('#modal').close();if(state.result.blocked)toast(state.result.issues[0]||'Otáčanie blokujú väzby.',true);}catch(error){toast(error.message,true);}}
   function motorSpecModal(id=state.selected){const e=state.project.elements.find(e=>e.id===id);if(!e||e.type!=='motor')return;const info=globalThis.KinmoSurfaces.motor(e);
-    modal('Parametre elektromotora',`<form id="motor-spec-form" data-id="${e.id}"><div class="settings-fields"><label class="property-field"><span>Typ motora</span><select name="motorKind">${[['dc','DC'],['ac','AC'],['stepper','Krokový'],['servo','Servo']].map(([v,n])=>`<option value="${v}"${e.motorKind===v?' selected':''}>${n}</option>`).join('')}</select></label>${[['motorLength','Dĺžka telesa','mm',1,5000],['motorDiameter','Priemer telesa','mm',1,5000],['shaftDiameter','Priemer hriadeľa','mm',.1,1000],['powerW','Mechanický výkon','W',0,10000000],['voltage','Menovité napätie','V',.1,10000],['rpm','Menovité otáčky','rpm',0,100000],['efficiency','Účinnosť motora','',.01,1],['gearRatio','Prevodový pomer','',.01,10000],['gearEfficiency','Účinnosť prevodovky','',.01,1]].map(([key,label,unit,min,max])=>quantityInput(key,label,''+e[key],unit,min,max)).join('')}<label class="property-field"><span>Smer otáčania</span><select name="direction"><option value="1"${e.direction!==-1?' selected':''}>Kladný</option><option value="-1"${e.direction===-1?' selected':''}>Záporný</option></select></label></div><p>Výstup: ${fmt(info.outputRPM)} rpm · ${fmt(info.torque,3)} N·m · menovitý prúd ${fmt(info.current)} A. Menovitý režim bez elektrického rozbehu a prúdového riadenia.</p><p>Výstup pripojte pevnou väzbou cez osový bod A k vačke alebo ramenu.</p><div class="modal-actions"><button class="button button-dark">Použiť nastavenia</button></div></form>`);}
+    modal('Parametre elektromotora',`<form id="motor-spec-form" data-id="${e.id}"><div class="settings-fields"><label class="property-field"><span>Typ motora</span><select name="motorKind">${[['dc','DC'],['ac','AC'],['stepper','Krokový'],['servo','Servo']].map(([v,n])=>`<option value="${v}"${e.motorKind===v?' selected':''}>${n}</option>`).join('')}</select></label>${[['length','Polomer výstupného bodu B','mm',1,5000],['motorLength','Dĺžka telesa','mm',1,5000],['motorDiameter','Priemer telesa','mm',1,5000],['shaftDiameter','Priemer hriadeľa','mm',.1,1000],['powerW','Mechanický výkon','W',0,10000000],['voltage','Menovité napätie','V',.1,10000],['rpm','Menovité otáčky','rpm',0,100000],['efficiency','Účinnosť motora','',.01,1],['gearRatio','Prevodový pomer','',.01,10000],['gearEfficiency','Účinnosť prevodovky','',.01,1]].map(([key,label,unit,min,max])=>quantityInput(key,label,''+e[key],unit,min,max)).join('')}<label class="property-field"><span>Smer otáčania</span><select name="direction"><option value="1"${e.direction!==-1?' selected':''}>Kladný</option><option value="-1"${e.direction===-1?' selected':''}>Záporný</option></select></label></div><p>Výstup: ${fmt(info.outputRPM)} rpm · ${fmt(info.torque,3)} N·m · menovitý prúd ${fmt(info.current)} A. Menovitý režim bez elektrického rozbehu a prúdového riadenia.</p><p>A je os hriadeľa: otočná väzba k rámu alebo pevné spojenie s poháňaným ramenom. B je excentrický výstupný čap ramena; jeho polomer určuje zdvih pripojeného mechanizmu.</p><div class="modal-actions"><button class="button button-dark">Použiť nastavenia</button></div></form>`);}
   function surfaceModal(id=state.selected){editableForDrive();const cams=state.project.elements.filter(e=>e.type==='cam'),followers=state.project.elements.filter(e=>!['cam','motor','ground','slot'].includes(e.type)&&!K.isElastic(e));
     if(!cams.length||!followers.length){toast('Pridajte vačku a kontaktný prvok.',true);return;}const selected=followers.find(e=>e.id===id)||followers.find(e=>e.type==='rail')||followers[0];
     modal('Kontaktná plocha',`<form id="surface-form"><label class="property-field"><span>Vačka</span><select name="cam">${cams.map(e=>`<option value="${e.id}"${e.id===id?' selected':''}>${escape(e.name)}</option>`).join('')}</select></label><label class="property-field"><span>Kontaktný prvok</span><select name="follower">${followers.map(e=>`<option value="${e.id}"${e.id===selected.id?' selected':''}>${escape(e.name)}</option>`).join('')}</select></label><label class="property-field"><span>Druh kontaktu</span><select name="kind"><option value="flat">Plochá hrana</option><option value="roller">Valček</option><option value="point">Bodový dotyk</option></select></label><label class="property-field"><span>Kontaktná hrana</span><select name="edge"></select></label><svg id="surface-preview" viewBox="0 0 200 100" style="width:100%;height:150px" aria-label="Náhľad kontaktnej hrany"></svg>${quantityInput('radius','Polomer valčeka',''+(selected.radius||4),'mm',0,1000)}<p>Kinematický dotyk s kontúrou vačky. Vozík sa pohybuje po svojom vedení; koncové limity zostávajú platné.</p><div class="modal-actions"><button class="button button-dark">Vytvoriť kontakt</button></div></form>`);updateSurfaceEdges();}
@@ -3824,7 +3836,7 @@
   }
 
   function tracePointOptions(element, point) {
-    return (element ? I.pointKeys(element) : ['a']).map((key) => `<option value="${key}"${key === point ? ' selected' : ''}>${escape(K.pointName(key))}</option>`).join('');
+    return (element ? I.pointKeys(element) : ['a']).map((key) => `<option value="${key}"${key === point ? ' selected' : ''}>${escape(K.pointName(key, element))}</option>`).join('');
   }
   function traceModal() {
     modal(isDoubleDrawer() ? 'Trajektórie v dvoch súradnicových sústavách' : 'Sledujte bod počas celého pohybu.', `${isDoubleDrawer() ? doubleTraceControls() : ''}<p class="modal-description">${isDoubleDrawer() ? 'Voľbou jedného bodu sa vypne spoločné sledovanie ložísk A a B.' : 'Vyberte prvok a jeho uzlový bod. Trajektória sa vypočíta v celom rozsahu pohonu.'}</p><form id="trace-form"><label class="property-field"><span>Prvok mechanizmu</span><select class="property-select" name="element">${state.project.elements.map((e) => `<option value="${escape(e.id)}"${e.id === state.traceRef.elementId ? ' selected' : ''}>${escape(e.name)}</option>`).join('')}</select></label><label class="property-field"><span>Referenčný bod</span><select class="property-select" name="point">${tracePointOptions(state.project.elements.find((e) => e.id === state.traceRef.elementId), state.traceRef.point)}</select></label><div class="modal-actions"><button class="button button-secondary" type="button" data-action="close-modal">Hotovo</button><button class="button button-dark" type="submit">${icon('trace', 16)}Sledovať jeden bod</button></div></form>`);
@@ -4495,7 +4507,7 @@
 
   async function onSubmit(event) {
     const form = event.target;
-    if(form.id==='motor-spec-form'){event.preventDefault();try{const data=new FormData(form),next=K.copy(state.project),e=next.elements.find(e=>e.id===form.dataset.id);for(const key of ['motorLength','motorDiameter','shaftDiameter','powerW','voltage','rpm','efficiency','gearRatio','gearEfficiency','direction'])e[key]=W.parseNumber(String(data.get(key)),key==='voltage'?'V':key==='powerW'?'W':key==='rpm'?'rpm':['motorLength','motorDiameter','shaftDiameter'].includes(key)?'mm':'');e.motorKind=data.get('motorKind');editCanvas(K.validateProject(next),'Parametre motora boli uložené.');$('#modal').close();}catch(error){toast(error.message,true);}return;}
+    if(form.id==='motor-spec-form'){event.preventDefault();try{const data=new FormData(form),next=K.copy(state.project),e=next.elements.find(e=>e.id===form.dataset.id);for(const key of ['length','motorLength','motorDiameter','shaftDiameter','powerW','voltage','rpm','efficiency','gearRatio','gearEfficiency','direction'])e[key]=W.parseNumber(String(data.get(key)),key==='voltage'?'V':key==='powerW'?'W':key==='rpm'?'rpm':['length','motorLength','motorDiameter','shaftDiameter'].includes(key)?'mm':'');e.motorKind=data.get('motorKind');editCanvas(K.validateProject(next),'Parametre motora boli uložené.');$('#modal').close();}catch(error){toast(error.message,true);}return;}
     if(form.id==='surface-form'){event.preventDefault();try{const data=new FormData(form),e=state.project.elements.find(e=>e.id===data.get('follower'));editCanvas(globalThis.KinmoSurfaces.create(state.project,data.get('cam'),{elementId:e.id,point:e.type==='rail'?'c':'a'},data.get('kind'),Number(data.get('edge')),data.get('kind')==='roller'?quantityValue(data,'radius','mm',0,1000):0),'Kontakt bol pridaný.');$('#modal').close();}catch(error){toast(error.message,true);}return;}
     if(form.id==='debug-form'){event.preventDefault();const data=new FormData(form);const extra=globalThis.KinmoUsability.issueBundle(state.project,state.result,{description:data.get('description'),mode:state.mode,selected:state.selectedElementIds,collisions:state.collisions});const debug=await globalThis.KinmoDebug.bundle(data.get('description'),data.has('images'),extra);download('kinematika-debug.json',JSON.stringify(debug,null,2),'application/json');return;}
     if (state.gifExport) { event.preventDefault(); return; }

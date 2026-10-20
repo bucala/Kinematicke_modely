@@ -15,3 +15,88 @@ test('Carriage contact follows a resized selected face and has no unused degree 
 test('Enabling cam rotation aligns its centre with the declared fixed pivot',()=>{const cam=K.makeElement('cam',120,100),frame=K.makeElement('ground',100,100);let p=custom(cam,frame);p.connections.push({id:'axis',type:'revolute',a:{elementId:cam.id,point:'a'},b:{elementId:frame.id,point:'a'},value:0});p=I.setDriver(p,{elementId:cam.id,point:'a'},{enabled:true,mode:'rotary',min:0,max:360,speed:45,continuous:true},E.design(p,0));const r=K.solve(p,90,{collisions:false});assert.equal(r.blocked,false);assert.deepEqual(r.poses[cam.id].a,r.poses[frame.id].a);assert.equal(r.poses[cam.id].angle,90);});
 
 test('A plate fixed to the carriage transfers its cam contact to carriage travel',()=>{const cam={...K.makeElement('cam',200,100),drive:true,camLift:0,radius:40},rail={...K.makeElement('rail',0,100),drive:false,locked:true,length:300,carriageOffset:100},plate={...K.makeElement('panel',0,0),parentId:rail.id,parentPoint:'c',angle:90,length:20,width:12,bearingOffset:10};const p=S.create(custom(cam,rail,plate),cam.id,{elementId:plate.id,point:'a'},'flat',0);const r=K.solve(p,0,{collisions:false});assert.equal(r.blocked,false,JSON.stringify(r.issues));assert.ok(r.poses[rail.id].c.x>140);assert.equal(r.poses[rail.id].a.x,0);assert.equal(E.freedom(p,r).free,0);});
+
+const W=globalThis.KinmoWorkbench, ref=(e,point='a')=>({elementId:e.id,point});
+const near=(a,b)=>assert.ok(K.distance(a,b)<1e-5,`${JSON.stringify(a)} != ${JSON.stringify(b)}`);
+test('Both motor ports can be placed, snapped, selected, saved and used as parent attachments',()=>{
+  const m=K.makeElement('motor',100,100),pin=K.makeElement('bearing',120,100),p=custom(m,pin),r=E.design(p,0);
+  assert.deepEqual(K.pointKeys(m),['a','b']);
+  const snap=W.findSnap(p,[I.elementKey(pin.id)],r,{x:0,y:0},{enabled:true,tolerance:8});
+  assert.equal(snap.target.ref.point,'b');assert.equal(snap.target.elementId,m.id);
+  const connected=W.connectSnap(p,snap);assert.equal(connected.connections[0].type,'revolute');
+  const child={...K.makeElement('node',0,0),parentId:m.id,parentPoint:'b'};
+  const driven=I.setDriver(custom(m,child),ref(m),{enabled:true,mode:'rotary',min:0,max:360,speed:45},r);
+  for(const angle of [0,90,180,270,360]){const pose=K.solve(driven,angle,{collisions:false});near(pose.poses[child.id].a,pose.poses[m.id].b);near(pose.poses[m.id].a,{x:100,y:100});}
+  assert.equal(X.parseNative(X.serializeNative(connected)).project.connections[0].b.point,'b');
+});
+test('Motor shaft coupling transfers rotation and a ground support stays revolute',()=>{
+  const m={...K.makeElement('motor',100,100),drive:true},cam=K.makeElement('cam',100,100),ground=K.makeElement('ground',100,100);
+  const p=custom(m,cam,ground),preview={kind:'endpoint',source:{elementId:cam.id,ref:ref(cam)},target:{elementId:m.id,ref:ref(m)}};
+  assert.equal(I.suggestJoint(p,ref(m),ref(cam)),'fixed');assert.equal(I.suggestJoint(p,ref(cam),ref(m)),'fixed');
+  assert.equal(I.suggestJoint(p,ref(m),ref(ground)),'revolute');assert.equal(I.suggestJoint(p,ref(m,'b'),ref(cam)),'revolute');
+  const coupled=W.connectSnap(p,preview);assert.equal(coupled.connections[0].type,'fixed');
+  for(const angle of [0,45,90,180,270]){const r=K.solve(coupled,angle,{collisions:false});assert.equal(r.blocked,false,JSON.stringify(r.issues));assert.ok(Math.abs(((r.poses[cam.id].angle-r.poses[m.id].angle+540)%360)-180)<1e-4);}
+  assert.equal(W.connectSnap(p,preview,'revolute').connections[0].type,'revolute');
+});
+test('Moving motor and cam centres preserves profile size, phase and output arm, also under a parent',()=>{
+  for(const type of ['cam','motor'])for(const parented of [false,true]){
+    const parent={...K.makeElement('link',50,60),angle:35},e={...K.makeElement(type,20,30),angle:67,...(parented?{parentId:parent.id,parentPoint:'b'}:{})};
+    const p=custom(...(parented?[parent,e]:[e])),before=JSON.stringify(p),r=E.design(p,0),at={x:r.poses[e.id].a.x+27,y:r.poses[e.id].a.y-13};
+    const next=I.setCoordinates(p,ref(e),at,r),moved=next.elements.find(v=>v.id===e.id),after=E.design(next,0);
+    near(after.poses[e.id].a,at);assert.equal(moved.angle,e.angle);assert.equal(moved.length,e.length);assert.equal(moved.radius,e.radius);
+    assert.equal(JSON.stringify(p),before);
+  }
+});
+test('Motor output pin edits radius and angle about A rather than moving the shaft',()=>{
+  const e=K.makeElement('motor',40,60),p=custom(e),next=I.setCoordinates(p,ref(e,'b'),{x:40,y:110},E.design(p,0)),r=E.design(next,0);
+  near(r.poses[e.id].a,{x:40,y:60});near(r.poses[e.id].b,{x:40,y:110});assert.equal(next.elements[0].length,50);
+});
+test('Every element exposes finite, selectable and placeable mounting points at nonzero angles',()=>{
+  for(const type of K.TYPES){
+    const e={...K.makeElement(type,100,200),angle:37},p=custom(e),r=E.design(p,0);
+    for(const point of K.pointKeys(e)){
+      const at=K.point(r,ref(e,point));assert.ok(Number.isFinite(at.x)&&Number.isFinite(at.y),`${type}.${point}`);
+      assert.equal(I.target(p,I.nodeKey(ref(e,point))).point,point);
+      const placed=W.placement(custom(),type,{x:237,y:119},point);near(K.point(E.design(custom(placed),0),ref(placed,point)),{x:237,y:119});
+    }
+  }
+});
+test('Passive rail carriage and fixed guide points remain distinct through attached child points',()=>{
+  for(const movingRail of [false,true]){
+    const rail={...K.makeElement('rail',100,100),drive:false,locked:true,movingRail},child={...K.makeElement('node',0,0),parentId:rail.id,parentPoint:'ct'},p=custom(rail,child);
+    for(const key of ['c','ct','cb'])assert.equal(I.fixed(p,ref(rail,key)),movingRail);
+    for(const key of ['a','b'])assert.equal(I.fixed(p,ref(rail,key)),!movingRail);
+    assert.equal(I.fixed(p,ref(child)),movingRail);assert.equal(I.status(p,ref(child)),movingRail?'fixed':'free');
+  }
+});
+test('Handles clear dense pins and each other at small and large zoom without changing the action ray',()=>{
+  for(const scale of [.2,1,5]){
+    const occupied=Array.from({length:100},(_,i)=>({x:i*15/scale,y:0}));
+    const at=W.clearHandle({x:42/scale,y:0},{x:1,y:0},occupied,scale);
+    assert.equal(at.y,0);assert.ok(occupied.every(p=>K.distance(p,at)*scale>=30));
+    const next=W.clearHandle(at,{x:1,y:0},[...occupied,at],scale);assert.ok(K.distance(at,next)*scale>=30);
+  }
+});
+test('Carriage point dragging stays on its axis, respects guide ends and leaves the guide in place',()=>{
+  for(const angle of [0,37,90]){
+    const rail={...K.makeElement('rail',80,90),angle,drive:false,locked:true,carriageOffset:50,length:200},p=custom(rail),r=E.design(p,0),axis=K.along({x:0,y:0},1,angle),normal=K.along({x:0,y:0},1,angle+90);
+    for(const travel of [-100,30,300]){
+      const at={x:r.poses[rail.id].ct.x+axis.x*travel+normal.x*20,y:r.poses[rail.id].ct.y+axis.y*travel+normal.y*20};
+      const next=I.translate(p,[I.nodeKey(ref(rail,'ct'))],{x:at.x-r.poses[rail.id].ct.x,y:at.y-r.poses[rail.id].ct.y},r),shown=E.design(next,0);
+      near(shown.poses[rail.id].a,r.poses[rail.id].a);near(shown.poses[rail.id].b,r.poses[rail.id].b);
+      assert.ok(Math.abs(next.elements[0].carriageOffset-K.clamp(50+travel,0,200))<1e-5);
+    }
+  }
+});
+test('Thickness changes preserve mounting coordinates and centreline geometry for all element types',()=>{
+  for(const type of K.TYPES){
+    const e={...K.makeElement(type,50,70),angle:53},p=custom(e),before=JSON.stringify(p),r=E.design(p,0),next=W.setThickness(p,e.id,40),shown=E.design(next,0);
+    for(const point of K.pointKeys(e))near(K.point(r,ref(e,point)),K.point(shown,ref(e,point)));
+    assert.equal(JSON.stringify(p),before);assert.equal(W.thickness(next.elements[0]).value,40);
+  }
+});
+test('A pin connected to a passive carriage is not fixed merely because the guide is locked',()=>{
+  const rail={...K.makeElement('rail',100,100),drive:false,locked:true,carriageOffset:50},pin=K.makeElement('bearing',150,100);
+  const p=I.setJoint(custom(rail,pin),ref(pin),{type:'revolute',other:ref(rail,'c')});
+  assert.equal(I.fixed(p,ref(pin)),false);assert.equal(I.status(p,ref(pin)),'free');
+});
