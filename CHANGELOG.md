@@ -1,5 +1,15 @@
 # História zmien
 
+## 2026-10-21: presnejší rastrový Magic import
+
+- Druhý dodaný obrázok s priehľadnými platňami: kruhovosť vyžaduje podrobnejší obrys, radiálnu zhodu a plochu podobnú disku. Zelený hranatý blok ani malý biely klin už nevytvárajú ďalšie ložiská; štyri hlavné kruhové miesta ostávajú zachované.
+- Dutý profil sa posudzuje podľa obsadenia skutočného obrysu, nie obdĺžnika hlavnej osi. Široká zahnutá platňa sa preto nezamení za vedenie iba pre prázdne rohy tohto obdĺžnika.
+- Potlačenie drobných JPEG odchýlok zachováva tenké čiary a malé kruhové montážne body. Dodaný farebný obrázok zachová všetky tri viditeľné čapy.
+- Základňa s lokálnym výstupkom zostáva editovateľným telesom; nepravidelná šírka sa nemá vydávať za zakrivenú drážku. Skutočné zakrivené pásy ostávajú podporované.
+- Dlhé uzavreté svetlé dutiny môžu vytvoriť návrh strednice drážky. Dutiny dlhých profilov rámu sa nevkladajú ako ďalšie vedenia.
+- Vnorené výplne a obrysové fragmenty kompatibilného vzhľadu sa zlúčia so siluetou. Odlišné prekrývajúce sa telesá ostávajú návrhmi na kontrolu; farba neurčuje mechanickú funkciu.
+- Regresia používa raster dodaného obrázka a overuje aj vloženie a natívny export/import. Zakryté konce drážok, vlastníctvo otvorov a pevné/pohyblivé uloženie stále vyžadujú kontrolu používateľa.
+
 ## 2026-10-13: viac polôh, predloha a pracovné postupy
 
 - Magic import porovná prvý obrázok a ďalšie tri polohy po zarovnaní rovnakým pevným úsekom. Zhodu a odhad pevnej/posuvnej/otočnej časti oddelí od skóre geometrie; nejednoznačné zhody nepotvrdí automaticky.

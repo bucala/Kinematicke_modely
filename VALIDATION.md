@@ -1,5 +1,17 @@
 # Stav overenia
 
+## Magic import · 21. 10. 2026 (lokálne overenie)
+
+- Druhé kolo pridáva raster priehľadného mechanizmu 768 × 429 px: štyri hlavné kruhové miesta ostávajú do 2 px od očakávaného stredu; hranatý zelený blok a biely klin nevytvárajú ďalšie ložiská. Zahnutá modrá oblasť zostáva návrhom platne. Regresia chráni aj plné štvorce a štvorcové otvory pred zámenou za kruhové prvky.
+- Súbor na stiahnutie z druhého obrázka obsahuje ručne vyčistené obrysy, detegované montážne body a vloženú predlohu. Celá šírka obrázka je pracovne 1000 mm; nejde o nameraný rozmer. Neobsahuje pohon ani mechanické väzby. Obnovenie natívnym parserom a modelové vykreslenie prešli; nejde o dôkaz automatickej rekonštrukcie celých telies alebo funkčnej simulácie.
+- `npm run check`, **802 JavaScriptových testov / 0 zlyhaní**, `npm run build` a `git diff --check` prešli.
+- Nová regresia používa skutočný dodaný JPEG dekódovaný do rastra 768 × 573 px. Zachová tri viditeľné kruhové body s odchýlkou stredu pod 2 px, dlhý modrý člen s montážnymi bodmi, červenú platňu a jednu siluetu zeleného rámu.
+- Čierna základňa s výstupkom zostáva telesom na kontrolu. Vodorovná svetlá dutina má návrh strednice; svetlé vnútro dlhých profilov zeleného rámu nevytvára ďalšie drážky. Počet návrhov pri predvolenej citlivosti klesol z 26 na 17; toto číslo samo osebe nevyjadruje presnosť.
+- Hromadné vloženie návrhov a natívny export/import zachovajú prvky a väzby bez vymysleného pohonu. Samostatné regresie chránia tenké čiary, základňu s výstupkom, zakrivené pásy, prekrývajúce sa platne a skorší Kinka raster.
+- Ide o overenie pixelového algoritmu a modelovej integrácie. Nové interaktívne overenie v prehliadači, vzdialené CI ani produkčné nasadenie sa v tomto kole nevykonali. Zakryté časti drážok a mechanická funkcia väzieb zostávajú na kontrolu používateľa.
+
+## Predchádzajúce publikačné overenie
+
 Publikačná kontrola zdrojov nad `aa8e933`: znovu prešli kontrola syntaxe, **640 JavaScriptových testov**, statický build a kontrola whitespace. Výsledky prehliadačových postupov nižšie pochádzajú z funkčného overenia pred commitom; pri publikačnej kontrole sa neopakovali. Push zdrojov do `main` nie je potvrdenie produkčného nasadenia.
 
 ## Predloha a rozšírené pracovné postupy · 13. 10. 2026 (lokálne overenie)

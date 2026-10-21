@@ -11,6 +11,53 @@ import '../exports.js';
 import '../magic-detection.js';
 
 const D = globalThis.KinmoDetection;
+test('Translucent JPEG keeps four main circular features and broad bent plates without square or wedge pins', async () => {
+  const bytes = gunzipSync(await readFile(new URL('./fixtures/translucent-mechanism-768x429.rgba.gz', import.meta.url)));
+  assert.equal(bytes.length, 768 * 429 * 4);
+  const image = { width: 768, height: 429, data: new Uint8ClampedArray(bytes) };
+  const result = D.detectPixels(image), pins = result.candidates.filter((c) => c.type === 'bearing');
+  for (const at of [{ x: 164, y: 254 }, { x: 491, y: 276 }, { x: 481, y: 336 }, { x: 696, y: 254 }]) {
+    assert(pins.some((c) => Math.hypot(c.points[0].x - at.x, c.points[0].y - at.y) < 2), `missing circular feature ${JSON.stringify(at)}`);
+  }
+  assert.equal(pins.length, 4, 'green block and white wedge must not create extra bearings');
+  const upperPlate = result.candidates.find((c) => c.outline.some((p) => p.x > 590 && p.y < 60));
+  assert(upperPlate && upperPlate.type === 'panel' && !upperPlate.selected, 'bent filled plate is not a hollow rail');
+  assert(!result.limited);
+  const scale = KinmoMagicImport.calibration(image, { x: 0, y: 0 }, { x: 768, y: 0 }, 1000);
+  const project = KinmoMagicImport.applyDetected(Kinematics.preset('custom'), image, scale, result.candidates.map((c) => ({ ...c, selected: true })), { connections: false }).project;
+  const restored = KinmoExport.parseNative(KinmoExport.serializeNative(project)).project;
+  assert.equal(restored.elements.length, project.elements.length);
+  assert.equal(restored.connections.length, 0);
+  assert(!restored.elements.some((e) => e.drive));
+});
+
+test('Supplied colored JPEG preserves pins, plates and cavities without turning the base into a guide', async () => {
+  const bytes = gunzipSync(await readFile(new URL('./fixtures/colored-mechanism-768x573.rgba.gz', import.meta.url)));
+  assert.equal(bytes.length, 768 * 573 * 4);
+  const image = { width: 768, height: 573, data: new Uint8ClampedArray(bytes) };
+  const result = D.detectPixels(image);
+  for (const at of [{ x: 259, y: 483 }, { x: 620, y: 403 }, { x: 649, y: 434 }]) {
+    assert(result.candidates.some((c) => c.type === 'bearing' && Math.hypot(c.points[0].x - at.x, c.points[0].y - at.y) < 2), `missing pin ${JSON.stringify(at)}`);
+  }
+  const base = result.candidates.find((c) => c.outline.some((p) => p.y > 550) && c.outline.some((p) => p.x < 30));
+  assert(base && base.type === 'panel' && !base.selected, 'base and upright need one reviewable body silhouette');
+  assert(!result.candidates.some((c) => c.type === 'slot' && c.points.some((p) => p.y > 520)), 'the base is not a guide path');
+  assert(result.candidates.some((c) => c.type === 'link' && c.points.some((p) => p.x < 270) && c.points.some((p) => p.x > 640) && c.anchors.length >= 2), 'blue member keeps its visible extent and mounting points');
+  assert(result.candidates.some((c) => c.type === 'panel' && c.outline.some((p) => p.x > 680 && p.y < 290)), 'red plate must survive deduplication');
+  assert.equal(result.candidates.filter((c) => c.type === 'ground' && c.outline.some((p) => p.y < 60)).length, 1, 'one green frame silhouette, without a nested fill duplicate');
+  assert(!result.candidates.some((c) => c.type === 'slot' && c.points.some((p) => p.y < 300)), 'hollow frame interiors must not become extra guides');
+  assert(result.candidates.some((c) => c.type === 'slot' && c.evidence.cavity && c.points.every((p) => p.x > 140 && p.x < 235 && Math.abs(p.y - 483) < 3)), 'horizontal cavity has an editable path');
+  assert(result.candidates.length < 26, 'reduce the original 26 competing proposals while retaining the asserted features');
+  assert(!result.limited);
+  assert.deepEqual(image.data, new Uint8ClampedArray(bytes), 'detection does not mutate the input');
+  const scale = KinmoMagicImport.calibration(image, { x: 0, y: 0 }, { x: 768, y: 0 }, 500);
+  const imported = KinmoMagicImport.applyDetected(Kinematics.preset('custom'), image, scale, result.candidates.map((c) => ({ ...c, selected: true })), { connections: true }).project;
+  assert(!imported.elements.some((e) => e.drive));
+  const restored = KinmoExport.parseNative(KinmoExport.serializeNative(imported)).project;
+  assert.equal(restored.elements.length, imported.elements.length);
+  assert.equal(restored.connections.length, imported.connections.length);
+});
+
 test('Kinka JPEG retains visible pin locations and broad bent silhouettes as reviewable plates', async () => {
   const bytes = gunzipSync(await readFile(new URL('./fixtures/kinka-768x429.rgba.gz', import.meta.url)));
   assert.equal(bytes.length, 768 * 429 * 4);
@@ -38,6 +85,24 @@ const raster = (width = 240, height = 180) => {
   };
   return { width, height, data, pixel, rect };
 };
+test('Solid squares and square holes are not circular mounting features', () => {
+  const image = raster();
+  image.rect(25, 35, 30, 30, [20, 100, 50]);
+  image.rect(100, 35, 35, 35); image.rect(104, 39, 27, 27, [255, 255, 255]);
+  assert(!D.detectPixels(image).candidates.some((c) => c.type === 'bearing'));
+});
+test('Noise suppression preserves thin high-contrast lines', () => {
+  const image = raster();
+  image.rect(20, 40, 180, 1);
+  assert(D.detectPixels(image).candidates.some((c) => c.points.length === 2 && Math.abs(c.points[1].x - c.points[0].x) > 170));
+});
+test('A straight body with a local upright keeps its contour rather than a false curved centreline', () => {
+  const image = raster();
+  image.rect(15, 130, 210, 20); image.rect(75, 95, 12, 35);
+  const result = D.detectPixels(image);
+  assert(!result.candidates.some((c) => c.type === 'slot'));
+  assert(result.candidates.some((c) => c.outline.length >= 6 && !c.selected));
+});
 // A schematic fixture inspired by the supplied Kinka illustration, not its JPEG bytes.
 function mountingSketch(grayscale = false) {
   const image = raster(480, 300);
