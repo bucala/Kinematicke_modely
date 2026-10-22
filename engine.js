@@ -51,7 +51,7 @@
     while(element?.parentId&&!seen.has(element.id)){seen.add(element.id);if(element.parentId===rail.id)return carriagePoints.includes(element.parentPoint||'a');element=project.elements.find(e=>e.id===element.parentId);}return false;
   }
   const defaultTracePoint = (e) => e?.type === 'rail' ? 'c' : e && pointKeys(e).includes('b') ? 'b' : 'a';
-  const pointName = (key, element) => (element?.type === 'motor' ? ({ a: 'A · os hriadeľa', b: 'B · výstupný čap' })[key] : null) || ({ ct: 'Vrch vozíka', cb: 'Spodok vozíka' })[key] || key.toUpperCase();
+  const pointName = (key, element) => (element?.role === 'motor-housing' ? ({ a: 'A · úchyt krytu', b: 'B · úchyt krytu', c: 'C · stred krytu' })[key] : element?.type === 'motor' ? ({ a: 'A · os hriadeľa', b: 'B · výstupný čap' })[key] : null) || ({ ct: 'Vrch vozíka', cb: 'Spodok vozíka' })[key] || key.toUpperCase();
   function carriageGeometry(element, pose) {
     const frame = { a: pose.c || pose.a, angle: pose.angle }, w = element.carriageWidth || 24, h = element.carriageHeight || 30;
     return {
@@ -415,7 +415,10 @@
       Object.assign(pose, carriageGeometry(element, pose));
     }
     if (element.type === 'slot') { pose.path = cachedPath || genericPath(element); pose.a = pose.path[0]; pose.b = pose.path[pose.path.length - 1]; }
-    if(element.type==='motor')pose.outline=Array.from({length:64},(_,i)=>({x:pose.a.x+element.motorDiameter/2*Math.cos(i/64*Math.PI*2),y:pose.a.y+element.motorDiameter/2*Math.sin(i/64*Math.PI*2)}));
+    if(element.type==='motor') {
+      const separate = project.elements?.some(e => e.id === element.parentId && e.role === 'motor-housing');
+      pose.outline = separate ? [{x:0,y:-element.shaftDiameter/2},{x:element.length,y:-element.shaftDiameter/2},{x:element.length,y:element.shaftDiameter/2},{x:0,y:element.shaftDiameter/2}].map(p => worldPoint(pose,p)) : Array.from({length:64},(_,i)=>({x:pose.a.x+element.motorDiameter/2*Math.cos(i/64*Math.PI*2),y:pose.a.y+element.motorDiameter/2*Math.sin(i/64*Math.PI*2)}));
+    }
     if (element.type === 'cam') { pose.path = cachedPath || camProfile(element); pose.outline = pose.path.slice(0, -1); }
     return pose;
   }

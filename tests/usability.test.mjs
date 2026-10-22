@@ -66,3 +66,32 @@ test('Fixed preview preserves the displayed relative orientation instead of forc
 test('A malformed diagnostic selection is rejected before the caller replaces its project',()=>{
  const e=K.makeElement('link',0,0);e.drive=false;const p=custom(e),bundle=U.issueBundle(p,K.solve(p,0));bundle.reproduction.selected=[{elementId:e.id}];assert.throws(()=>U.restoreIssue(bundle),/Neplatný výber/);
 });
+
+test('A blocked fixed shaft support offers a reversible hinge repair with concrete before/after evidence',()=>{
+ const motor={...K.makeElement('motor',100,100),drive:true},ground=K.makeElement('ground',100,100);
+ const p=K.validateProject({...custom(motor,ground),connections:[{id:'support',name:'Pevná os',type:'fixed',a:{elementId:motor.id,point:'a'},b:{elementId:ground.id,point:'a'},value:0}]});
+ const before=JSON.stringify(p),result=K.solve(p,90,{collisions:false}),report=U.blockers(p,result);
+ assert.equal(result.blocked,true);assert.ok(report.repairs.some(r=>r.key==='j:support'&&r.action==='release-rotation'));
+ const review=U.repairPreview(p,'j:support','release-rotation',90);
+ assert.equal(JSON.stringify(p),before);assert.equal(review.before.blocked,true);assert.equal(review.result.blocked,false);
+ assert.equal(review.project.connections[0].type,'revolute');assert.equal(review.beforeErrors.length,1);assert.equal(review.afterErrors.length,0);
+ assert.deepEqual(review.elementIds,[motor.id,ground.id]);
+});
+test('Constraint removal preview clears its driving dimension and retains unrelated joints',()=>{
+ const a=K.makeElement('ground',0,0),b=K.makeElement('link',50,0);
+ let p=custom(a,b);p.connections=[{id:'distance',name:'Rozmer',type:'distance',a:{elementId:a.id,point:'a'},b:{elementId:b.id,point:'a'},value:50}];
+ p.dimensions=[{id:'dimension',type:'distance',a:{elementId:a.id,point:'a'},b:{elementId:b.id,point:'a'},offset:20,constraintId:'distance'}];p=K.validateProject(p);
+ const review=U.repairPreview(p,'j:distance','remove-constraint',0);
+ assert.equal(p.connections.length,1);assert.equal(review.project.connections.length,0);assert.equal(review.project.dimensions[0].constraintId,'');
+ assert.ok(review.afterFree>review.beforeFree);
+ assert.throws(()=>U.repairPreview(p,'j:distance','remove-duplicate',0),/nadbytočnou/);
+ assert.throws(()=>U.repairPreview(p,'j:distance','release-rotation',0),/pevnú/);
+ assert.throws(()=>U.repairPreview(p,'j:missing','remove-constraint',0),/neexistuje/);
+});
+test('Limit repair previews release the stop without replacing the actual hinge',()=>{
+ const motor={...K.makeElement('motor',100,100),drive:true},ground=K.makeElement('ground',100,100);
+ const p=K.validateProject({...custom(motor,ground),connections:[{id:'hinge',name:'Doraz',type:'revolute',a:{elementId:ground.id,point:'a'},b:{elementId:motor.id,point:'a'},value:0,limitMin:0,limitMax:30}]});
+ const review=U.repairPreview(p,'j:hinge','release-limit',90);
+ assert.equal(review.before.blocked,true);assert.equal(review.result.blocked,false);assert.equal(review.project.connections[0].type,'revolute');
+ assert.equal(review.project.connections[0].limitMax,null);assert.equal(p.connections[0].limitMax,30);
+});

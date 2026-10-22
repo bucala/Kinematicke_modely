@@ -1366,3 +1366,18 @@ dialog::backdrop { background: #10182066; backdrop-filter: blur(4px); }
 .illustrated-guide .shortcut-grid kbd { font-size:11px; color:var(--ink); }
 .kinmo-hover-help { max-height:calc(100vh - 16px); overflow:hidden; }
 @media(max-width:600px) { .illustrated-guide .shortcut-grid { grid-template-columns:1fr; } .illustrated-guide .shortcut-grid > div { font-size:13px; } }
+
+/* Mechanical choice and repair previews remain usable on a narrow canvas. */
+.repair-preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.repair-preview-grid figure { margin: 0; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.repair-preview-grid svg { width: 100%; height: 220px; }
+.snap-choices { overflow-y: auto; z-index: 12; }
+.snap-choices .snap-target-picker { display: block; width: min(280px, 70vw); margin-top: 8px; }
+.snap-target-map { display: block; width: 100%; height: 170px; background: var(--paper); border: 1px solid var(--border); border-radius: 6px; }
+.snap-choices .snap-target-list { display: grid; gap: 4px; max-height: 150px; overflow-y: auto; }
+.snap-target-list button { text-align: left; white-space: normal; }
+.snap-target-list button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (max-width: 600px) { .repair-preview-grid { grid-template-columns: 1fr; } .repair-preview-grid svg { height: 170px; } }
+
+.snap-target-map [role="button"] { cursor: pointer; }
+.snap-target-map [role="button"]:focus { outline: 2px solid var(--accent); }

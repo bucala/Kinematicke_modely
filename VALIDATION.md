@@ -1,5 +1,13 @@
 # Stav overenia
 
+## 2.4.0 · 22. 10. 2026: motor, opravy väzieb a výber bodov
+
+- Prešli `npm run check`, **808 JavaScriptových testov**, **30 izolovaných Python/Fusion testov**, `npm run build` a `git diff --check`.
+- Regresie: upevnený kryt a prenos otáčania cez os na rameno v celom 360° cykle, zachovanie starých ID/väzieb/fázy, uloženie do `.kinmo`, presun a zväčšenie krytu okolo hriadeľa, zastavenie a opätovný štart, samostatné CAD profily, vloženie a kópia s vlastným krytom aj ich Späť.
+- Náhľady opráv nemenia model do potvrdenia. Overené uvoľnenie otáčania, zrušenie dorazu, odstránenie vzdialenostnej väzby s vyčistením riadiacej kóty, odmietnutie neplatného návrhu a potvrdenia po zmene modelu. Úprava má jediný krok Späť.
+- Chromium/CDP pri 1360 × 900: skutočné vloženie motora kliknutím z palety, viditeľný pohyb rotora pri pevnej väzbe krytu, dialóg pred/po s potvrdením a Späť, natívne ťahanie bodu na dva prekryté ciele a pripojenie vybraného cieľa. Pri 390 × 844 sa dialóg zmestil do viewportu. Bez neošetrených JavaScriptových výnimiek; rovnaký postup prešiel aj zo zostaveného `dist/`, vrátane výberu čísla priamo vo zväčšenom náhľade. Snímky sú v ignorovanom `.analysis/motor-housing-repairs/`.
+- Návrh opravy vyhodnocuje aktuálnu polohu bez kolízií; nepreukazuje priechodnosť celého cyklu ani automaticky správny mechanický význam zvolenej väzby. Nový Magic detektor nie je súčasťou tohto balíka. Nasadenie a vzdialené CI sa overujú osobitne po pushi.
+
 Publikačná kontrola zdrojov nad `aa8e933`: znovu prešli kontrola syntaxe, **640 JavaScriptových testov**, statický build a kontrola whitespace. Výsledky prehliadačových postupov nižšie pochádzajú z funkčného overenia pred commitom; pri publikačnej kontrole sa neopakovali. Push zdrojov do `main` nie je potvrdenie produkčného nasadenia.
 
 ## Predloha a rozšírené pracovné postupy · 13. 10. 2026 (lokálne overenie)

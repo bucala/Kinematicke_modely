@@ -1,5 +1,13 @@
 # História zmien
 
+## 2.4.0 · 2026-10-22: kryt motora, opravy väzieb a výber prichytenia
+
+- Nový motor sa vkladá ako kryt s úchytmi A/B a stredom C a samostatný rotor s osou A a výstupným čapom B. Pevná väzba krytu k rámu neobmedzí otáčanie rotora; pevné spojenie hriadeľa prenáša otáčanie na rameno alebo vačku. Kryt je bežné tuhé teleso a treba mu určiť uloženie.
+- **Vlastnosti → Kryt a montážne body** vyberie kryt; starší motor rozdelí pri zachovaní jeho ID, väzieb a fázy pohonu. Presun motora presúva kryt s rotorom, zmena priemeru zachová os a kópia dostane vlastný kryt. Vypnutie a opätovné zapnutie uchová zobrazenú fázu. CAD obsahuje kryt a úzky výstup rotora ako samostatné profily.
+- **Prečo sa nehýbe?** označí konkrétnu väzbu aj jej telesá. Pri nesplnenej pevnej väzbe ponúkne uvoľnenie otáčania, pri doraze jeho vypnutie a pri konflikte odpojenie väzby. Náhľad ukazuje stav pred/po, počet nesplnených väzieb a voľných súradníc. Zmenu potvrdzuje používateľ; Späť ju obnoví. Náhľad hodnotí aktuálnu polohu bez kolízií, neurčuje automaticky správny mechanizmus.
+- Prekryté ciele prichytávania majú zväčšený náhľad s číslami a tlačidlami na výber konkrétneho bodu. Výber funguje pri priamom ťahaní bodu aj pri inteligentnom prichytávaní; zachová spoločný krok Späť. Ponuka rozlišuje otočný čap, pevné spojenie, vedenie a samotné zarovnanie.
+- Publikovanie zostáva iba pre web cez existujúce Workers Builds; nové Windows ani Android balíky sa nevytvárajú.
+
 ## 2026-10-13: viac polôh, predloha a pracovné postupy
 
 - Magic import porovná prvý obrázok a ďalšie tri polohy po zarovnaní rovnakým pevným úsekom. Zhodu a odhad pevnej/posuvnej/otočnej časti oddelí od skóre geometrie; nejednoznačné zhody nepotvrdí automaticky.

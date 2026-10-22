@@ -206,7 +206,8 @@
           if (done.has(child.id)) continue;
           const parent = poses[parentId], origin = parent[child.parentPoint || 'a'] || parent.a;
           const v = K.rotate({ x: child.x, y: child.y }, parent.angle);
-          poses[child.id] = K.bodyPose({ ...child, x: origin.x + v.x, y: origin.y + v.y, angle: child.angle + parent.angle }, result.motion, project);
+          const relative = base[child.id].angle - base[parentId].angle;
+          poses[child.id] = K.bodyPose({ ...child, x: origin.x + v.x, y: origin.y + v.y, angle: relative + parent.angle }, result.motion, project);
           done.add(child.id); updateChildren(child.id);
         }
       };

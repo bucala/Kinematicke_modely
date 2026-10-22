@@ -91,6 +91,10 @@
   }
   function transform(project, keys, options, result = design(project)) {
     const p = K.copy(project), ids = new Set(bodies(project, keys));
+    for (const id of [...ids]) {
+      const e = p.elements.find(v => v.id === id), housing = e.type === 'motor' && p.elements.find(v => v.id === e.parentId && v.role === 'motor-housing');
+      if (housing) { ids.delete(id); ids.add(housing.id); }
+    }
     const dx = options.dx ?? 0, dy = options.dy ?? 0, rotation = options.angle ?? 0, origin = options.pivot || pivot(project, keys, result);
     if (!ids.size || ![dx, dy, rotation, origin.x, origin.y].every(Number.isFinite)) throw new Error('Vyberte členy a zadajte konečný posun, uhol a bod otáčania.');
     for (const id of ids) {
@@ -179,6 +183,7 @@
       e.outline = e.outline.map((p) => ({ x: p.x, y: center + (p.y - center) * value / size.value }));
     }
     e[size.key] = size.key === 'radius' ? value / 2 : value;
+    if (e.type === 'motor') return I.resizeMotorHousing(p, e.id);
     return K.validateProject(p);
   }
 
@@ -429,10 +434,17 @@
     const retained = options.previous && candidates.find((c) => sameTarget(c, options.previous) && c.distance <= releaseTolerance);
     const entering = candidates.filter((c) => c.distance <= enterTolerance);
     const stronger = retained && entering.filter((c) => c.tier < retained.tier || c.tier === retained.tier && priority[c.kind] < priority[retained.kind]);
-    if (retained && !stronger.length) return { ...retained, motion: result.motion };
-    if (stronger?.length) { stronger.sort((a, b) => a.tier - b.tier || priority[a.kind] - priority[b.kind] || a.distance - b.distance); return { ...stronger[0], motion: result.motion }; }
+    const choice = selected => {
+      if (!selected) return null;
+      const alternatives = [selected, ...entering.filter(c => c !== selected && c.source.elementId === selected.source.elementId && c.source.ref?.point === selected.source.ref?.point && ['endpoint','midpoint','guide','cam-contact'].includes(c.kind))];
+      const unique = alternatives.filter((c, i) => !alternatives.slice(0, i).some(other => sameTarget(c, other))).slice(0, 16);
+      return { ...selected, motion: result.motion, wholeBody: !!options.wholeBodies || !!options.inserting,
+        alternatives: unique.map(c => ({ ...c, motion: result.motion, wholeBody: !!options.wholeBodies || !!options.inserting })) };
+    };
+    if (retained && !stronger.length) return choice(retained);
+    if (stronger?.length) { stronger.sort((a, b) => a.tier - b.tier || priority[a.kind] - priority[b.kind] || a.distance - b.distance); return choice(stronger[0]); }
     entering.sort((a, b) => a.tier - b.tier || (Math.abs(a.distance - b.distance) > .00001 ? a.distance - b.distance : priority[a.kind] - priority[b.kind] || a.priority - b.priority));
-    return entering[0] ? { ...entering[0], motion: result.motion } : null;
+    return choice(entering[0]);
   }
   function findPlacementSnap(project, element, options = {}) {
     if (options.enabled !== true) return null;

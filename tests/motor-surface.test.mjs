@@ -100,3 +100,57 @@ test('A pin connected to a passive carriage is not fixed merely because the guid
   const p=I.setJoint(custom(rail,pin),ref(pin),{type:'revolute',other:ref(rail,'c')});
   assert.equal(I.fixed(p,ref(pin)),false);assert.equal(I.status(p,ref(pin)),'free');
 });
+
+test('Separate motor housing remains fixed while the rotor drives a shaft coupling for a full turn',()=>{
+ const motor={...K.makeElement('motor',100,100),angle:37}, frame=K.makeElement('ground',100,100);
+ let p=I.separateMotor(custom(motor,frame),motor.id); const housing=p.elements.find(e=>e.role==='motor-housing');
+ const initial=E.design(p,0);near(initial.poses[motor.id].a,{x:100,y:100});assert.equal(initial.poses[motor.id].angle,37);
+ p=I.setJoint(p,ref(housing,'c'),{type:'fixed',other:ref(frame),value:-37});
+ p=I.setDriver(p,ref(motor),{enabled:true,mode:'rotary',min:0,max:360,speed:45,continuous:true},E.design(p,0));
+ const arm={...K.makeElement('link',100,100),angle:37,length:70};p=K.validateProject({...p,elements:[...p.elements,arm]});
+ p=I.setJoint(p,ref(motor),{type:'fixed',other:ref(arm),value:0});
+ for(const angle of [0,45,90,180,270,360]){
+  const r=K.solve(p,angle,{collisions:false});assert.equal(r.blocked,false,r.issues.join('; '));
+  assert.ok(K.distance(r.poses[housing.id].a,initial.poses[housing.id].a)<.001);assert.ok(K.distance(r.poses[motor.id].a,{x:100,y:100})<.001);
+  assert.ok(Math.abs(r.poses[housing.id].angle-37)<.001);
+  assert.ok(Math.abs(((r.poses[arm.id].angle-r.poses[motor.id].angle+540)%360)-180)<.001);
+  assert.equal(E.freedom(p,r).free,0);
+ }
+ assert.equal(I.fixed(p,ref(motor,'b')),false);assert.equal(I.status(p,ref(motor,'b')),'driven');
+ const saved=X.parseNative(X.serializeNative(p)).project;
+ assert.equal(saved.elements.find(e=>e.id===motor.id).parentId,housing.id);
+ assert.equal(I.separateMotor(p,motor.id).elements.length,p.elements.length);
+});
+test('Motor housing conversion preserves legacy shaft connections and drive phase',()=>{
+ const motor={...K.makeElement('motor',90,120),angle:26,drive:true}, frame=K.makeElement('ground',90,120);
+ let p=I.setJoint(custom(motor,frame),ref(motor),{type:'revolute',other:ref(frame)});const before=JSON.stringify(p),next=I.separateMotor(p,motor.id);
+ for(const angle of [0,90,180]){const a=K.solve(p,angle,{collisions:false}),b=K.solve(next,angle,{collisions:false});near(a.poses[motor.id].b,b.poses[motor.id].b);assert.equal(b.blocked,false);}
+ assert.equal(JSON.stringify(p),before);assert.deepEqual(next.connections,p.connections);
+});
+test('Dragging a separated motor translates its housing, but editing B changes only its crank radius',()=>{
+ const m=K.makeElement('motor',100,100),p=I.separateMotor(custom(m),m.id),h=p.elements.find(e=>e.role==='motor-housing'),r=E.design(p,0);
+ const moved=I.translate(p,[I.elementKey(m.id)],{x:40,y:30},r),shown=E.design(moved,0);
+ near(shown.poses[m.id].a,{x:140,y:130});near(shown.poses[h.id].c,shown.poses[m.id].a);
+ const edited=I.setCoordinates(p,ref(m,'b'),{x:100,y:150},r),after=E.design(edited,0);
+ near(after.poses[h.id].c,r.poses[h.id].c);near(after.poses[m.id].b,{x:100,y:150});
+ const transformed=W.transform(p,[I.elementKey(m.id)],{dx:25,dy:-10},r),t=E.design(transformed,0);
+ near(t.poses[h.id].c,t.poses[m.id].a);near(t.poses[m.id].a,{x:125,y:90});
+});
+test('Stopping and restarting a mounted motor preserves its displayed relative phase',()=>{
+ const m={...K.makeElement('motor',120,100),angle:57};let p=I.separateMotor(custom(m),m.id);
+ p=I.setDriver(p,ref(m),{enabled:true,mode:'rotary',min:0,max:360,speed:45},E.design(p,0));
+ const shown=K.solve(p,80,{collisions:false});p=I.setDriver(p,ref(m),{enabled:false},shown);
+ const stopped=K.solve(p,0,{collisions:false});near(stopped.poses[m.id].b,shown.poses[m.id].b);
+ p=I.setDriver(p,ref(m),{enabled:true,mode:'rotary',min:0,max:360,speed:45},stopped);
+ near(K.solve(p,0,{collisions:false}).poses[m.id].b,shown.poses[m.id].b);
+});
+
+test('Changing motor diameter resizes its housing around the shaft and retains all assembly references',()=>{
+ const m={...K.makeElement('motor',140,80),angle:53},p=I.separateMotor(custom(m),m.id),h=p.elements.find(e=>e.role==='motor-housing'),before=E.design(p,0);
+ const next=W.setThickness(p,m.id,120),shown=E.design(next,0),housing=next.elements.find(e=>e.id===h.id);
+ near(shown.poses[m.id].a,before.poses[m.id].a);near(shown.poses[h.id].c,shown.poses[m.id].a);
+ assert.equal(housing.width,120);assert.equal(housing.length,h.length*2);assert.equal(next.elements.find(e=>e.id===m.id).motorDiameter,120);
+ assert.equal(p.elements.find(e=>e.id===m.id).motorDiameter,60);
+ const entities=X.geometry(next,shown,{dimensions:false,labels:false});assert.ok(entities.some(e=>e.elementId===h.id&&e.closed));
+ const rotor=entities.find(e=>e.elementId===m.id&&e.closed);assert.ok(rotor.points.length===4,'rotor export must not duplicate the housing disk');
+});

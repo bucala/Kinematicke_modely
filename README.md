@@ -15,6 +15,14 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 
 > Kinematika a odhadová dynamika jedného pohonu, nie pevnostný výpočet ani výrobný výkres. Pred použitím návrhu si prečítajte [hranice simulácie](#limits).
 
+## 2.4.0: kryt a rotor motora, náhľad opráv a prekryté body
+
+Nový elektromotor má **samostatný kryt a rotor**. Cez **Vlastnosti → Kryt a montážne body** vyberte kryt a jeho úchyty A/B alebo stred C pripojte k rámu. Os A rotora spojte napevno s poháňaným ramenom alebo vačkou; čap B rotora použite pre ojnicu. Potom na rotore zvoľte **Zapnúť motor**. Kryt má vlastné uloženie, takže jeho pevné spojenie neblokuje otáčanie hriadeľa. Rovnaké tlačidlo pripraví kryt aj pre starší motor bez prepisovania pôvodných väzieb. Presúvanie motora, zmena priemeru a duplikovanie zachovávajú zostavu; kryt aj rotor sa ukladajú do `.kinmo`.
+
+V **Ďalšie nástroje → Prečo sa nehýbe?** vyberte konkrétny problém. Návrhy na uvoľnenie otáčania, odstránenie nadbytočnej väzby, preverenie dorazu alebo úpravu zdvihu najprv ukážu **náhľad pred/po**. Overte zmenený počet nesplnených väzieb a voľných súradníc a potvrďte **Použiť opravu**. Model sa pred potvrdením nemení; Späť obnoví pôvodný stav. Návrh sa týka aktuálnej polohy bez kolízií, celý cyklus skontrolujte samostatne.
+
+Pri prichytení na prekryté uzly vyberte číslo v **zväčšenom okolí bodov** alebo jeho názov v zozname. Potom zvoľte **Vložiť otočný čap**, **Spojiť napevno**, vhodné vedenie alebo **Iba zarovnať**. Poloha a spojenie zostávajú jedným krokom Späť.
+
 ## 13. 10. 2026: prichytávanie, vačka a úpravy kriviek
 
 Rozšírenie zdrojov nad `5e9798b` pridáva:
