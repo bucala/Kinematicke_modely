@@ -154,3 +154,11 @@ test('Changing motor diameter resizes its housing around the shaft and retains a
  const entities=X.geometry(next,shown,{dimensions:false,labels:false});assert.ok(entities.some(e=>e.elementId===h.id&&e.closed));
  const rotor=entities.find(e=>e.elementId===m.id&&e.closed);assert.ok(rotor.points.length===4,'rotor export must not duplicate the housing disk');
 });
+
+test('Resizing through the simple housing control changes motor diameter uniformly and keeps the shaft centred',()=>{
+ const m={...K.makeElement('motor',100,100),angle:41},p=I.separateMotor(custom(m),m.id),h=p.elements.find(e=>e.role==='motor-housing');
+ const next=W.setThickness(p,h.id,90),result=E.design(next,0),housing=next.elements.find(e=>e.id===h.id);
+ assert.equal(next.elements.find(e=>e.id===m.id).motorDiameter,90);assert.equal(W.thickness(housing).value,90);
+ for(const point of result.poses[h.id].outline)assert.ok(Math.abs(K.distance(point,result.poses[h.id].c)-45)<1e-6);
+ near(result.poses[m.id].a,{x:100,y:100});assert.throws(()=>W.setThickness(p,h.id,4),/Hriadeľ/);
+});

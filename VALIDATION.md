@@ -1,5 +1,11 @@
 # Stav overenia
 
+## 2.4.1 · 22. 10. 2026: jednoduché zobrazenie motora
+
+- Prešlo **810 JavaScriptových testov**, kontrola syntaxe a build. Regresie preverujú absenciu obrysových úchytov aj ich skrytých zásahových oblastí, jeden rozmerový úchyt, rovnomernú zmenu priemeru z krytu a zachovanie stredu hriadeľa.
+- Chromium/CDP pri 1172 × 1027: ikona motora sa líši od vačky, žiadne úchyty vrcholov, jeden úchyt priemeru, skutočné ťahanie rozmeru mení súčasne kryt aj rotor a Späť obnoví rozmer. Spustenie motora viditeľne pohybuje rotorom. Pri 390 × 844 nie sú prítomné obrysové úchyty. Bez neošetrených výnimiek.
+- Symbol je zjednodušené schematické zobrazenie. Mechanické referencie zostávajú pôvodné; ilustračné rebrá a svorkovnica nepridávajú telesá, prípojné body ani editovateľné vrcholy. Živý Fusion sa v tomto kole neoveroval.
+
 ## 2.4.0 · 22. 10. 2026: motor, opravy väzieb a výber bodov
 
 - Prešli `npm run check`, **808 JavaScriptových testov**, **30 izolovaných Python/Fusion testov**, `npm run build` a `git diff --check`.

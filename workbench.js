@@ -172,11 +172,15 @@
     if (!element || element.primary) return null;
     const key = element.type==='motor'?'motorDiameter':K.isElastic(element) ? 'diameter' : ['bearing', 'node', 'cam'].includes(element.type) ? 'radius' : ['slot', 'rail'].includes(element.type) ? 'slotWidth' : 'width';
     const span = key === 'width' && element.outline?.length ? Math.max(...element.outline.map(p => p.y)) - Math.min(...element.outline.map(p => p.y)) : 0;
-    return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: element.type === 'motor' ? 'Priemer telesa' : key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : element.type === 'rail' ? 'Šírka vedenia' : element.type === 'slot' ? 'Šírka drážky' : 'Hrúbka' };
+    return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: element.type === 'motor' || element.role === 'motor-housing' ? 'Priemer krytu' : key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : element.type === 'rail' ? 'Šírka vedenia' : element.type === 'slot' ? 'Šírka drážky' : 'Hrúbka' };
   }
   function setThickness(project, id, value) {
     const p = K.copy(project), e = p.elements.find((e) => e.id === id), size = thickness(e);
     if (!size || !Number.isFinite(value) || value < .1 || value > 500) throw new Error('Priečny rozmer musí byť 0,1 až 500 mm na vlastnom prvku.');
+    if (e.role === 'motor-housing') {
+      const motor = p.elements.find(v => v.type === 'motor' && v.parentId === e.id);
+      if (motor) { motor.motorDiameter = value; return I.resizeMotorHousing(p,motor.id); }
+    }
     if (K.isElastic(e) && value <= (e.type.startsWith('piston-') ? e.rodDiameter : 2 * e.wireDiameter)) throw new Error('Vonkajší priemer musí byť väčší než priemer tyče alebo drôtu.');
     if (e.outline?.length && size.key === 'width') {
       const center = (Math.min(...e.outline.map(p => p.y)) + Math.max(...e.outline.map(p => p.y))) / 2;

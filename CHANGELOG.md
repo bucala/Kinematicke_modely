@@ -1,5 +1,12 @@
 # História zmien
 
+## 2.4.1 · 2026-10-22: čitateľný motor a jednoduchá editácia
+
+- Elektromotor má vlastnú vektorovú ikonu so svorkovnicou, rebrami a pätkami; od vačky sa odlišuje v knižnici aj v strome.
+- Na plátne sa kryt zobrazuje ako technický symbol motora. Rotor a montážne body zostávajú funkčné; nadbytočný nápis M a dlhý popis výkonu sa odstránili z kresby.
+- Kryt nemá 48 viditeľných ani skrytých úchytov vrcholov. Kryt aj rotor používajú jediný úchyt priemeru; polohu a uhol možno stále upraviť číselne a teleso presúvať ťahaním.
+- Úprava priemeru cez kryt rovnomerne prepočíta aj rozmery motora a zachová os hriadeľa. Panel krytu ponúka rozmer, parametre motora a montáž. Pohon sa nastavuje na rotore.
+
 ## 2.4.0 · 2026-10-22: kryt motora, opravy väzieb a výber prichytenia
 
 - Nový motor sa vkladá ako kryt s úchytmi A/B a stredom C a samostatný rotor s osou A a výstupným čapom B. Pevná väzba krytu k rámu neobmedzí otáčanie rotora; pevné spojenie hriadeľa prenáša otáčanie na rameno alebo vačku. Kryt je bežné tuhé teleso a treba mu určiť uloženie.

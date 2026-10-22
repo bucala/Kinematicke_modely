@@ -15,6 +15,10 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 
 > Kinematika a odhadová dynamika jedného pohonu, nie pevnostný výpočet ani výrobný výkres. Pred použitím návrhu si prečítajte [hranice simulácie](#limits).
 
+## 2.4.1: jednoduchá editácia motora
+
+Motor má samostatnú ikonu a technický symbol s rebrami, svorkovnicou a pätkami. Po výbere krytu alebo rotora sa zobrazuje **jeden úchyt priemeru Ø**, nie vrcholy obrysového mnohouholníka. Teleso presuniete ťahaním, presnú polohu a uhol zadáte v dolnej lište. **Parametre elektromotora** obsahujú výkon, napätie, otáčky a rozmery; **Spojenia / uloženie** slúžia na pripojenie montážnych bodov. Zmena priemeru z krytu aj z rotora zachová stred hriadeľa a má jeden krok Späť. Technický symbol je zobrazenie pre schému, nie výrobný 3D model.
+
 ## 2.4.0: kryt a rotor motora, náhľad opráv a prekryté body
 
 Nový elektromotor má **samostatný kryt a rotor**. Cez **Vlastnosti → Kryt a montážne body** vyberte kryt a jeho úchyty A/B alebo stred C pripojte k rámu. Os A rotora spojte napevno s poháňaným ramenom alebo vačkou; čap B rotora použite pre ojnicu. Potom na rotore zvoľte **Zapnúť motor**. Kryt má vlastné uloženie, takže jeho pevné spojenie neblokuje otáčanie hriadeľa. Rovnaké tlačidlo pripraví kryt aj pre starší motor bez prepisovania pôvodných väzieb. Presúvanie motora, zmena priemeru a duplikovanie zachovávajú zostavu; kryt aj rotor sa ukladajú do `.kinmo`.
