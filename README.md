@@ -968,6 +968,10 @@ docs/readme-overview.svg  Ilustračný prehľad pre GitHub README
 styles.css             Responzívne rozhranie
 scripts/server.mjs     Bez-závislostný lokálny HTTP server
 scripts/build.mjs      Zostavenie statického dist/
+scripts/manifest.mjs   Spoločný zoznam súborov pre check, test, build a server
+scripts/check.mjs      Kontrola syntaxe všetkých JavaScriptových zdrojov
+scripts/test.mjs       Spustenie všetkých tests/*.test.mjs
+project-files.json     Jediný zoznam súborov projektu; nový súbor pridajte sem
 scripts/archive.mjs    Deterministický ZIP doplnku
 tests/cases.js         Spoločná sada testov
 tests/interaction-cases.js  Modelové regresie výberu a kontextových operácií
