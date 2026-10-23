@@ -436,5 +436,19 @@
     const base = K.camProfile(e), turned = K.camProfile({ ...e, angle: 35 });
     for (let i = 0; i < base.length; i++) near(K.distance(K.worldPoint({ a: { x: 10, y: 20 }, angle: 35 }, { x: base[i].x - 10, y: base[i].y - 20 }), turned[i]), 0);
   });
+  add('Dlhá otvorená reťaz na pohyblivom člene konverguje bez falošných chýb väzieb.', () => {
+    const project = K.preset('fourbar');
+    let previous = project.elements.find((e) => e.id === 'output-1');
+    for (let i = 0; i < 8; i++) {
+      const link = { ...K.makeElement('link', 100 + i * 30, 100), length: 30 };
+      project.elements.push(link);
+      project.connections.push(joint(previous, 'b', link, 'a'));
+      previous = link;
+    }
+    for (const result of K.sample(K.validateProject(project), 20)) {
+      assert(result.positionResidual < K.TOLERANCE, `Reziduum ${result.positionResidual} mm prekračuje toleranciu.`);
+      assert(!result.issues.some((issue) => issue.startsWith('Väzba')), result.issues.join(' '));
+    }
+  });
   global.KinematicsTestCases = Object.freeze(cases);
 })(globalThis);

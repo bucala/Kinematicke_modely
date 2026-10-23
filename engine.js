@@ -443,6 +443,29 @@
         element: e, x: seed && Number.isFinite(seed.x) ? seed.x : x, y: seed && Number.isFinite(seed.y) ? seed.y : y, angle: seed && Number.isFinite(seed.angle) ? seed.angle : angle, path: null,
       }];
     }));
+    const children = new Map();
+    for (const body of bodies.values()) {
+      const parentId = body.element.parentId;
+      if (parentId && bodies.has(parentId)) children.set(parentId, [...(children.get(parentId) || []), body]);
+    }
+    const update = (body) => {
+      const e = body.element;
+      let x = body.x, y = body.y, angle = body.angle;
+      const parent = poses[e.parentId];
+      if (parent) {
+        const origin = parent[e.parentPoint || 'a'] || parent.a;
+        const offset = rotate({ x: body.x, y: body.y }, parent.angle);
+        x = origin.x + offset.x; y = origin.y + offset.y; angle += parent.angle;
+      }
+      const delta = body.carriageDelta || 0;
+      if (body.signature && body.signature[0] === x && body.signature[1] === y && body.signature[2] === angle && body.signature[3] === delta) return;
+      const transformed = { ...e, x, y, angle, carriageOffset: e.carriageOffset + delta };
+      body.path = e.type === 'slot' ? genericPath(transformed) : e.type === 'cam' ? camProfile(transformed) : null;
+      const q=!options.design&&e.drive?global.KinmoAdvanced?.at(project,e,motion,options.time):null;
+      const railMotion=e.type==='rail'&&q!=null?configuredDriveRange(project).min+q/e.stroke*(configuredDriveRange(project).max-configuredDriveRange(project).min):motion;
+      poses[e.id] = bodyPose(transformed, railMotion, project, body.path);
+      body.signature = [x, y, angle, delta];
+    };
     const refreshAll = () => {
       const done = new Set(), active = new Set();
       const refresh = (body) => {
@@ -450,25 +473,17 @@
         if (done.has(e.id) || active.has(e.id)) return;
         active.add(e.id);
         if (e.parentId && bodies.has(e.parentId)) refresh(bodies.get(e.parentId));
-        let x = body.x, y = body.y, angle = body.angle;
-        const parent = poses[e.parentId];
-        if (parent) {
-          const origin = parent[e.parentPoint || 'a'] || parent.a;
-          const offset = rotate({ x: body.x, y: body.y }, parent.angle);
-          x = origin.x + offset.x; y = origin.y + offset.y; angle += parent.angle;
-        }
-        const transformed = { ...e, x, y, angle,carriageOffset:e.carriageOffset+(body.carriageDelta||0) };
-        const signature = `${x},${y},${angle},${body.carriageDelta||0}`;
-        if (body.signature !== signature) {
-          body.path = e.type === 'slot' ? genericPath(transformed) : e.type === 'cam' ? camProfile(transformed) : null;
-          const q=!options.design&&e.drive?global.KinmoAdvanced?.at(project,e,motion,options.time):null;
-          const railMotion=e.type==='rail'&&q!=null?configuredDriveRange(project).min+q/e.stroke*(configuredDriveRange(project).max-configuredDriveRange(project).min):motion;
-          poses[e.id] = bodyPose(transformed, railMotion, project, body.path);
-          body.signature = signature;
-        }
+        update(body);
         done.add(e.id); active.delete(e.id);
       };
       bodies.forEach(refresh);
+    };
+    // A correction moves one body; only it and bodies mounted on it change pose.
+    const refreshFrom = (body, seen = new Set()) => {
+      if (!body || seen.has(body.element.id)) return;
+      seen.add(body.element.id);
+      update(body);
+      for (const child of children.get(body.element.id) || []) refreshFrom(child, seen);
     };
     refreshAll();
     if (options.design) return noResiduals();
@@ -508,7 +523,7 @@
       return angle - clamp(angle, joint.limitMin, joint.limitMax);
     };
     const adjust = (body, point, error, sign, denom, rotateBody = true, ref) => {
-      if(carriage(body,ref)){const axis=rotate({x:1,y:0},body.angle);body.carriageDelta=clamp(body.element.carriageOffset+(body.carriageDelta||0)+sign*(error.x*axis.x+error.y*axis.y)/denom,0,body.element.length)-body.element.carriageOffset;refreshAll();return;}
+      if(carriage(body,ref)){const axis=rotate({x:1,y:0},body.angle);body.carriageDelta=clamp(body.element.carriageOffset+(body.carriageDelta||0)+sign*(error.x*axis.x+error.y*axis.y)/denom,0,body.element.length)-body.element.carriageOffset;refreshFrom(body);return;}
       if (immobile(body)) return;
       const r = { x: point.x - body.x, y: point.y - body.y };
       const inertia = !rotateBody || ['bearing', 'node'].includes(body.element.type) ? 0 : 4 / Math.max(100, body.element.length ** 2);
@@ -516,9 +531,12 @@
       body.y += sign * error.y / denom;
       // For the screen-coordinate convention dR/dθ = (r.y, -r.x).
       body.angle += sign * (r.y * error.x - r.x * error.y) * inertia / denom / DEG;
-      refreshAll();
+      refreshFrom(body);
     };
-    for (let pass = 0; pass < (joints.length ? 180 : 1); pass++) {
+    // Long open chains converge slowly; continue past the original 180 passes only while the error still falls.
+    const minPasses = 180, maxPasses = 1200;
+    let checkpoint = Infinity;
+    for (let pass = 0; pass < (joints.length ? maxPasses : 1); pass++) {
       for (const joint of joints) {
         const { a, b } = endpoints(joint);
         if (!a || !b) continue;
@@ -532,7 +550,7 @@
           if (wa + wb && ba !== bb) {
             if (wa) ba.angle += error * wa / (wa + wb);
             if (wb) bb.angle -= error * wb / (wa + wb);
-            refreshAll();
+            refreshFrom(ba); refreshFrom(bb);
           }
           if (['parallel', 'angle'].includes(type)) continue;
         }
@@ -560,16 +578,23 @@
         const path = poses[body.element.slotId]?.path;
         if (!path) continue;
         const nearest = nearestOnPath({ x: body.x, y: body.y }, path);
-        body.x = nearest.x; body.y = nearest.y; refreshAll();
+        body.x = nearest.x; body.y = nearest.y; refreshFrom(body);
       }
-      if (pass % 3 === 0 && joints.every((joint) => {
+      if (pass % 3 !== 0) continue;
+      let maxError = 0;
+      for (const joint of joints) {
         const { a, b } = endpoints(joint);
-        if (!a || !b) return true;
+        if (!a || !b) continue;
         const type = joint.type || (joint.a.point === 'curve' || joint.b.point === 'curve' ? 'point-path' : 'revolute');
         const positionError = type === 'distance' ? Math.abs(distance(a, b) - (joint.value || 0)) : ['parallel', 'angle'].includes(type) ? 0 : distance(a, b);
         const angleError = jointHasAngle(joint) ? Math.abs(wrapAngle(poses[joint.b.elementId].angle - poses[joint.a.elementId].angle - (joint.value || 0))) : Math.abs(limitError(joint));
-        return positionError < 0.0001 && angleError < 0.0001;
-      })) break;
+        maxError = Math.max(maxError, positionError, angleError);
+      }
+      if (maxError < 0.0001) break;
+      if (pass >= minPasses && pass % 30 === 0) {
+        if (maxError > checkpoint * 0.99) break;
+        checkpoint = maxError;
+      }
     }
     let positionResidual = 0, angularResidual = 0;
     for (const joint of joints) {
