@@ -888,6 +888,8 @@ npm i --no-save playwright && npx playwright install chromium
 npm run test:browser
 ```
 
+Súčasťou je kontrola prekladov: v EN a DE prejde šablóny a všetky akcie rozhrania a zlyhá pri každom texte, ktorý zostal po slovensky. Nový text doplňte ako riadok `[sk, en, de]` do `i18n.js`; čísla zapíšte ako `{n}`, prekladané vložky ako `{s}` a doslovné vložky (názvy súborov) ako `{x}`.
+
 Bez Node.js môžete otvoriť `tests/browser.html`. Spúšťa spoločné výpočtové testy; transportné, archivačné a VM UI testy bežia v Node.js. Pri vývojovom serveri otvorte [prehliadačové testy](http://localhost:5173/tests/browser.html).
 
 </details>

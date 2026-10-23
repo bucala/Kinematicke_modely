@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { root } from './manifest.mjs';
@@ -45,9 +46,61 @@ try {
   const mobile = await page(`${origin}/`, { width: 390, height: 844 }, { isMobile: true, hasTouch: true });
   await mobile.view.waitForSelector('#workspace', { timeout: 15000 });
   check('Mobil 390 px bez vodorovného posúvania', !(await mobile.view.evaluate(() => document.documentElement.scrollWidth > innerWidth)) && !mobile.errors.length, mobile.errors.join(' | '));
+
+  // Translation coverage: open every template and run every non-destructive UI action in EN and DE.
+  const allowed = JSON.parse(await readFile(path.join(root, 'tests/i18n-untranslated.json'), 'utf8'));
+  for (const language of ['en', 'de']) {
+    const tour = await page(`${origin}/`);
+    tour.view.on('dialog', (dialog) => dialog.dismiss().catch(() => {}));
+    tour.view.on('download', (download) => download.cancel().catch(() => {}));
+    await tour.view.waitForSelector('#workspace', { timeout: 15000 });
+    const found = new Set();
+    for (const kind of ['fourbar', 'crank', 'drawer', 'double-drawer']) {
+      await tour.view.evaluate((kind) => { const project = Kinematics.validateProject(Kinematics.preset(kind)); localStorage.setItem('kinematika.projects.v1', JSON.stringify([project])); localStorage.setItem('kinematika.last.v1', project.id); }, kind);
+      await tour.view.reload(); await tour.view.waitForSelector('#workspace', { timeout: 15000 });
+      for (const text of await tour.view.evaluate(untranslatedTexts, language)) found.add(text);
+    }
+    const unexpected = [...found].filter((text) => !allowed[language].includes(text)).sort();
+    for (const text of unexpected) console.log(`  [${language}] ${text}`);
+    check(`Preklad ${language.toUpperCase()} bez nových slovenských textov`, !unexpected.length, unexpected.length ? `${unexpected.length} textov; preložte ich v i18n.js` : `${found.size} povolených výnimiek`);
+    await tour.view.close();
+  }
 } finally {
   await browser.close();
   server.kill();
+}
+// Runs in the page: returns texts with parts left in Slovak after translation, numbers normalized to {n}; model and project names are skipped.
+async function untranslatedTexts(language) {
+  const number = /[-−]?\d+(?:[\u00a0\u202f ]\d{3})*(?:[,.]\d+)?(?:\s?[–-]\s?[-−]?\d+(?:[\u00a0\u202f ]\d{3})*(?:[,.]\d+)?)?/g;
+  const frame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const templateNames = [...Kinematics.KINDS, 'double-drawer'].flatMap((kind) => { try { const p = Kinematics.preset(kind); return [p.name, ...p.elements.map((e) => e.name), ...p.connections.map((c) => c.name)]; } catch { return []; } });
+  const names = () => [...templateNames, state.project.name, ...state.project.elements.map((e) => e.name), ...state.project.connections.map((c) => c.name), ...(state.project.dimensions || []).map((d) => d.name), ...(state.project.trajectories || []).map((t) => t.name)].filter(Boolean);
+  const found = new Set();
+  // Model and project names are replaced by a placeholder first; a part counts when it has lowercase letters (not PDF or DXF).
+  // Error texts from actions run outside their dialog are browser messages, not UI copy.
+  const check = (text) => {
+    let value = text?.trim(); if (!value || /Cannot read|is not a function|is not defined|undefined/.test(value)) return;
+    const original = value, untranslated = () => KinmoI18n.missing(value, language).some((part) => /\p{Ll}/u.test(part));
+    if (!untranslated()) return;
+    for (const name of names().sort((a, b) => b.length - a.length)) value = value.split(name).join('◆');
+    if (untranslated()) found.add(original.replace(number, '{n}'));
+  };
+  const grab = () => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let node;
+    while ((node = walker.nextNode())) if (!node.parentElement?.closest('script,style,textarea,code,noscript,[data-i18n-user]')) check(node.nodeValue);
+    for (const element of document.querySelectorAll('[title],[aria-label],[placeholder]')) for (const name of ['title', 'aria-label', 'placeholder']) check(element.getAttribute(name));
+  };
+  await frame(); grab();
+  const skip = /delete|remove|import|pick|file|reset|clear|discard|download|export-file|gif-start|pdf|cancel|confirm|undo|redo|apply|submit|commit/i;
+  for (const name of Object.keys(actions)) {
+    if (skip.test(name)) continue;
+    if (state.project.elements.length) { state.selectedElementIds = [state.project.elements[1]?.id].filter(Boolean); state.selectedId = state.selectedElementIds[0]; }
+    try { const result = actions[name]({ target: document.body, dataset: {}, closest: () => null }); if (result?.then) await Promise.race([result, new Promise((resolve) => setTimeout(resolve, 150))]); } catch { /* Actions outside their dialog may refuse; only rendered text matters. */ }
+    await frame(); grab();
+    document.querySelector('dialog[open]')?.close();
+    if (state.magic) try { cancelMagicImport(); } catch { /* Already closed. */ }
+  }
+  return [...found];
 }
 if (failures.length) { console.error(`\n${failures.length} kontrol zlyhalo.`); process.exit(1); }
 console.log('\nVšetky kontroly v prehliadači prešli.');

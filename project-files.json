@@ -108,6 +108,8 @@
     "tests/fusion-geometry.test.mjs",
     "tests/gif-cases.js",
     "tests/gif-decoder.js",
+    "tests/i18n-untranslated.json",
+    "tests/i18n.test.mjs",
     "tests/interaction-cases.js",
     "tests/kinematics.test.mjs",
     "tests/magic-detection.test.mjs",
