@@ -15,6 +15,16 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 
 > Kinematika a odhadová dynamika jedného pohonu, nie pevnostný výpočet ani výrobný výkres. Pred použitím návrhu si prečítajte [hranice simulácie](#limits).
 
+## 2.5.0: pevné zostavy a prehľadnejšia montáž
+
+Vyberte aspoň dve samostatné telesá cez **Shift + klik** na plátne alebo v strome; na mobile zapnite **Výber → Vybrať viac dielov**. Zvoľte **Spojiť napevno**, pomenujte zostavu a potvrďte. Diely zachovajú zobrazenú vzájomnú polohu a pohybujú sa spolu. **Rozpojiť zostavu** obnoví samostatné telesá a pôvodné vnútorné väzby; vonkajšie spoje sa zachovávajú. Každá operácia má jeden krok Späť a zostava sa prenáša súborom `.kinmo` aj knižnicou. Pohyblivé vedenia, pružiny a piesty spájajte cez ich montážne telesá; pred spojením programovaných pohonov vypnite časový program.
+
+Motor má jeden rozbaľovací riadok s kopírovaním a odstránením celej zostavy. Režimy **Montáž / Pohon** vyberú kryt alebo rotor a zobrazia príslušné body. **Základné ovládanie** ponúka bežné úpravy, **Pokročilé ovládanie** sprístupní úplné vlastnosti. Body sa v základnom režime ukazujú pri výbere, prejdení myšou a spájaní. **Izolovať výber** dočasne zobrazí vybrané telesá a ich diely; **Zobraziť všetko** obnoví pohľad bez zmeny modelu.
+
+**Overiť motor** porovná vzorkovaný potrebný moment a rozbeh s menovitým momentom na výstupe prevodu. Zobrazuje rezervu a umožňuje zapnúť zastavenie prehrávania pri preťažení. Vyžaduje jeden rotačný motor a určený mechanizmus. Je to odhad z hmotností, gravitácie, pružín, tlmičov, trenia a zotrvačnosti, bez elektrických prechodov, tepelného modelu a katalógovej momentovej krivky.
+
+Magic import rozlišuje **telesá → vlastníctvo otvorov → väzby → skúšku pohybu**. Otvor jednoznačne vo vnútri telesa vytvorí montážny bod bez ďalšieho ložiska. Neisté kruhy používateľ priradí na očíslovanej predlohe k telesu, spoločnému čapu, samostatnému ložisku alebo ich vynechá. Navrhnuté väzby sa vkladajú iba po výslovnom výbere. Skúška použije dočasný pohon okolo potvrdeného pevného čapu v piatich polohách 0–30°; nevkladá odhadnutý pohon do projektu a nepreukazuje celý cyklus. Ak chýba pevný čap, pomenuje chýbajúce uloženie.
+
 ## 2.4.1: jednoduchá editácia motora
 
 Motor má samostatnú ikonu a technický symbol s rebrami, svorkovnicou a pätkami. Po výbere krytu alebo rotora sa zobrazuje **jeden úchyt priemeru Ø**, nie vrcholy obrysového mnohouholníka. Teleso presuniete ťahaním, presnú polohu a uhol zadáte v dolnej lište. **Parametre elektromotora** obsahujú výkon, napätie, otáčky a rozmery; **Spojenia / uloženie** slúžia na pripojenie montážnych bodov. Zmena priemeru z krytu aj z rotora zachová stred hriadeľa a má jeden krok Späť. Technický symbol je zobrazenie pre schému, nie výrobný 3D model.

@@ -1381,3 +1381,23 @@ dialog::backdrop { background: #10182066; backdrop-filter: blur(4px); }
 
 .snap-target-map [role="button"] { cursor: pointer; }
 .snap-target-map [role="button"]:focus { outline: 2px solid var(--accent); }
+
+.assembly-tree { border: 1px solid var(--border); border-radius: 7px; margin: 5px 0; overflow: hidden; }
+.assembly-tree-heading { display: flex; gap: 3px; align-items: center; padding: 5px; background: var(--surface-subtle); }
+.assembly-tree-heading button { border: 0; background: transparent; color: var(--ink); padding: 6px 3px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.assembly-tree-heading button:nth-child(2) { flex: 1; min-width: 0; text-align: left; overflow-wrap: anywhere; font-size: 11px; }
+.assembly-tree-heading button svg { flex-shrink: 0; }
+.assembly-tree-members { margin-left: 10px; padding: 3px; border-left: 2px solid var(--border); }
+.motor-mode-controls { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--border); border-radius: 6px; background: var(--paper); }
+.motor-mode-controls button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+.basic-properties { display: grid; gap: 10px; }
+.basic-properties > button { background: var(--surface-subtle); color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: left; cursor: pointer; }
+.basic-properties .motor-mode-controls { flex-wrap: wrap; }
+.motor-load-chart { width: 100%; max-height: 260px; background: var(--paper); }
+.motor-load-chart text { fill: var(--ink); }
+.motor-load-metrics { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding: 12px 0; }
+.motor-load-metrics span { display: grid; gap: 6px; }
+.ownership-choices { display: grid; gap: 16px; }
+.mechanism-stages { color: var(--accent); font-weight: 600; }
+.selection-summary { flex-wrap: wrap; max-width: calc(100% - 30px); }
+@media(max-width:640px) { .motor-load-metrics { grid-template-columns: 1fr; } .motor-mode-controls { flex-wrap: wrap; } }

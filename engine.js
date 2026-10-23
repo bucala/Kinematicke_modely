@@ -472,7 +472,7 @@
     };
     refreshAll();
     if (options.design) return noResiduals();
-    const joints = project.connections.filter((j) => !j.builtin && !(options.softContact && j.contact?.enabled) && !isElastic(project.elements.find((e) => e.id === j.a.elementId)) && !isElastic(project.elements.find((e) => e.id === j.b.elementId)));
+    const joints = project.connections.filter((j) => !j.rigidAssemblyId && !j.builtin && !(options.softContact && j.contact?.enabled) && !isElastic(project.elements.find((e) => e.id === j.a.elementId)) && !isElastic(project.elements.find((e) => e.id === j.b.elementId)));
     if (!extras.length && !joints.length) return noResiduals();
     const rootBody = (id) => {
       let body = bodies.get(id);
@@ -945,7 +945,7 @@
       normalized.drivePivot = ['a', 'b', 'c'].includes(e.drivePivot) ? e.drivePivot : 'a';
       normalized.driveSpeed = e.driveSpeed == null ? null : number(e.driveSpeed, 0, -1000000, 1000000);
       normalized.continuous = e.continuous === true;
-      if(e.type==='motor'){for(const [key,low,high] of [['motorLength',1,5000],['motorDiameter',1,5000],['shaftDiameter',.1,1000],['powerW',0,10000000],['voltage',.1,10000],['rpm',0,100000],['efficiency',.01,1],['gearRatio',.01,10000],['gearEfficiency',.01,1]])normalized[key]=number(e[key],base[key],low,high);normalized.motorKind=['dc','ac','stepper','servo'].includes(e.motorKind)?e.motorKind:'dc';normalized.direction=e.direction===-1?-1:1;if(normalized.shaftDiameter>=normalized.motorDiameter)throw new Error('Hriadeľ musí byť menší než teleso motora.');const speed=normalized.direction*normalized.rpm*6/normalized.gearRatio;if(Math.abs(speed)>1000000)throw new Error('Výstupné otáčky prekračujú rozsah simulátora. Zväčšite prevod alebo znížte otáčky.');if(normalized.drive)normalized.driveSpeed=speed;}
+      if(e.type==='motor'){for(const [key,low,high] of [['motorLength',1,5000],['motorDiameter',1,5000],['shaftDiameter',.1,1000],['powerW',0,10000000],['voltage',.1,10000],['rpm',0,100000],['efficiency',.01,1],['gearRatio',.01,10000],['gearEfficiency',.01,1]])normalized[key]=number(e[key],base[key],low,high);normalized.enforceTorque=e.enforceTorque===true;normalized.startupSeconds=number(e.startupSeconds,1,.1,60);normalized.motorKind=['dc','ac','stepper','servo'].includes(e.motorKind)?e.motorKind:'dc';normalized.direction=e.direction===-1?-1:1;if(normalized.shaftDiameter>=normalized.motorDiameter)throw new Error('Hriadeľ musí byť menší než teleso motora.');const speed=normalized.direction*normalized.rpm*6/normalized.gearRatio;if(Math.abs(speed)>1000000)throw new Error('Výstupné otáčky prekračujú rozsah simulátora. Zväčšite prevod alebo znížte otáčky.');if(normalized.drive)normalized.driveSpeed=speed;}
       normalized.color = /^#[0-9a-fA-F]{6}$/.test(e.color || '') ? e.color : '';
       if (e.type === 'node' && normalized.drive && normalized.driveMode !== 'linear') throw new Error('Samostatný bod môže mať iba lineárny pohon.');
       if (normalized.drivePivot === 'c' && e.type !== 'panel') throw new Error('Pohon odkazuje na neplatný otočný bod.');
@@ -954,6 +954,7 @@
       normalized.inertia = number(e.inertia, 0, 0, 1000000);
       normalized.com = e.com == null ? null : vector(e.com);
       normalized.guideOnly = !!e.guideOnly;
+      if(e.rigidAssemblyId){if(typeof e.rigidAssemblyId!=='string'||!/^[a-zA-Z0-9._-]{1,100}$/.test(e.rigidAssemblyId))throw new Error('Neplatná pevná zostava.');normalized.rigidAssemblyId=e.rigidAssemblyId;normalized.rigidAssemblyName=text(e.rigidAssemblyName,'Pevná zostava',60);if(e.rigidOriginal)normalized.rigidOriginal={locked:!!e.rigidOriginal.locked,drive:!!e.rigidOriginal.drive};}
       normalized.group = text(e.group,'',60); normalized.plane = number(e.plane,0,-20,20); normalized.guideFriction=number(e.guideFriction,0,0,10000);
       if (e.outline != null && (!Array.isArray(e.outline) || (e.outline.length && e.outline.length < 3) || e.outline.length > 64)) throw new Error('Obrys telesa musí mať 3 až 64 vrcholov.');
       normalized.outline = (e.outline || []).map(vector);
@@ -995,6 +996,7 @@
       return { elementId: e.id, point: r.point };
     };
     for (const e of elements) {
+      if(e.rigidAssemblyId){const hosts=elements.filter(v=>v.rigidAssemblyId===e.rigidAssemblyId&&!v.rigidOriginal),host=hosts[0];if(hosts.length!==1||host.parentId||(e.rigidOriginal&&e.parentId!==host.id))throw new Error('Pevnej zostave chýba platné nosné teleso.');}
       if (e.parentId) {
         const parent = elements.find((v) => v.id === e.parentId);
         if (!parent || e.primary || isElastic(e) || isElastic(parent) || !validPoint(parent, e.parentPoint)) throw new Error('Neplatné pevné pripojenie k nosnému telesu.');
@@ -1033,7 +1035,12 @@
       }
       let surface;
       if(j.surface){if(type!=='cam-contact'||!['point','roller','flat'].includes(j.surface.kind))throw new Error('Neplatná kontaktná plocha.');surface={kind:j.surface.kind};if(surface.kind==='flat'){surface.a=vector(j.surface.a);surface.b=vector(j.surface.b);surface.normalSign=j.surface.normalSign===-1?-1:1;if(j.surface.edgeIndex!=null)surface.edgeIndex=number(j.surface.edgeIndex,0,0,1000);if(surface.edgeIndex!=null&&!Number.isInteger(surface.edgeIndex))throw new Error('Kontaktná hrana má neplatný index.');if(distance(surface.a,surface.b)<.01)throw new Error('Kontaktná hrana musí mať dĺžku.');}else surface.radius=number(j.surface.radius,0,0,1000);}
-      return { ...(surface?{surface}:{}), ...(global.KinmoAdvanced?.contact(j.contact)?{contact:global.KinmoAdvanced.contact(j.contact)}:{}), id: j.id, a: { elementId: j.a.elementId, point: j.a.point }, b: { elementId: j.b.elementId, point: j.b.point }, type, value, limitMin, limitMax, builtin: !!j.builtin && ea.primary && eb.primary, name: text(j.name, 'Otočný kĺb') };
+      if(j.rigidAssemblyId){
+        const host=elements.find(e=>e.rigidAssemblyId===j.rigidAssemblyId&&!e.rigidOriginal);
+        const belongs=e=>{while(e.parentId)e=elements.find(v=>v.id===e.parentId);return e.id===host?.id;};
+        if(!host||!belongs(ea)||!belongs(eb))throw new Error('Pozastavená väzba musí patriť vnútri pevnej zostavy.');
+      }
+      return { ...(j.rigidAssemblyId?{rigidAssemblyId:j.rigidAssemblyId}:{}), ...(surface?{surface}:{}), ...(global.KinmoAdvanced?.contact(j.contact)?{contact:global.KinmoAdvanced.contact(j.contact)}:{}), id: j.id, a: { elementId: j.a.elementId, point: j.a.point }, b: { elementId: j.b.elementId, point: j.b.point }, type, value, limitMin, limitMax, builtin: !!j.builtin && ea.primary && eb.primary, name: text(j.name, 'Otočný kĺb') };
     });
     for (const e of elements) if (e.slotId && !elements.some((s) => s.id === e.slotId && s.type === 'slot')) throw new Error('Ložisko odkazuje na neexistujúcu kulisu.');
     const uniqueRecords = (list, limit, normalize, label) => {

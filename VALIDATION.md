@@ -1,5 +1,15 @@
 # Stav overenia
 
+## 2.5.0 · 23. 10. 2026: pevné zostavy a montáž
+
+- Prešlo **830 JavaScriptových testov**, **30 izolovaných Python/Fusion testov**, kontrola syntaxe, statický build a `git diff --check`.
+- Nové regresie: zachovanie zobrazených bodov po spojení, rotácia a posun celej pevnej zostavy, rozpojenie a obnova vnútorných väzieb pri zachovaných vonkajších spojoch, natívne uloženie, nezávislé kópie z knižnice, mazanie celého modulu a odmietnutie pozastavenia cudzej väzby. UI kontroluje atómové potvrdenie, Späť, odmietnutie zastaraného náhľadu a mobilnú ponuku výberu.
+- Moment motora sa porovnáva s analytickým gravitačným momentom homogénneho ramena a menovitým momentom prevodu. Overené preťaženie, vplyv času rozbehu, opačný smer a trenie, nulové otáčky, voľné telesá a zastavenie pri preťažení. Výpočet používa päťbodové derivácie vrátane krajov rozsahu, aby nevznikal falošný zotrvačný moment na začiatku alebo konci.
+- Magic regresie rozlišujú vnútorný otvor, neisté prekrytie dvoch telies, výslovného vlastníka, spoločný čap, samostatné ložisko a vynechanie kruhu. Kontrolujú duplicity montážnych bodov, nemennosť vstupu a skúšku priechodného aj blokovaného ramena s čapom na vnútornom uzle.
+- Chromium/CDP zo zostaveného `dist/` pri 1360 × 900 a 390 × 844: viacnásobný výber v strome, pomenované spojenie, skutočné ťahanie zostavy myšou, izolovanie bez prepísania viditeľnosti, rozpojenie, Späť a obnovenie po načítaní. Na mobile prešiel výber cez prepínač, spojenie a rozpojenie. Motor má zbalený strom, oddelené režimy Montáž/Pohon, základné/pokročilé vlastnosti a nezávislú kópiu s krytom. Overenie zobrazilo dostatočný aj preťažený motor; ochrana sa uložila a skutočné prehrávanie preťaženého motora zostalo v počiatočnej polohe. Bez neošetrených výnimiek.
+- Skutočný lokálny PNG prešiel dekódovaním, kalibráciou, detekciou, očíslovaným náhľadom vlastníctva otvorov, výslovným výberom a vložením. V tomto obrázku detektor spojil dve ramená do jedného návrhu; skúška správne oznámila chýbajúci pevný čap na pohyblivom telese. Celá automatická rekonštrukcia mechanizmu sa tým nepreukazuje. Úspešné a blokované skúšky piatich polôh pokrývajú modelové regresie.
+- Motor je mechanický odhad jedného rotačného pohonu; nezahŕňa elektrické prechodové javy, tepelnú zaťažiteľnosť ani katalógovú momentovú krivku. Skúška importu 0–30° nepreukazuje celý pracovný cyklus. Živý Fusion ani nové natívne balíky sa v tomto kole neoverovali.
+
 ## 2.4.1 · 22. 10. 2026: jednoduché zobrazenie motora
 
 - Prešlo **810 JavaScriptových testov**, kontrola syntaxe a build. Regresie preverujú absenciu obrysových úchytov aj ich skrytých zásahových oblastí, jeden rozmerový úchyt, rovnomernú zmenu priemeru z krytu a zachovanie stredu hriadeľa.

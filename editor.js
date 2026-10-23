@@ -160,7 +160,7 @@
         return ((b.x - a.x) * (p.y - n.y) - (b.y - a.y) * (p.x - n.x)) / (K.distance(a, b) || 1);
       };
       for (const j of project.connections) {
-        if (j.builtin || j.contact?.enabled || [j.a, j.b].some((r) => K.isElastic(project.elements.find((e) => e.id === r.elementId)))) continue;
+        if (j.rigidAssemblyId || j.builtin || j.contact?.enabled || [j.a, j.b].some((r) => K.isElastic(project.elements.find((e) => e.id === r.elementId)))) continue;
         const pa = poses[j.a.elementId], pb = poses[j.b.elementId];
         const a = pa?.[j.a.point], b = pb?.[j.b.point];
         const type = j.type || (j.a.point === 'curve' || j.b.point === 'curve' ? 'point-path' : 'revolute');

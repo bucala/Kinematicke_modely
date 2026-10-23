@@ -95,3 +95,70 @@ test('Limit repair previews release the stop without replacing the actual hinge'
  assert.equal(review.before.blocked,true);assert.equal(review.result.blocked,false);assert.equal(review.project.connections[0].type,'revolute');
  assert.equal(review.project.connections[0].limitMax,null);assert.equal(p.connections[0].limitMax,30);
 });
+
+const I=globalThis.KinmoInteraction,W=globalThis.KinmoWorkbench,P=globalThis.KinmoPhysics,E=globalThis.KinmoEditor;
+const almost=(a,b,tolerance=1e-5)=>assert.ok(Math.abs(a-b)<tolerance,`${a} differs from ${b}`);
+const pointNear=(a,b)=>almost(K.distance(a,b),0);
+test('Rigid binding preserves a displayed multi-body layout through rotation, translation, serialization and release',()=>{
+ const a={...K.makeElement('link',40,60),drive:true,angle:20},b={...K.makeElement('panel',130,110),angle:-35},c={...K.makeElement('bearing',270,90),locked:false};
+ const p=custom(a,b,c),before=JSON.stringify(p),pose=K.solve(p,45,{collisions:false});
+ let joined=I.bindRigid(p,[a,b,c].map(e=>'e:'+e.id),'Rám ramena',pose);
+ assert.equal(JSON.stringify(p),before);assert.equal(new Set(joined.elements.map(e=>e.rigidAssemblyId)).size,1);
+ // Re-evaluating the same motor phase must preserve every displayed endpoint.
+ const initial=K.solve(joined,45,{collisions:false});for(const e of p.elements)for(const key of K.pointKeys(e))pointNear(initial.poses[e.id][key],pose.poses[e.id][key]);
+ joined=X.parseNative(X.serializeNative(joined)).project;
+ const rotated=K.solve(joined,135,{collisions:false});
+ almost(rotated.poses[b.id].angle-initial.poses[b.id].angle,90);
+ almost(K.distance(rotated.poses[a.id].a,rotated.poses[b.id].a),K.distance(initial.poses[a.id].a,initial.poses[b.id].a));
+ const moved=I.translate(joined,['e:'+b.id],{x:23,y:-17},rotated),m=K.solve(moved,135,{collisions:false});pointNear(m.poses[a.id].a,{x:rotated.poses[a.id].a.x+23,y:rotated.poses[a.id].a.y-17});
+ const split=I.unbindRigid(moved,b.id,m),released=K.solve(split,135,{design:true,collisions:false});assert(split.elements.every(e=>!e.parentId&&!e.rigidAssemblyId));for(const e of p.elements)pointNear(released.poses[e.id].a,m.poses[e.id].a);
+});
+test('Rigid assembly suspends internal joints, retains external joints and restores their original identities',()=>{
+ const a={...K.makeElement('link',0,0),drive:true},b=K.makeElement('link',100,0),fixed=K.makeElement('ground',0,0);
+ let p=custom(a,b,fixed);p.connections=[{id:'inner',type:'revolute',a:{elementId:a.id,point:'b'},b:{elementId:b.id,point:'a'},value:0},{id:'outer',type:'revolute',a:{elementId:a.id,point:'a'},b:{elementId:fixed.id,point:'a'},value:0}];p=K.validateProject(p);
+ const shown=E.design(p,0),joined=I.bindRigid(p,['e:'+a.id,'e:'+b.id],'Zostava',shown);
+ assert(joined.connections.find(j=>j.id==='inner').rigidAssemblyId);assert(!joined.connections.find(j=>j.id==='outer').rigidAssemblyId);
+ const result=K.solve(joined,90,{collisions:false});assert.equal(result.blocked,false);assert.equal(E.freedom(joined,result).free,0);assert.equal(W.constraints(joined,result).length,1);
+ const released=I.unbindRigid(joined,b.id,result);assert.deepEqual(released.connections,p.connections);
+});
+test('Copying a rigid assembly twice produces independent groups and deleting any member removes its assembly',()=>{
+ const a=K.makeElement('link',0,0),b=K.makeElement('panel',130,40),p=I.bindRigid(custom(a,b),['e:'+a.id,'e:'+b.id]);
+ const record=W.captureAssembly(p,['e:'+b.id],'Modul');let copies=W.insertAssembly(custom(),record,{x:0,y:0},false);copies=W.insertAssembly(copies,record,{x:400,y:0},false);
+ const groups=[...new Set(copies.elements.map(e=>e.rigidAssemblyId))];assert.equal(groups.length,2);const member=copies.elements.find(e=>e.rigidOriginal);
+ const deleted=I.deleteSelection(copies,['e:'+member.id]);assert.equal(deleted.elements.length,2);assert(deleted.elements.every(e=>e.rigidAssemblyId!==member.rigidAssemblyId));
+ const split=I.unbindRigid(copies,member.id);assert.equal(split.elements.filter(e=>e.rigidAssemblyId).length,2);
+});
+test('Rigid binding handles fixed supports, children and failed selections without mutating the project',()=>{
+ const a=K.makeElement('ground',0,0),b={...K.makeElement('link',40,60),drive:true},child={...K.makeElement('node',10,0),parentId:b.id,parentPoint:'b'};
+ const p=custom(a,b,child),before=JSON.stringify(p),joined=I.bindRigid(p,['e:'+a.id,'e:'+b.id]);assert.equal(joined.elements.find(e=>e.id===b.id).drive,false);
+ const at0=K.solve(joined,0,{collisions:false}),at90=K.solve(joined,90,{collisions:false});pointNear(at0.poses[child.id].a,at90.poses[child.id].a);
+ const released=I.unbindRigid(joined,b.id,at90);assert(released.elements.find(e=>e.id===b.id).drive);assert.equal(released.elements.find(e=>e.id===child.id).parentId,b.id);
+ assert.throws(()=>I.bindRigid(p,['e:'+b.id,'e:'+child.id]),/aspoň dve/);assert.throws(()=>I.bindRigid(joined,['e:'+a.id,'e:'+b.id]),/aspoň dve|rozpojte/);assert.equal(JSON.stringify(p),before);
+});
+test('Imported suspended joints cannot silently disable an external constraint',()=>{
+ const a=K.makeElement('link',0,0),b=K.makeElement('panel',100,0),outside=K.makeElement('ground',0,0),p=I.bindRigid(custom(a,b,outside),['e:'+a.id,'e:'+b.id]);
+ p.connections=[{id:'fake',type:'revolute',a:{elementId:a.id,point:'a'},b:{elementId:outside.id,point:'a'},rigidAssemblyId:p.elements[0].rigidAssemblyId}];assert.throws(()=>K.validateProject(p),/vnútri pevnej/);
+});
+function motorArm(powerW=200,gearRatio=1){
+ const motor={...K.makeElement('motor',0,0),drive:true,rpm:60,powerW,gearRatio,gearEfficiency:.8,mass:0},arm={...K.makeElement('link',0,0),parentId:motor.id,parentPoint:'a',length:1000,width:1,mass:2};
+ const p=custom(motor,arm);p.simulation.gravity=9.81;p.simulation.friction=0;p.simulation.inputForce=0;return {p:K.validateProject(p),motor,arm};
+}
+test('Motor capacity agrees with analytical gravitational torque and gearbox torque for a uniform arm',()=>{
+ const {p,motor}=motorArm(),before=JSON.stringify(p),report=P.motorCapacity(p,motor.id);
+ almost(report.available,200/(2*Math.PI)*.8,1e-8);almost(report.peak,9.81,.02);
+ const horizontal=report.rows.find(r=>r.motion===0),vertical=report.rows.find(r=>r.motion===90);almost(Math.abs(horizontal.gravity),9.81,.02);almost(vertical.gravity,0,.02);assert.equal(report.status,'sufficient');assert.equal(JSON.stringify(p),before);
+ const geared=motorArm(200,10),g=P.motorCapacity(geared.p,geared.motor.id);almost(g.available/report.available,10);almost(g.outputRPM,6);almost(g.peak,report.peak,.02);
+});
+test('Motor estimate distinguishes overload, zero speed and unconstrained models; startup time changes inertial load',()=>{
+ const {p,motor}=motorArm(1),r=P.motorCapacity(p,motor.id);assert.equal(r.status,'overloaded');assert(r.firstOverload);assert(r.margin<0);
+ p.elements.find(e=>e.id===motor.id).rpm=0;assert.equal(P.motorCapacity(p,motor.id).status,'stopped');
+ const normal=motorArm(),fast=P.motorCapacity(normal.p,normal.motor.id,{startupSeconds:.5}),slow=P.motorCapacity(normal.p,normal.motor.id,{startupSeconds:5});assert(fast.startPeak>slow.startPeak);almost(fast.peak,slow.peak);
+ normal.p.elements.push(K.makeElement('link',300,300));assert.throws(()=>P.motorCapacity(normal.p,normal.motor.id),/uloženie/);
+});
+test('Basic motor preferences survive native workspace export',()=>{
+ const {p}=motorArm(),restored=X.parseNative(X.serializeNative(p,{workspace:{detailLevel:'advanced',motorMode:'drive'}}));assert.equal(restored.workspace.detailLevel,'advanced');assert.equal(restored.workspace.motorMode,'drive');assert.equal(X.preferences().detailLevel,'basic');
+});
+test('Motor capacity reverses damping and startup acceleration with the playback direction',()=>{
+ const {p,motor}=motorArm();p.simulation.friction=2;const forward=P.motorCapacity(p,motor.id,{direction:1}),reverse=P.motorCapacity(p,motor.id,{direction:-1});
+ almost(forward.outputRPM,-reverse.outputRPM);for(let i=0;i<forward.rows.length;i++){almost(forward.rows[i].running-reverse.rows[i].running,4,1e-5);almost(forward.rows[i].starting-forward.rows[i].running,-(reverse.rows[i].starting-reverse.rows[i].running));}
+});

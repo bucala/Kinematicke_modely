@@ -236,3 +236,32 @@ test('Abort, stalled decoding and image errors release resources without revokin
   await assert.rejects(api.detectImage({ url: 'blob:local-sketch', width: 200, height: 100 }, { signal: controller.signal }));
   assert.equal(canvases.length, 0);
 });
+
+const ownerBody=(id='body',offset=0)=>({id,type:'panel',selected:true,points:[{x:offset,y:0},{x:offset+100,y:0}],outline:[{x:offset,y:0},{x:offset+100,y:0},{x:offset+100,y:80},{x:offset,y:80}],anchors:[{x:50,y:40,radius:5}],width:80,radius:5});
+const ownerHole=()=>({id:'hole',type:'bearing',selected:true,points:[{x:50,y:40}],radius:5});
+test('Mechanism interpretation turns an interior hole into a body mounting point, not a duplicate bearing',()=>{
+ const input=[ownerBody(),ownerHole()],before=JSON.stringify(input),r=D.mechanismCandidates(input);
+ assert.equal(JSON.stringify(input),before);assert.equal(r.unresolved.length,0);assert.equal(r.ownership[0].choice,'body');assert(r.ownership[0].automatic);assert.equal(r.candidates[0].anchors.length,1);assert.equal(r.candidates[1].selected,false);
+ const scale=KinmoMagicImport.calibration({width:200,height:100},{x:0,y:0},{x:200,y:0},200);
+ const result=KinmoMagicImport.applyDetected(Kinematics.preset('custom'),{width:200,height:100},scale,r.candidates,{connections:true});assert.equal(result.project.elements.filter(e=>e.type==='bearing'&&!e.parentId).length,0);assert.equal(result.project.elements.filter(e=>e.type==='node'&&e.parentId===result.candidateMap.body).length,1);
+});
+test('Overlapping bodies require an explicit hole owner and shared pin choice creates one mount per body',()=>{
+ const input=[ownerBody('first'),ownerBody('second',20),ownerHole()],ambiguous=D.mechanismCandidates(input);assert.equal(ambiguous.unresolved.length,1);
+ const single=D.mechanismCandidates(input,{hole:'second'});assert.equal(single.candidates[0].anchors.length,0);assert.equal(single.candidates[1].anchors.length,1);
+ const shared=D.mechanismCandidates(input,{hole:'shared'});assert.equal(shared.unresolved.length,0);assert(shared.candidates.slice(0,2).every(c=>c.anchors.length===1));assert.equal(shared.candidates[2].selected,false);
+ const pin=D.mechanismCandidates(input,{hole:'pin'});assert(pin.candidates[2].selected);assert.equal(D.mechanismCandidates(input,{hole:'ignore'}).candidates[0].anchors.length,0);
+ assert.throws(()=>D.mechanismCandidates(input,{hole:'missing'}),/vlastníka/);assert.throws(()=>D.mechanismCandidates([ownerBody(),ownerHole()],{hole:'shared'}),/vlastníka/);
+});
+test('Motion probe exercises a confirmed grounded hinge without persisting a guessed driver',()=>{
+ const K=Kinematics,I=KinmoInteraction,M=KinmoMagicImport,a=K.makeElement('ground',0,0),b=K.makeElement('link',0,0);
+ let p=K.validateProject({...K.preset('custom'),elements:[a,b]});p=I.setJoint(p,{elementId:a.id,point:'a'},{other:{elementId:b.id,point:'a'},type:'revolute'});const before=JSON.stringify(p),r=M.probeMechanism(p,p.connections.map(j=>j.id));
+ assert.equal(r.checked,true);assert.equal(r.samples.length,5);assert.equal(r.blocked.length,0);assert.equal(JSON.stringify(p),before);assert(p.elements.every(e=>!e.drive));assert.equal(M.probeMechanism(p,[]).checked,false);
+});
+test('Motion probe reports a jammed arm and supports a pivot at an internal mounting node',()=>{
+ const K=Kinematics,I=KinmoInteraction,M=KinmoMagicImport,a=K.makeElement('ground',0,0),b={...K.makeElement('panel',-50,0),angle:0,localC:{x:50,y:0}},node={...K.makeElement('node',50,0),parentId:b.id,parentPoint:'a'},other=K.makeElement('ground',100,0);
+ let p=K.validateProject({...K.preset('custom'),elements:[a,b,node,other]});p=I.setJoint(p,{elementId:a.id,point:'a'},{other:{elementId:node.id,point:'a'},type:'revolute'});let r=M.probeMechanism(p,p.connections.map(j=>j.id));assert(r.checked);assert.equal(r.blocked.length,0);assert(Math.abs(r.samples[4].poses[b.id].angle-r.samples[0].poses[b.id].angle)>20);
+ p=I.setJoint(p,{elementId:other.id,point:'a'},{other:{elementId:b.id,point:'b'},type:'revolute'});r=M.probeMechanism(p,p.connections.map(j=>j.id));assert(r.checked);assert(r.blocked.length>0);
+});
+test('A circle at an intermediate bend belongs to the polyline body and remains a reviewable near-edge choice',()=>{
+ const body={...ownerBody(),outline:[],points:[{x:10,y:70},{x:50,y:40},{x:90,y:70}],width:10};const r=D.mechanismCandidates([body,ownerHole()]);assert.equal(r.ownership[0].owners.length,1);assert.equal(r.unresolved.length,1);
+});

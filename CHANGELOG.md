@@ -1,5 +1,14 @@
 # História zmien
 
+## 2.5.0 · 2026-10-23: pevné zostavy, montáž a kontrola motora
+
+- Viacnásobný výber funguje cez Shift/Ctrl v strome, Shift na plátne a prepínač pre postupné kliknutia alebo dotyky. Dve a viac samostatných telies možno spojiť do pomenovanej pevnej zostavy, ktorá zachová aktuálnu polohu a prenáša pohyb. Rozpojenie obnoví telesá aj pozastavené vnútorné väzby; obe operácie sú atómové a vratné. Uloženie, knižnica, samostatné kópie a mazanie zachovávajú identitu zostáv.
+- Motor je v strome rozbaľovacia zostava krytu a rotora s kopírovaním a odstránením. Montáž a Pohon prepínajú výber aj dostupné body; skúšku otáčania možno spustiť priamo z lišty.
+- Základné a pokročilé vlastnosti, prípojné body podľa kontextu a dočasné izolovanie výberu uľahčujú prácu s hustými modelmi. Mobilná ponuka sprístupňuje viacnásobný výber, spojenie, rozpojenie a izolovanie.
+- Overenie motora zohľadní menovitý výkon, otáčky, prevod a jeho účinnosť, zaťaženie a čas rozbehu. Graf zobrazuje potrebný a dostupný moment; voliteľná ochrana zastaví kinematické prehrávanie pri preťažení. Ide o vzorkovaný mechanický odhad jedného pohonu.
+- Magic import určuje vlastníctvo otvorov a zabraňuje duplicitnému ložisku pre ten istý otvor. Neisté priradenie používateľ potvrdí nad očíslovanou predlohou. Väzby sa kontrolujú v samostatnom kroku a možno ich skúsiť dočasným pohonom okolo pevného čapu bez zmeny projektu.
+- Publikuje sa iba web; Windows ani Android balíky sa nevytvárajú.
+
 ## 2.4.1 · 2026-10-22: čitateľný motor a jednoduchá editácia
 
 - Elektromotor má vlastnú vektorovú ikonu so svorkovnicou, rebrami a pätkami; od vačky sa odlišuje v knižnici aj v strome.

@@ -95,6 +95,7 @@
       const e = p.elements.find(v => v.id === id), housing = e.type === 'motor' && p.elements.find(v => v.id === e.parentId && v.role === 'motor-housing');
       if (housing) { ids.delete(id); ids.add(housing.id); }
     }
+    for(const id of [...ids]){const e=p.elements.find(v=>v.id===id);if(e.rigidAssemblyId){ids.delete(id);ids.add(I.root(p,e).id);}}
     const dx = options.dx ?? 0, dy = options.dy ?? 0, rotation = options.angle ?? 0, origin = options.pivot || pivot(project, keys, result);
     if (!ids.size || ![dx, dy, rotation, origin.x, origin.y].every(Number.isFinite)) throw new Error('Vyberte členy a zadajte konečný posun, uhol a bod otáčania.');
     for (const id of ids) {
@@ -232,7 +233,7 @@
   }
   function constraints(project, result) {
     const elements = new Map(project.elements.map((e) => [e.id, e])), rows = [];
-    for (const j of project.connections) {
+    for (const j of project.connections.filter(j=>!j.rigidAssemblyId)) {
       const pa = result.poses[j.a.elementId], pb = result.poses[j.b.elementId], type = j.type || 'revolute';
       let a = pa?.[j.a.point], b = pb?.[j.b.point];
       const roller = elements.get((j.a.point === 'curve' ? j.b : j.a).elementId);
@@ -275,7 +276,7 @@
   function diagnose(project, result) {
     const rows = constraints(project, result), freedom = E.freedom(project, result), hints = [], duplicates = [], conflicts = [];
     const groups = new Map();
-    for (const j of project.connections.filter((j) => !j.builtin)) {
+    for (const j of project.connections.filter((j) => !j.rigidAssemblyId && !j.builtin)) {
       const first = `${j.a.elementId}:${j.a.point}`, second = `${j.b.elementId}:${j.b.point}`, reversed = first > second;
       const key = `${j.type}:${[first, second].sort().join('|')}`;
       const value = ['angle', 'parallel', 'fixed', 'prismatic'].includes(j.type) ? angle((reversed ? -1 : 1) * j.value) : j.value;
@@ -387,7 +388,7 @@
     const enterTolerance = tolerance, releaseTolerance = options.previous ? tolerance * 1.5 : tolerance;
     tolerance = releaseTolerance;
     const roots = new Set(sources.map((s) => I.root(project, project.elements.find((e) => e.id === s.elementId))?.id));
-    const candidates = [], destinations = project.elements.filter((e) => e.visible && !excluded.has(e.id) && !roots.has(I.root(project, e)?.id));
+    const candidates = [], destinations = project.elements.filter((e) => e.visible && (!options.allowedElements || options.allowedElements.includes(e.id)) && !excluded.has(e.id) && !roots.has(I.root(project, e)?.id));
     const offer = (source, target, point, kind, distance, tier = 0) => {
       const at = { x: source.at.x + delta.x, y: source.at.y + delta.y };
       if (options.axis === 'x' && Math.abs(point.y - at.y) > .00001 || options.axis === 'y' && Math.abs(point.x - at.x) > .00001) return;
@@ -540,6 +541,7 @@
       if (t?.type === 'joint') ids.push(t.joint.a.elementId, t.joint.b.elementId);
     }
     if (!ids.length) throw new Error('Najskôr vyberte členy, uzly alebo ich vnútorné väzby.');
+    for(const id of [...ids]){const e=original.elements.find(e=>e.id===id);if(e?.rigidAssemblyId)ids.push(I.root(original,e).id);}
     const included = descendants(original, ids), result = design(original), p = K.copy(original);
     for (const j of original.connections) for (const [r, other] of [[j.a, j.b], [j.b, j.a]]) if (included.has(r.elementId) && original.elements.find((e) => e.id === other.elementId)?.role === 'canvas-anchor') included.add(other.elementId);
     p.importReference = null; p.motionPlan = null;
@@ -576,6 +578,7 @@
     if (!at || ![at.x, at.y].every(Number.isFinite)) throw new Error('Zadajte platný bod vloženia X / Y.');
     const p = K.copy(K.validateProject(project)), source = K.copy(normalizeRecord(record, 'assembly').file.project);
     const elements = new Map(source.elements.map((e) => [e.id, K.uid()])), joints = new Map(source.connections.map((j) => [j.id, K.uid()]));
+    const rigidGroups=new Map([...new Set(source.elements.map(e=>e.rigidAssemblyId).filter(Boolean))].map(id=>[id,K.uid()]));
     const driver = source.elements.find((e) => e.drive), preserveDrive = !!driver && keepDrive && p.kind === 'custom' && !p.elements.some((e) => e.drive);
     const remap = (r) => {
       if (!r) return;
@@ -584,11 +587,12 @@
     };
     for (const e of source.elements) {
       e.id = elements.get(e.id);
+      if(e.rigidAssemblyId)e.rigidAssemblyId=rigidGroups.get(e.rigidAssemblyId);
       if (e.parentId) e.parentId = elements.get(e.parentId); else { e.x += at.x; e.y += at.y; }
       if (e.slotId) e.slotId = elements.get(e.slotId);
       remap(e.mountA); remap(e.mountB); e.drive = e.drive && preserveDrive;
     }
-    for (const j of source.connections) { j.id = joints.get(j.id); remap(j.a); remap(j.b); }
+    for (const j of source.connections) { if(j.rigidAssemblyId)j.rigidAssemblyId=rigidGroups.get(j.rigidAssemblyId);j.id = joints.get(j.id); remap(j.a); remap(j.b); }
     for (const d of source.dimensions) {
       d.id = K.uid(); remap(d.a); remap(d.b);
       if (d.control) d.control.elementId = elements.get(d.control.elementId);
