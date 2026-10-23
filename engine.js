@@ -15,6 +15,17 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const copy = (v) => JSON.parse(JSON.stringify(v));
+  // Same result as copy() for plain project data, but strings stay shared; history snapshots then do not duplicate image data URLs.
+  function snapshot(value) {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if (typeof value?.toJSON === 'function') return copy(value);
+    if (Array.isArray(value)) return value.map((item) => { const result = snapshot(item); return result === undefined ? null : result; });
+    if (typeof value !== 'object') return undefined;
+    const result = {};
+    for (const key of Object.keys(value)) { const item = snapshot(value[key]); if (item !== undefined) result[key] = item; }
+    return result;
+  }
   const uid = () => global.crypto?.randomUUID?.() || `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   const along = (p, length, angle) => ({ x: p.x + length * Math.cos(angle * DEG), y: p.y - length * Math.sin(angle * DEG) });
   const angleOf = (a, b) => Math.atan2(a.y - b.y, b.x - a.x) / DEG;
@@ -1133,7 +1144,7 @@
   }
 
   global.Kinematics = Object.freeze({
-    DEG, EPS, TOLERANCE, TYPES, KINDS, CURVES, ELASTIC_TYPES, CONSTRAINT_TYPES, defaults, simulationDefaults, clamp, lerp, distance, copy, uid,
+    DEG, EPS, TOLERANCE, TYPES, KINDS, CURVES, ELASTIC_TYPES, CONSTRAINT_TYPES, defaults, simulationDefaults, clamp, lerp, distance, copy, snapshot, uid,
     along, angleOf, preset, makeElement, configuredDriveRange, driveRange, railTravel, pistonGeometry, resizePiston, fitMountedPistons, fitElasticRanges, elasticGraph, designAngle, defaultControls, slotProfile,
     bezier, catmull, arcPoints, circleIntersections, circlePathIntersections, nearestOnSegment,
     nearestOnPath, segmentIntersection, segmentRect, solve, sample, point, inverseDrive, bounds, validateProject,

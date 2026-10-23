@@ -172,7 +172,7 @@
       if (frames.length > 60) frames.shift();
     }
     automaticVersion();
-    state.history.push(K.copy(state.project));
+    state.history.push(K.snapshot(state.project));
     state.historySelections.push([...state.selectedElementIds]);
     if (state.history.length > 60) { state.history.shift(); state.historySelections.shift(); }
     state.future = []; state.futureSelections = [];

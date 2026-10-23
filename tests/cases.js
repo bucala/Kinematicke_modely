@@ -450,5 +450,14 @@
       assert(!result.issues.some((issue) => issue.startsWith('Väzba')), result.issues.join(' '));
     }
   });
+  add('Snímka histórie zodpovedá JSON kópii a zdieľa dlhé reťazce.', () => {
+    const image = `data:image/png;base64,${'A'.repeat(200000)}`;
+    const project = { ...K.preset('fourbar'), importReference: { frames: [{ name: 'Predloha', dataURL: image, rect: { x: 0, y: 0, width: 10, height: 10 } }] }, extra: { missing: undefined, bad: NaN, list: [undefined, Infinity, 1] } };
+    const copied = K.snapshot(project);
+    assert(JSON.stringify(copied) === JSON.stringify(K.copy(project)), 'Snímka sa líši od JSON kópie.');
+    assert(copied !== project && copied.elements !== project.elements && copied.elements[0] !== project.elements[0], 'Snímka zdieľa meniteľné objekty.');
+    assert(!('missing' in copied.extra) && copied.extra.bad === null && copied.extra.list[0] === null && copied.extra.list[1] === null);
+    assert(copied.importReference.frames[0].dataURL === image);
+  });
   global.KinematicsTestCases = Object.freeze(cases);
 })(globalThis);
