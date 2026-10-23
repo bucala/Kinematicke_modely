@@ -881,6 +881,13 @@ python -B tests/test_fusion.py
 
 Python testy používajú izolovaný lokálny most a náhradné Fusion API. Neotvárajú CAD aplikáciu.
 
+Automaticky v headless Chromiu (spoločná sada, spustenie cez HTTP aj `file://`, mobilné rozloženie). Playwright nie je závislosťou projektu:
+
+```sh
+npm i --no-save playwright && npx playwright install chromium
+npm run test:browser
+```
+
 Bez Node.js môžete otvoriť `tests/browser.html`. Spúšťa spoločné výpočtové testy; transportné, archivačné a VM UI testy bežia v Node.js. Pri vývojovom serveri otvorte [prehliadačové testy](http://localhost:5173/tests/browser.html).
 
 </details>

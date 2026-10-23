@@ -8,6 +8,7 @@
     "build": "node scripts/build.mjs",
     "preview": "node scripts/server.mjs --dist",
     "test": "node scripts/test.mjs",
+    "test:browser": "node scripts/browser-test.mjs",
     "check": "node scripts/check.mjs",
     "deploy": "npm run check && npm test && npm run build && npx --yes wrangler@4 deploy --config wrangler.toml"
   }

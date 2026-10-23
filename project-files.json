@@ -70,6 +70,7 @@
     "push-github.ps1",
     "scene-export.js",
     "scripts/archive.mjs",
+    "scripts/browser-test.mjs",
     "scripts/build.mjs",
     "scripts/check-cloudflare.mjs",
     "scripts/check.mjs",
