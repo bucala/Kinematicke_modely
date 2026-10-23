@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+import { manifest } from '../scripts/manifest.mjs';
 import '../engine.js';
 import '../double-drawer.js';
 import '../editor.js';
@@ -19,7 +21,9 @@ import '../context-menu.js';
 import '../usability.js';
 import './gif-decoder.js';
 
-const source = await readFile(new URL('../app.js', import.meta.url), 'utf8');
+// The UI is split into app/*.js and app.js; read them in page order as one source.
+const { page } = await manifest(fileURLToPath(new URL('..', import.meta.url)));
+const source = (await Promise.all(page.filter((file) => file === 'app.js' || file.startsWith('app/')).map((file) => readFile(new URL(`../${file}`, import.meta.url), 'utf8')))).join('\n');
 const styles = await readFile(new URL('../styles.css', import.meta.url), 'utf8');
 
 // Run the actual UI controller and drawing functions; browser layout is stubbed.

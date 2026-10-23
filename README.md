@@ -952,7 +952,17 @@ Stav vzdialeného CI overte v GitHub Actions; aktuálny Workers build a skutočn
 ```text
 index.html             Vstupný bod, funguje aj bez servera
 CHANGELOG.md           Novinky, opravy, hranice a publikovaná história
-app.js                 Editor, SVG plátno, pohon, grafy a ukladanie
+app.js                 Stav, konštanty, akcie a spustenie UI (načíta sa posledný)
+app/panels.js          Pracovný priestor, strom modelu a inšpektor
+app/scene.js           Kreslenie mechanizmu, grafy, analýza a prehrávanie
+app/selection.js       Výber, úchyty, diagnostika a prichytávanie
+app/canvas.js          Zásahy na plátne, kontextová ponuka, vkladanie a ťahanie
+app/tools.js           Väzby, motor, opravy, predloha a pracovné nástroje
+app/magic.js           Magic import z obrázka
+app/projects.js        Projekty, podzostavy a pomenované verzie
+app/output.js          Exporty, GIF, PDF, nastavenia a Fusion
+app/dialogs.js         Dialógy prvkov, väzieb, kót a trajektórií
+app/events.js          Udalosti, klávesnica a animácia
 engine.js              Geometria, kinematické solvery a validácia
 double-drawer.js       Samostatný odhadový dvojkulisový projekt
 editor.js              Návrhové polohy, voľné kópie, kóty a analýza voľnosti
