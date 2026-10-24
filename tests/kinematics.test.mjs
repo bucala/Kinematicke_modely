@@ -11,6 +11,7 @@ import '../slot-outline.js';
 import '../scene-export.js';
 import '../gif-export.js';
 import '../exports.js';
+import '../workflow.js';
 import './cases.js';
 import './editor-cases.js';
 import './interaction-cases.js';

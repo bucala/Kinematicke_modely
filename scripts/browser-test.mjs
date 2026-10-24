@@ -243,14 +243,15 @@ try {
       let renders = 0; const original = renderScene; window.renderScene = function (...args) { renders++; return original.apply(this, args); };
       const rect = svg.getBoundingClientRect(), wheel = (deltaY) => svg.dispatchEvent(new WheelEvent('wheel', { deltaY, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2, bubbles: true, cancelable: true }));
       for (let i = 0; i < 6; i++) wheel(-40);
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // The gesture is shown as a scaled picture; one sharp redraw follows when it pauses.
+      const during = renders; await new Promise((resolve) => setTimeout(resolve, 300));
       window.renderScene = original;
       const after = bodies(), kept = before.filter((part) => after.includes(part)).length;
       pushHistory(); state.project.name += ' 2'; changed();
-      return { kept, total: before.length, renders, ghostsKept: state.ghostCache?.samples === ghosts, samplesKept: state.samples === samples };
+      return { kept, total: before.length, renders, during, ghostsKept: state.ghostCache?.samples === ghosts, samplesKept: state.samples === samples };
     });
     check('Zoom neprekresľuje telesá a nerieši mechanizmus znova', structure.total > 0 && structure.kept === structure.total && structure.ghostsKept, `${structure.kept}/${structure.total} častí s telesami ponechaných`);
-    check('Šesť udalostí kolieska v jednom snímku sa vykreslí raz', structure.renders <= 2, `${structure.renders} prekreslení`);
+    check('Gesto kolieska sa počas pohybu len zväčšuje a ostro prekreslí raz', structure.during === 0 && structure.renders === 1, `${structure.during} počas gesta, ${structure.renders} po ňom`);
     check('Premenovanie neprepočíta 121 polôh pohybu', structure.samplesKept);
     const wait = (ms) => perf.view.waitForTimeout(ms), cdp = await perf.view.context().newCDPSession(perf.view);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
@@ -265,7 +266,19 @@ try {
     const played = await frames(async () => { await perf.view.evaluate(() => actions.play()); await wait(2500); await perf.view.evaluate(() => { if (state.playing) actions.play(); }); });
     const pin = await perf.view.evaluate(() => { const e = state.project.elements.find((e) => e.type === 'bearing'), p = state.result.poses[e.id].a, m = document.querySelector('#mechanism-canvas').getScreenCTM(); return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f }; });
     const dragged = await frames(async () => { await perf.view.mouse.move(pin.x, pin.y); await perf.view.mouse.down(); for (let i = 1; i <= 30; i++) { await perf.view.mouse.move(pin.x + i * 3, pin.y + i); await wait(16); } await perf.view.mouse.up(); });
+    // A light pin on a damped spring springing back after release: it used to need ~5000 solver runs per frame.
+    await perf.view.evaluate(`(() => { const K = Kinematics, el = (type, extra = {}) => ({ ...K.makeElement(type, 0, 0), ...extra }), joint = (a, ap, b, bp, type = 'revolute') => ({ id: K.uid(), name: 'Väzba', type, a: { elementId: a.id, point: ap }, b: { elementId: b.id, point: bp } });
+      const slot = el('slot', { locked: true }), pin = el('bearing'), spring = el('spring-compression');
+      let project = K.validateProject({ ...K.preset('custom'), name: 'Návrat pružiny', elements: [slot, pin, spring], connections: [joint(pin, 'a', slot, 'curve', 'point-path'), joint(spring, 'b', pin, 'a'), joint(spring, 'a', slot, 'b')] });
+      const path = K.solve(project, 0).poses[slot.id].path, at = path[Math.floor(path.length / 2)]; project.elements[1].x = at.x; project.elements[1].y = at.y;
+      replaceProject(K.validateProject(project)); setMode('simulate'); })()`);
+    const springPin = await perf.view.evaluate(() => { const e = state.project.elements.find((e) => e.type === 'bearing'), p = state.result.poses[e.id].a, m = document.querySelector('#mechanism-canvas').getScreenCTM(); return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f }; });
+    await perf.view.mouse.move(springPin.x, springPin.y); await perf.view.mouse.down();
+    for (let i = 1; i <= 20; i++) { await perf.view.mouse.move(springPin.x - i * 4, springPin.y - i * 2); await wait(16); }
+    const returned = await frames(async () => { await perf.view.mouse.up(); await wait(1500); });
+    const springTime = await perf.view.evaluate(() => state.dynamic?.time || 0);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    check('Návrat pružiny po pustení čapu je plynulý', returned.p95 <= Number(process.env.PERF_P95_MS || 100) && springTime > .1, `${returned.fps} sn./s, p95 ${returned.p95} ms, simulovaný čas ${springTime.toFixed(2)} s za 1,5 s`);
     // Generous limits so a slow CI runner does not fail; before these changes zoom and drag reached 117–150 ms.
     const limit = Number(process.env.PERF_P95_MS || 100), report = (name, r) => `${name} ${r.fps} sn./s, p95 ${r.p95} ms`;
     check('Plynulosť pri 4× pomalšom CPU (pružina, piest, kulisa)', [zoomed, played, dragged].every((r) => r.p95 <= limit), [report('zoom', zoomed), report('prehrávanie', played), report('ťahanie', dragged)].join(' · ') + ` · limit p95 ${limit} ms`);

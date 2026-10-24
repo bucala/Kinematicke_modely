@@ -31,7 +31,7 @@ Motor má samostatnú ikonu a technický symbol s rebrami, svorkovnicou a pätka
 
 ## 2.4.0: kryt a rotor motora, náhľad opráv a prekryté body
 
-Nový elektromotor má **samostatný kryt a rotor**. Cez **Vlastnosti → Kryt a montážne body** vyberte kryt a jeho úchyty A/B alebo stred C pripojte k rámu. Os A rotora spojte napevno s poháňaným ramenom alebo vačkou; čap B rotora použite pre ojnicu. Potom na rotore zvoľte **Zapnúť motor**. Kryt má vlastné uloženie, takže jeho pevné spojenie neblokuje otáčanie hriadeľa. Rovnaké tlačidlo pripraví kryt aj pre starší motor bez prepisovania pôvodných väzieb. Presúvanie motora, zmena priemeru a duplikovanie zachovávajú zostavu; kryt aj rotor sa ukladajú do `.kinmo`.
+Nový elektromotor má **samostatný kryt a rotor**. Cez **Vlastnosti → Kryt a montážne body** vyberte kryt a jeho úchyty A/B alebo stred C pripojte k rámu. Os A rotora spojte napevno s poháňaným ramenom alebo vačkou; čap B rotora použite pre ojnicu. Stred krytu C a os A ležia na sebe: pri spájaní sa ukážu oba body a vačka, rameno či doska sa pripojí na os A (otáča sa s motorom), rám a vedenie na stred krytu. V ponuke motora alebo v jeho parametroch prepnete **Výstup: iba hriadeľ** (bez páky, iba os A) alebo **hriadeľ s pákou** (os A aj čap B). Potom na rotore zvoľte **Zapnúť motor**. Kryt má vlastné uloženie, takže jeho pevné spojenie neblokuje otáčanie hriadeľa. Rovnaké tlačidlo pripraví kryt aj pre starší motor bez prepisovania pôvodných väzieb. Presúvanie motora, zmena priemeru a duplikovanie zachovávajú zostavu; kryt aj rotor sa ukladajú do `.kinmo`.
 
 V **Ďalšie nástroje → Prečo sa nehýbe?** vyberte konkrétny problém. Návrhy na uvoľnenie otáčania, odstránenie nadbytočnej väzby, preverenie dorazu alebo úpravu zdvihu najprv ukážu **náhľad pred/po**. Overte zmenený počet nesplnených väzieb a voľných súradníc a potvrďte **Použiť opravu**. Model sa pred potvrdením nemení; Späť obnoví pôvodný stav. Návrh sa týka aktuálnej polohy bez kolízií, celý cyklus skontrolujte samostatne.
 
@@ -766,6 +766,7 @@ Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusio
 |---|---|
 | Ctrl/Cmd + K | Paleta príkazov: hľadá v tlačidlách aplikácie, knižnici prvkov a dieloch modelu (bez diakritiky, aj skratky slov), ↑ ↓ a Enter spustí; tlačidlo s lupou v hlavičke ju otvorí aj dotykom |
 | ? | Prehľad klávesových skratiek podľa skupín |
+| Ctrl + ] / Ctrl + [ | Vybraný diel o úroveň dopredu / dozadu v poradí zobrazenia; so Shift navrch / naspodok (aj v ponuke telesa **Poloha a poradie zobrazenia**) |
 | Medzerník | Ťuknutie prehrá / pozastaví, podržanie + ťahanie posúva plátno |
 | V / H / J / M | Výber / posun plátna / spojenie / meranie |
 | F | Fixovať / uvoľniť vybrané body |

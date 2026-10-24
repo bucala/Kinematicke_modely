@@ -1,5 +1,14 @@
 # História zmien
 
+## Nevydané: motor s vačkou, poradie zobrazenia, plynulý zoom a návrat pružiny
+
+- **Oprava – vačka na motore sa neotáčala:** pri spájaní dielu so stredom motora bola prvou ponukou stred krytu (ten sa neotáča) a v režime Montáž boli body hriadeľa skryté. Teraz sa pri spájaní ukážu body krytu aj hriadeľa a vačka, rameno či doska sa pripojí na os hriadeľa pevným spojením, takže sa otáča s motorom. Rám a vedenie sa naďalej pripájajú na kryt.
+- **Výstup motora:** iba hriadeľ (bod A, bez páky) alebo hriadeľ s pákou (body A a B) – v ponuke motora aj v jeho parametroch. Prepnutie na iba hriadeľ odmietne, ak sú na páke väzby.
+- **Poradie zobrazenia:** v ponuke telesa **Poloha a poradie zobrazenia** (navrch, o úroveň dopredu, o úroveň dozadu, naspodok) a skratky Ctrl + ] / Ctrl + [ (so Shift navrch / naspodok). Poradie sa ukladá v projekte a pri prekrytých telesách sa vyberá to vrchné. Kryt motora je predvolene za dielmi na hriadeli.
+- **Plynulý zoom a posun:** počas gesta kolieskom, trackpadom alebo pravým tlačidlom sa nakreslený obraz iba zväčšuje a posúva na grafickej karte; ostré prekreslenie príde, keď gesto na chvíľu ustane. Bod pod kurzorom ostáva presný. Pri 4× spomalenom CPU zoom 60 snímok/s namiesto 54 a bez výpadkov aj s pružinami, piestmi a kulisou.
+- **Plynulý návrat pružiny po pustení čapu:** ľahký čap s tlmenou pružinou potreboval kroky 25 µs, teda 2 449 krokov a 4 898 riešení mechanizmu na snímok; snímok trval 0,2–0,3 s. Krok tlmenia má teraz rezervu 2,5× namiesto 20×, sily na začiatku kroku využijú polohu z predchádzajúceho kroku a fyzika má na snímok rozpočet 9 ms (ak ho nestihne, pohyb sa mierne spomalí a údaj dynamiky to ukáže). Návrat ide v reálnom čase pri 60 snímkach/s.
+- Krivka kulisy sa pri riešení neprepočítava z Bézierových bodov, kým sa jej tvar nezmení.
+
 ## Nevydané: plynulá animácia, zoom a ťahanie
 
 Merané na modeli s pružinou, čapom v kulise a motorom pri 4× spomalenom CPU (bežný notebook):

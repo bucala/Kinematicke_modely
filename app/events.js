@@ -169,7 +169,7 @@
     const form = event.target;
     if(form.id==='motor-capacity-form'){event.preventDefault();motorCapacityModal(W.parseNumber(new FormData(form).get('startup'),''));return;}
     if(form.id==='rigid-assembly-form'||form.id==='hole-ownership-form'){event.preventDefault();try{const data=new FormData(form);if(form.id==='rigid-assembly-form')submitRigidAssembly(data);else submitHoleOwnership(data);}catch(error){toast(error.message,true);}return;}
-    if(form.id==='motor-spec-form'){event.preventDefault();try{const data=new FormData(form),next=K.copy(state.project),e=next.elements.find(e=>e.id===form.dataset.id);for(const key of ['length','motorLength','motorDiameter','shaftDiameter','powerW','voltage','rpm','efficiency','gearRatio','gearEfficiency','direction'])e[key]=W.parseNumber(String(data.get(key)),key==='voltage'?'V':key==='powerW'?'W':key==='rpm'?'rpm':['length','motorLength','motorDiameter','shaftDiameter'].includes(key)?'mm':'');e.motorKind=data.get('motorKind');editCanvas(I.resizeMotorHousing(next,e.id),'Parametre motora boli uložené.');$('#modal').close();}catch(error){toast(error.message,true);}return;}
+    if(form.id==='motor-spec-form'){event.preventDefault();try{const data=new FormData(form),next=K.copy(state.project),e=next.elements.find(e=>e.id===form.dataset.id);for(const key of ['length','motorLength','motorDiameter','shaftDiameter','powerW','voltage','rpm','efficiency','gearRatio','gearEfficiency','direction'])e[key]=W.parseNumber(String(data.get(key)),key==='voltage'?'V':key==='powerW'?'W':key==='rpm'?'rpm':['length','motorLength','motorDiameter','shaftDiameter'].includes(key)?'mm':'');e.motorKind=data.get('motorKind');editCanvas(I.setMotorOutput(I.resizeMotorHousing(next,e.id),e.id,String(data.get('motorOutput'))),'Parametre motora boli uložené.');$('#modal').close();}catch(error){toast(error.message,true);}return;}
     if(form.id==='surface-form'){event.preventDefault();try{const data=new FormData(form),e=state.project.elements.find(e=>e.id===data.get('follower'));editCanvas(globalThis.KinmoSurfaces.create(state.project,data.get('cam'),{elementId:e.id,point:e.type==='rail'?'c':'a'},data.get('kind'),Number(data.get('edge')),data.get('kind')==='roller'?quantityValue(data,'radius','mm',0,1000):0),'Kontakt bol pridaný.');$('#modal').close();}catch(error){toast(error.message,true);}return;}
     if(form.id==='debug-form'){event.preventDefault();const data=new FormData(form);const extra=globalThis.KinmoUsability.issueBundle(state.project,state.result,{description:data.get('description'),mode:state.mode,selected:state.selectedElementIds,collisions:state.collisions});const debug=await globalThis.KinmoDebug.bundle(data.get('description'),data.has('images'),extra);download('kinematika-debug.json',JSON.stringify(debug,null,2),'application/json');return;}
     if (state.gifExport) { event.preventDefault(); return; }
@@ -379,6 +379,11 @@
     else if (modifier && key === 'z') { event.preventDefault(); undo(event.shiftKey); }
     else if (modifier && key === 'y') { event.preventDefault(); undo(true); }
     else if (modifier && key === 'd') { event.preventDefault(); duplicateElement(); }
+    else if (modifier && ['BracketRight', 'BracketLeft'].includes(event.code)) {
+      // Ctrl+] / Ctrl+[ move the selected part one level forward/back, with Shift to the front/back.
+      event.preventDefault(); const id = W.bodies(state.project, state.selectedElementIds).at(-1);
+      if (id) restackElement(id, event.code === 'BracketRight' ? event.shiftKey ? 'front' : 'forward' : event.shiftKey ? 'back' : 'backward');
+    }
     else if (modifier) return;
     else if (event.key === '?') { event.preventDefault(); shortcutsModal(); }
     // Space plays on release; held down it pans with a left drag (see onPointerDown and onKeyUp).
@@ -409,7 +414,10 @@
       const delta = lastFrame ? Math.min((time - lastFrame) / 1000, 0.06) : 0;
       if (state.project.simulation.mode === 'dynamic' && state.dynamic && state.forceContext) {
         try {
-          state.dynamic = P.step(state.forceContext, state.dynamic, Math.min(.25, delta * state.speed));
+          // A frame gets a fixed physics budget; a stiff, light assembly then plays slower instead of in jerks.
+          const elapsed = Math.min(.25, delta * state.speed), started = state.dynamic.time || 0;
+          state.dynamic = P.step(state.forceContext, state.dynamic, elapsed, { budgetMs: PHYSICS_BUDGET_MS });
+          if (elapsed > 0 && !state.dynamic.stopped) state.physicsPace = .9 * (state.physicsPace ?? 1) + .1 * K.clamp(((state.dynamic.time || 0) - started) / elapsed, 0, 1);
           if (state.dynamicHistory.length < 2400 && delta > 0) state.dynamicHistory.push({ ...state.dynamic });
           setMotion(state.dynamic.motion, false);
           if (state.dynamic.stopped) { state.playing = false; updateMotion(); toast(state.dynamic.reason, true); }

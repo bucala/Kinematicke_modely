@@ -138,7 +138,7 @@
   // Type-specific actions come first; they are what the body is right-clicked for.
   function bodyTypeItems(e) {
     if (e.role === 'motor-housing') return [{ id: 'motor-check', label: 'Overiť motor…' }, { id: 'motor-spec', label: 'Parametre elektromotora…' }];
-    if (e.type === 'motor') return [{ id: 'spin', label: 'Zapnúť motor' }, { id: 'motor-check', label: 'Overiť motor…' }, { id: 'motor-spec', label: 'Parametre elektromotora…' }];
+    if (e.type === 'motor') return [{ id: 'spin', label: 'Zapnúť motor' }, { id: 'motor-output', label: e.motorOutput === 'shaft' ? 'Výstup: hriadeľ s pákou' : 'Výstup: iba hriadeľ' }, { id: 'motor-check', label: 'Overiť motor…' }, { id: 'motor-spec', label: 'Parametre elektromotora…' }];
     if (e.type === 'cam') return [{ id: 'spin', label: 'Zapnúť otáčanie' }, { id: 'cam-profile', label: 'Tvar, polomer a zdvih vačky…' }, { id: 'surface-contact', label: 'Kontaktná plocha…' }, { id: 'cam-follower', label: 'Pridať vedený valčekový sledovač' }];
     if (e.type === 'slot') return [{ id: 'edit-path', label: 'Upraviť body vodiacej dráhy…' }, { id: 'curve-semicircle', label: e.curveSemicircle ? 'Polkruh · upraviť R a stranu…' : 'Previesť dráhu na polkruh s R…' }];
     if (e.type === 'rail') return e.parentId ? [] : [{ id: 'rail-motion', label: e.movingRail ? 'Pohyblivý vozík, pevné vedenie' : 'Pohyblivé vedenie, pevný vozík' }];
@@ -160,7 +160,7 @@
       { id: 'inspect', label: K.isElastic(e) ? 'Rozmery, sila a tlmenie…' : 'Vlastnosti prvku…' },
       W.thickness(e) ? { id: 'thickness', label: 'Hrúbka / priemer…' } : null,
       fixable ? { id: 'fix-body', label: e.locked || e.type === 'ground' ? 'Uvoľniť celé teleso' : 'Ukotviť celé teleso' } : null,
-      { id: 'coordinates', label: 'Súradnice začiatku A…' },
+      { label: 'Poloha a poradie zobrazenia', items: [{ id: 'coordinates', label: 'Súradnice začiatku A…' }, { id: 'stack-front', label: 'Navrch', shortcut: 'Ctrl+Shift+]' }, { id: 'stack-forward', label: 'O úroveň dopredu', shortcut: 'Ctrl+]' }, { id: 'stack-backward', label: 'O úroveň dozadu', shortcut: 'Ctrl+[' }, { id: 'stack-back', label: 'Naspodok', shortcut: 'Ctrl+Shift+[' }] },
       e.rigidAssemblyId ? { id: 'select-assembly', label: 'Vybrať celú pevnú zostavu' } : null,
       e.rigidAssemblyId ? { id: 'unbind-rigid', label: 'Rozpojiť zostavu' } : null,
       joints.length ? { label: `Väzby člena a jeho bodov (${joints.length})`, items: joints.map((j) => ({ id: `pick:${I.jointKey(j.id)}`, label: `${j.name} · ${E.constraintNames[j.type] || j.type}` })) } : null,

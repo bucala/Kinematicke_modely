@@ -56,7 +56,8 @@
   };
   const isElastic = (element) => ELASTIC_TYPES.includes(element?.type);
   const carriagePoints = ['c', 'ct', 'cb'];
-  const pointKeys = (e) => ['bearing', 'node', 'cam'].includes(e.type) ? ['a'] : e.type === 'rail' ? ['a', 'b', ...carriagePoints] : e.type === 'panel' ? ['a', 'b', 'c'] : ['a', 'b'];
+  // A motor set to "shaft only" has no lever, so its end B is not a connection point.
+  const pointKeys = (e) => ['bearing', 'node', 'cam'].includes(e.type) || e.type === 'motor' && e.motorOutput === 'shaft' ? ['a'] : e.type === 'rail' ? ['a', 'b', ...carriagePoints] : e.type === 'panel' ? ['a', 'b', 'c'] : ['a', 'b'];
   function carriageReference(project,rail,reference){
     if(reference.elementId===rail.id)return carriagePoints.includes(reference.point);
     let element=project.elements.find(e=>e.id===reference.elementId),seen=new Set();
@@ -405,7 +406,20 @@
     return corners.some((c, i) => segmentIntersection(a, b, c, corners[(i + 1) % 4]));
   }
 
+  // The solver evaluates the guide curve on every pass and every physics substep; its shape only changes when the
+  // slot is edited, so curves are cached by geometry. Callers get their own copy of the points.
+  const pathCache = new Map();
   function genericPath(element) {
+    const key = `${element.x}|${element.y}|${element.angle}|${element.curveKind}|${element.curveRadius}|${element.curveSide}|${element.controls.map((p) => `${p.x},${p.y}`).join(';')}`;
+    let points = pathCache.get(key);
+    if (!points) {
+      points = computePath(element);
+      if (pathCache.size > 200) pathCache.delete(pathCache.keys().next().value);
+      pathCache.set(key, points);
+    }
+    return points.map((p) => ({ x: p.x, y: p.y }));
+  }
+  function computePath(element) {
     const controls = element.controls.map((p) => along({ x: element.x, y: element.y }, Math.hypot(p.x, p.y), -Math.atan2(p.y, p.x) / DEG + element.angle));
     if (element.curveKind === 'polyline') return controls;
     if (element.curveKind === 'arc') return arcPoints(controls[0], controls.at(-1), element.curveRadius, 180, element.curveSide || 1).points;
@@ -993,8 +1007,9 @@
       normalized.drivePivot = ['a', 'b', 'c'].includes(e.drivePivot) ? e.drivePivot : 'a';
       normalized.driveSpeed = e.driveSpeed == null ? null : number(e.driveSpeed, 0, -1000000, 1000000);
       normalized.continuous = e.continuous === true;
-      if(e.type==='motor'){for(const [key,low,high] of [['motorLength',1,5000],['motorDiameter',1,5000],['shaftDiameter',.1,1000],['powerW',0,10000000],['voltage',.1,10000],['rpm',0,100000],['efficiency',.01,1],['gearRatio',.01,10000],['gearEfficiency',.01,1]])normalized[key]=number(e[key],base[key],low,high);normalized.enforceTorque=e.enforceTorque===true;normalized.startupSeconds=number(e.startupSeconds,1,.1,60);normalized.motorKind=['dc','ac','stepper','servo'].includes(e.motorKind)?e.motorKind:'dc';normalized.direction=e.direction===-1?-1:1;if(normalized.shaftDiameter>=normalized.motorDiameter)throw new Error('Hriadeľ musí byť menší než teleso motora.');const speed=normalized.direction*normalized.rpm*6/normalized.gearRatio;if(Math.abs(speed)>1000000)throw new Error('Výstupné otáčky prekračujú rozsah simulátora. Zväčšite prevod alebo znížte otáčky.');if(normalized.drive)normalized.driveSpeed=speed;}
+      if(e.type==='motor'){for(const [key,low,high] of [['motorLength',1,5000],['motorDiameter',1,5000],['shaftDiameter',.1,1000],['powerW',0,10000000],['voltage',.1,10000],['rpm',0,100000],['efficiency',.01,1],['gearRatio',.01,10000],['gearEfficiency',.01,1]])normalized[key]=number(e[key],base[key],low,high);normalized.enforceTorque=e.enforceTorque===true;if(e.motorOutput==='shaft')normalized.motorOutput='shaft';normalized.startupSeconds=number(e.startupSeconds,1,.1,60);normalized.motorKind=['dc','ac','stepper','servo'].includes(e.motorKind)?e.motorKind:'dc';normalized.direction=e.direction===-1?-1:1;if(normalized.shaftDiameter>=normalized.motorDiameter)throw new Error('Hriadeľ musí byť menší než teleso motora.');const speed=normalized.direction*normalized.rpm*6/normalized.gearRatio;if(Math.abs(speed)>1000000)throw new Error('Výstupné otáčky prekračujú rozsah simulátora. Zväčšite prevod alebo znížte otáčky.');if(normalized.drive)normalized.driveSpeed=speed;}
       normalized.color = /^#[0-9a-fA-F]{6}$/.test(e.color || '') ? e.color : '';
+      if (Number.isFinite(e.z)) normalized.z = Math.round(clamp(e.z, -100000, 100000));
       if (e.type === 'node' && normalized.drive && normalized.driveMode !== 'linear') throw new Error('Samostatný bod môže mať iba lineárny pohon.');
       if (normalized.drivePivot === 'c' && e.type !== 'panel') throw new Error('Pohon odkazuje na neplatný otočný bod.');
       if (normalized.drivePivot === 'b' && ['node', 'bearing', 'cam','motor'].includes(e.type)) throw new Error('Pohon odkazuje na neplatný otočný bod.');

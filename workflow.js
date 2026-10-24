@@ -130,6 +130,7 @@
     return out.sort((a,b)=> {
       const slotGuide = c => source.type === 'bearing' && c.kind === 'guide' && project.elements.find(e => e.id === c.target.elementId)?.type === 'slot';
       if (a.target.elementId === b.target.elementId && slotGuide(a) !== slotGuide(b)) return slotGuide(a) ? -1 : 1;
+      if (Math.abs(a.distance - b.distance) < 1e-6) return I.mountRank(project, source, a.target.ref) - I.mountRank(project, source, b.target.ref);
       return a.distance-b.distance;
     }).slice(0,16);
   }

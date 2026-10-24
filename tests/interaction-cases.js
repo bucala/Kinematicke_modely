@@ -463,5 +463,37 @@
     assert(keys({ a: { x: 40, y: 10 }, b: { x: 45, y: 30 } }, true).join() === 'e:box-a', 'Krížový výber má vybrať rameno, ktoré obdĺžnik iba pretína.');
     assert(!keys({ a: { x: 0, y: 0 }, b: { x: 400, y: 200 } }, false).includes('e:box-hidden'), 'Skrytý prvok sa nevyberá.');
   });
+  add('Vačka na strede motora sa pripojí na hriadeľ a otáča sa s ním; rám na kryt', () => {
+    let p = custom({ ...K.makeElement('motor', 0, 0), id: 'mc-motor' }, { ...K.makeElement('cam', 0, 0), id: 'mc-cam' }, { ...K.makeElement('ground', 0, 0), id: 'mc-frame' });
+    p = I.separateMotor(p, 'mc-motor'); p.elements.find((e) => e.role === 'motor-housing').locked = true; p = K.validateProject(p);
+    const housing = p.elements.find((e) => e.role === 'motor-housing'), result = E.design(p, 0), at = result.poses['mc-motor'].a;
+    const choices = global.KinmoWorkflow.connectionChoices(p, ref({ id: 'mc-cam' }), result, at, 8);
+    assert(choices[0].target.ref.elementId === 'mc-motor' && choices[0].target.ref.point === 'a', `Prvá ponuka pre vačku má byť hriadeľ, nie ${choices[0].label}.`);
+    assert(I.mountRank(p, p.elements.find((e) => e.id === 'mc-frame'), { elementId: housing.id, point: 'c' }) < I.mountRank(p, p.elements.find((e) => e.id === 'mc-frame'), ref({ id: 'mc-motor' })), 'Rám patrí na kryt.');
+    p = global.KinmoWorkbench.connectSnap(p, choices[0], I.suggestJoint(p, choices[0].source.ref, choices[0].target.ref));
+    p = I.setDriver(p, ref({ id: 'mc-motor' }), { enabled: true, mode: 'rotary', min: 0, max: 360, speed: 90, continuous: true }, E.design(p, 0));
+    const turned = K.solve(p, 90); near(turned.poses['mc-cam'].angle - K.solve(p, 0).poses['mc-cam'].angle, 90, .05);
+  });
+  add('Výstup motora: iba hriadeľ skryje páku B, väzba na páke prepnutie odmietne', () => {
+    const motor = { ...K.makeElement('motor', 0, 0), id: 'mo-motor' }, arm = { ...link(), id: 'mo-arm' };
+    let p = custom(motor, arm);
+    const shaft = I.setMotorOutput(p, 'mo-motor', 'shaft');
+    assert(shaft.elements[0].motorOutput === 'shaft' && K.pointKeys(shaft.elements[0]).join() === 'a', 'Iba hriadeľ má len bod A.');
+    assert(!('motorOutput' in I.setMotorOutput(shaft, 'mo-motor', 'lever').elements[0]), 'Hriadeľ s pákou je predvolený.');
+    p = K.validateProject({ ...p, connections: [joint(ref(motor, 'b'), ref(arm))] });
+    throws(() => I.setMotorOutput(p, 'mo-motor', 'shaft'));
+  });
+  add('Poradie zobrazenia: vačka pred krytom motora, posun o úroveň, navrch a naspodok sa uloží', () => {
+    let p = custom({ ...K.makeElement('motor', 0, 0), id: 'z-motor' }, { ...K.makeElement('cam', 0, 0), id: 'z-cam' }, { ...link(), id: 'z-arm' }, { ...K.makeElement('ground', 0, 0), id: 'z-frame' });
+    p = I.separateMotor(p, 'z-motor');
+    const ids = (q) => I.drawOrder(q).map((e) => e.role === 'motor-housing' ? 'housing' : e.id.slice(2));
+    const before = ids(p);
+    assert(before.indexOf('housing') < before.indexOf('cam'), `Vačka má byť pred krytom motora: ${before}`);
+    let next = I.restack(p, 'z-frame', 'front'); assert(ids(next).at(-1) === 'frame', 'Navrch.');
+    next = I.restack(next, 'z-frame', 'backward'); assert(ids(next).at(-2) === 'frame', 'O úroveň dozadu.');
+    next = I.restack(next, 'z-frame', 'back'); assert(ids(next)[0] === 'frame', 'Naspodok.');
+    throws(() => I.restack(next, 'z-frame', 'backward'));
+    assert(ids(K.validateProject(JSON.parse(JSON.stringify(next)))).join() === ids(next).join(), 'Poradie sa uloží v projekte.');
+  });
   global.KinematicsTestCases = [...(global.KinematicsTestCases || []), ...cases];
 })(globalThis);
