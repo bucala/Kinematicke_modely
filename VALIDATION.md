@@ -1,16 +1,28 @@
 # Stav overenia
 
-## Magic import · 21. 10. 2026 (lokálne overenie)
+## 2.5.0 · 23. 10. 2026: pevné zostavy a montáž
 
-- Druhé kolo pridáva raster priehľadného mechanizmu 768 × 429 px: štyri hlavné kruhové miesta ostávajú do 2 px od očakávaného stredu; hranatý zelený blok a biely klin nevytvárajú ďalšie ložiská. Zahnutá modrá oblasť zostáva návrhom platne. Regresia chráni aj plné štvorce a štvorcové otvory pred zámenou za kruhové prvky.
-- Súbor na stiahnutie z druhého obrázka obsahuje ručne vyčistené obrysy, detegované montážne body a vloženú predlohu. Celá šírka obrázka je pracovne 1000 mm; nejde o nameraný rozmer. Neobsahuje pohon ani mechanické väzby. Obnovenie natívnym parserom a modelové vykreslenie prešli; nejde o dôkaz automatickej rekonštrukcie celých telies alebo funkčnej simulácie.
-- `npm run check`, **802 JavaScriptových testov / 0 zlyhaní**, `npm run build` a `git diff --check` prešli.
-- Nová regresia používa skutočný dodaný JPEG dekódovaný do rastra 768 × 573 px. Zachová tri viditeľné kruhové body s odchýlkou stredu pod 2 px, dlhý modrý člen s montážnymi bodmi, červenú platňu a jednu siluetu zeleného rámu.
-- Čierna základňa s výstupkom zostáva telesom na kontrolu. Vodorovná svetlá dutina má návrh strednice; svetlé vnútro dlhých profilov zeleného rámu nevytvára ďalšie drážky. Počet návrhov pri predvolenej citlivosti klesol z 26 na 17; toto číslo samo osebe nevyjadruje presnosť.
-- Hromadné vloženie návrhov a natívny export/import zachovajú prvky a väzby bez vymysleného pohonu. Samostatné regresie chránia tenké čiary, základňu s výstupkom, zakrivené pásy, prekrývajúce sa platne a skorší Kinka raster.
-- Ide o overenie pixelového algoritmu a modelovej integrácie. Nové interaktívne overenie v prehliadači, vzdialené CI ani produkčné nasadenie sa v tomto kole nevykonali. Zakryté časti drážok a mechanická funkcia väzieb zostávajú na kontrolu používateľa.
+- Prešlo **830 JavaScriptových testov**, **30 izolovaných Python/Fusion testov**, kontrola syntaxe, statický build a `git diff --check`.
+- Nové regresie: zachovanie zobrazených bodov po spojení, rotácia a posun celej pevnej zostavy, rozpojenie a obnova vnútorných väzieb pri zachovaných vonkajších spojoch, natívne uloženie, nezávislé kópie z knižnice, mazanie celého modulu a odmietnutie pozastavenia cudzej väzby. UI kontroluje atómové potvrdenie, Späť, odmietnutie zastaraného náhľadu a mobilnú ponuku výberu.
+- Moment motora sa porovnáva s analytickým gravitačným momentom homogénneho ramena a menovitým momentom prevodu. Overené preťaženie, vplyv času rozbehu, opačný smer a trenie, nulové otáčky, voľné telesá a zastavenie pri preťažení. Výpočet používa päťbodové derivácie vrátane krajov rozsahu, aby nevznikal falošný zotrvačný moment na začiatku alebo konci.
+- Magic regresie rozlišujú vnútorný otvor, neisté prekrytie dvoch telies, výslovného vlastníka, spoločný čap, samostatné ložisko a vynechanie kruhu. Kontrolujú duplicity montážnych bodov, nemennosť vstupu a skúšku priechodného aj blokovaného ramena s čapom na vnútornom uzle.
+- Chromium/CDP zo zostaveného `dist/` pri 1360 × 900 a 390 × 844: viacnásobný výber v strome, pomenované spojenie, skutočné ťahanie zostavy myšou, izolovanie bez prepísania viditeľnosti, rozpojenie, Späť a obnovenie po načítaní. Na mobile prešiel výber cez prepínač, spojenie a rozpojenie. Motor má zbalený strom, oddelené režimy Montáž/Pohon, základné/pokročilé vlastnosti a nezávislú kópiu s krytom. Overenie zobrazilo dostatočný aj preťažený motor; ochrana sa uložila a skutočné prehrávanie preťaženého motora zostalo v počiatočnej polohe. Bez neošetrených výnimiek.
+- Skutočný lokálny PNG prešiel dekódovaním, kalibráciou, detekciou, očíslovaným náhľadom vlastníctva otvorov, výslovným výberom a vložením. V tomto obrázku detektor spojil dve ramená do jedného návrhu; skúška správne oznámila chýbajúci pevný čap na pohyblivom telese. Celá automatická rekonštrukcia mechanizmu sa tým nepreukazuje. Úspešné a blokované skúšky piatich polôh pokrývajú modelové regresie.
+- Motor je mechanický odhad jedného rotačného pohonu; nezahŕňa elektrické prechodové javy, tepelnú zaťažiteľnosť ani katalógovú momentovú krivku. Skúška importu 0–30° nepreukazuje celý pracovný cyklus. Živý Fusion ani nové natívne balíky sa v tomto kole neoverovali.
 
-## Predchádzajúce publikačné overenie
+## 2.4.1 · 22. 10. 2026: jednoduché zobrazenie motora
+
+- Prešlo **810 JavaScriptových testov**, kontrola syntaxe a build. Regresie preverujú absenciu obrysových úchytov aj ich skrytých zásahových oblastí, jeden rozmerový úchyt, rovnomernú zmenu priemeru z krytu a zachovanie stredu hriadeľa.
+- Chromium/CDP pri 1172 × 1027: ikona motora sa líši od vačky, žiadne úchyty vrcholov, jeden úchyt priemeru, skutočné ťahanie rozmeru mení súčasne kryt aj rotor a Späť obnoví rozmer. Spustenie motora viditeľne pohybuje rotorom. Pri 390 × 844 nie sú prítomné obrysové úchyty. Bez neošetrených výnimiek.
+- Symbol je zjednodušené schematické zobrazenie. Mechanické referencie zostávajú pôvodné; ilustračné rebrá a svorkovnica nepridávajú telesá, prípojné body ani editovateľné vrcholy. Živý Fusion sa v tomto kole neoveroval.
+
+## 2.4.0 · 22. 10. 2026: motor, opravy väzieb a výber bodov
+
+- Prešli `npm run check`, **808 JavaScriptových testov**, **30 izolovaných Python/Fusion testov**, `npm run build` a `git diff --check`.
+- Regresie: upevnený kryt a prenos otáčania cez os na rameno v celom 360° cykle, zachovanie starých ID/väzieb/fázy, uloženie do `.kinmo`, presun a zväčšenie krytu okolo hriadeľa, zastavenie a opätovný štart, samostatné CAD profily, vloženie a kópia s vlastným krytom aj ich Späť.
+- Náhľady opráv nemenia model do potvrdenia. Overené uvoľnenie otáčania, zrušenie dorazu, odstránenie vzdialenostnej väzby s vyčistením riadiacej kóty, odmietnutie neplatného návrhu a potvrdenia po zmene modelu. Úprava má jediný krok Späť.
+- Chromium/CDP pri 1360 × 900: skutočné vloženie motora kliknutím z palety, viditeľný pohyb rotora pri pevnej väzbe krytu, dialóg pred/po s potvrdením a Späť, natívne ťahanie bodu na dva prekryté ciele a pripojenie vybraného cieľa. Pri 390 × 844 sa dialóg zmestil do viewportu. Bez neošetrených JavaScriptových výnimiek; rovnaký postup prešiel aj zo zostaveného `dist/`, vrátane výberu čísla priamo vo zväčšenom náhľade. Snímky sú v ignorovanom `.analysis/motor-housing-repairs/`.
+- Návrh opravy vyhodnocuje aktuálnu polohu bez kolízií; nepreukazuje priechodnosť celého cyklu ani automaticky správny mechanický význam zvolenej väzby. Nový Magic detektor nie je súčasťou tohto balíka. Nasadenie a vzdialené CI sa overujú osobitne po pushi.
 
 Publikačná kontrola zdrojov nad `aa8e933`: znovu prešli kontrola syntaxe, **640 JavaScriptových testov**, statický build a kontrola whitespace. Výsledky prehliadačových postupov nižšie pochádzajú z funkčného overenia pred commitom; pri publikačnej kontrole sa neopakovali. Push zdrojov do `main` nie je potvrdenie produkčného nasadenia.
 

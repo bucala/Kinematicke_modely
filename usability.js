@@ -22,7 +22,46 @@
       }
     }
     for (const j of project.connections.filter(j => !j.builtin && ['fixed', 'fixed-point'].includes(j.type))) rows.push({ key: I.jointKey(j.id), message: `${j.name}: pevná väzba obmedzuje pohyb pripojených bodov.`, action: 'joint' });
-    return { rows, hints: [...new Set([...result.issues, ...analysis.hints])], repairs: global.KinmoWorkflow.repairSuggestions(project, result), free: analysis.freedom.free };
+    const repairs = global.KinmoWorkflow.repairSuggestions(project, result);
+    for (const row of analysis.rows.filter(r => r.status === 'error')) {
+      const joint = project.connections.find(j => j.id === row.id);
+      if (joint?.builtin || !joint) continue;
+      if (joint.type === 'fixed') repairs.push({ key: row.key, action: 'release-rotation', label: `${joint.name}: povoliť vzájomné otáčanie` });
+      if (joint.limitMin != null) repairs.push({ key: row.key, action: 'release-limit', label: `${joint.name}: preveriť pohyb bez dorazu` });
+      repairs.push({ key: row.key, action: 'remove-constraint', label: `${joint.name}: preveriť odpojenie väzby` });
+    }
+    return { rows, hints: [...new Set([...result.issues, ...analysis.hints])], repairs, free: analysis.freedom.free };
+  }
+  function repairPreview(project, key, action, motion) {
+    let next = K.copy(project);
+    const target = I.target(next, key), before = K.solve(project, motion, { collisions: false });
+    if (!target) throw new Error('Cieľ opravy už neexistuje.');
+    const joint = target.joint;
+    if (['remove-duplicate', 'remove-constraint'].includes(action)) {
+      if (!joint || joint.builtin) throw new Error('Vyberte upraviteľnú väzbu.');
+      if (action === 'remove-duplicate' && !W.diagnose(project, before).duplicates.some(pair => pair[1] === joint.id)) throw new Error('Väzba už nie je nadbytočnou kópiou.');
+      next = I.deleteSelection(next, [key], before);
+    } else if (action === 'release-rotation') {
+      if (!joint || joint.builtin || joint.type !== 'fixed') throw new Error('Uvoľniť možno iba vlastnú pevnú väzbu.');
+      joint.type = 'revolute'; joint.value = 0; delete joint.limitMin; delete joint.limitMax;
+      joint.name = 'Otočný spoj';
+    } else if (action === 'release-limit') {
+      if (!joint || joint.builtin || joint.limitMin == null) throw new Error('Väzba nemá upraviteľný doraz.');
+      delete joint.limitMin; delete joint.limitMax;
+    } else if (action === 'elastic-range') {
+      const e = target.element;
+      if (!K.isElastic(e) || e.primary) throw new Error('Vyberte vlastnú pružinu alebo piest.');
+      const manual = e.rangeMode === 'manual'; e.rangeMode = 'auto'; K.fitElasticRanges(next, [e.id], before);
+      if (manual) e.rangeMode = 'manual';
+    } else throw new Error('Neznámy návrh opravy.');
+    next = K.validateProject(next);
+    const result = K.solve(next, motion, { collisions: false });
+    return { project: next, result, before, action, key,
+      elementIds: joint ? [joint.a.elementId, joint.b.elementId] : [target.elementId],
+      references: joint ? [K.copy(joint.a), K.copy(joint.b)] : [{elementId:target.elementId,point:'a'}],
+      beforeFree: E.freedom(project, before).free, afterFree: E.freedom(next, result).free,
+      beforeErrors: W.constraints(project, before).filter(r => ['error', 'missing'].includes(r.status)),
+      afterErrors: W.constraints(next, result).filter(r => ['error', 'missing'].includes(r.status)) };
   }
   function connectionPreview(project, a, b, type, motion, options = {}) {
     const before = options.design ? E.design(project, motion) : K.solve(project, motion, { collisions: false });
@@ -82,5 +121,5 @@
     }
     return { native, result: snapshot ? {...baseline,poses,blocked:!!snapshot.blocked,issues:[...snapshot.issues]} : baseline };
   }
-  global.KinmoUsability = Object.freeze({ mainDimensions, blockers, connectionPreview, cycleReview, elasticConstruction, issueBundle, restoreIssue });
+  global.KinmoUsability = Object.freeze({ mainDimensions, blockers, repairPreview, connectionPreview, cycleReview, elasticConstruction, issueBundle, restoreIssue });
 })(globalThis);

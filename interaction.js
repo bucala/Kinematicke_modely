@@ -18,6 +18,9 @@
     return e;
   };
   function validateEdit(p) {
+    const groups = new Set(p.elements.filter(e => e.rigidAssemblyId && !e.rigidOriginal).map(e => e.rigidAssemblyId));
+    for (const e of p.elements) if (e.rigidAssemblyId && !groups.has(e.rigidAssemblyId)) { delete e.rigidAssemblyId; delete e.rigidOriginal; delete e.rigidAssemblyName; }
+    for (const j of p.connections) if (j.rigidAssemblyId && !groups.has(j.rigidAssemblyId)) delete j.rigidAssemblyId;
     if(p.driveProgram){p.driveProgram.tracks=p.driveProgram.tracks.filter(t=>p.elements.some(e=>e.id===t.elementId&&e.drive));if(!p.driveProgram.tracks.length)delete p.driveProgram;}
     if (p.motionPlan && (p.motionPlan.unit !== K.driveRange(p).unit || p.kind === 'custom' && !p.elements.some((e) => e.drive))) p.motionPlan = null;
     return K.validateProject(p);
@@ -65,6 +68,7 @@
     const element = r => project.elements.find(e => e.id === r.elementId);
     const guide = [a, b].find(r => r.point === 'curve');
     if (guide) return element(guide)?.type === 'cam' ? 'cam-contact' : element(guide)?.type === 'rail' ? 'prismatic' : 'point-path';
+    if ([a, b].some(r => element(r)?.role === 'motor-housing')) return 'fixed';
     const shaft = [a, b].find(r => element(r)?.type === 'motor' && r.point === 'a');
     if (!shaft) return 'revolute';
     const other = element(shaft === a ? b : a), body = root(project, other);
@@ -73,6 +77,11 @@
   function fixed(project, r, visited = new Set()) {
     const identity = nodeKey(r); if (visited.has(identity)) return false; visited.add(identity);
     const e = project.elements.find((v) => v.id === r.elementId), { body, point: rootPoint } = rootReference(project, e, r.point);
+    let member = e, port = r.point;
+    while (member) {
+      if (member.type === 'motor' && member.drive && port !== 'a') return false;
+      port = member.parentPoint; member = project.elements.find(v => v.id === member.parentId);
+    }
     if (K.isElastic(e)) {
       const mounts = [e[r.point === 'a' ? 'mountA' : 'mountB'], ...project.connections.filter((j) => (j.type || 'revolute') === 'revolute' && [j.a, j.b].some((v) => same(v, r))).map((j) => same(j.a, r) ? j.b : j.a)].filter(Boolean);
       return mounts.some((other) => fixed(project, other, visited));
@@ -93,6 +102,11 @@
     }));
   }
   function status(project, r, samples = []) {
+    let member = project.elements.find(v => v.id === r.elementId), port = r.point;
+    while (member) {
+      if (member.type === 'motor' && member.drive && port !== 'a') return 'driven';
+      port = member.parentPoint; member = project.elements.find(v => v.id === member.parentId);
+    }
     const { body: e, point } = rootReference(project, project.elements.find((v) => v.id === r.elementId), r.point);
     if (e?.type === 'rail' ? railDriven(project, e, point) : e?.drive || e?.primary && ['input', 'carrier'].includes(e.role)) return 'driven';
     if (e?.primary && samples.length) {
@@ -125,6 +139,7 @@
     p.connections.push({ id: K.uid(), a: K.copy(r), b: { elementId: e.id, point: 'a' }, type: 'revolute', value: 0, builtin: false, name: 'Pevný bod, voľné otáčanie' });
   }
   function detach(p, e, poses) {
+    if(e.rigidOriginal)throw new Error('Diel patrí do pevnej zostavy. Najskôr použite Rozpojiť zostavu.');
     if (!e.parentId) return;
     const pose = poses[e.id];
     e.x = (pose.controlOrigin || pose.a).x; e.y = (pose.controlOrigin || pose.a).y; e.angle = pose.angle; e.parentId = ''; e.parentPoint = 'a';
@@ -258,13 +273,16 @@
       else if (['control', 'outline'].includes(t.type)) parts.push(t);
       else removed.add(mutable(t.element).id);
     }
+    const assemblies=new Set([...removed].map(id=>p.elements.find(e=>e.id===id)?.rigidAssemblyId).filter(Boolean)),family=new Set(p.elements.filter(e=>assemblies.has(e.rigidAssemblyId)).map(e=>e.id));
+    for(let pass=0;pass<p.elements.length;pass++)for(const e of p.elements)if(family.has(e.parentId))family.add(e.id);
+    for(const id of family)removed.add(id);
     for (const t of parts.sort((a, b) => b.index - a.index)) if (!removed.has(t.elementId)) erasePart(mutable(p.elements.find((e) => e.id === t.elementId)), t.index, t.type === 'outline');
     const owned = p.dimensions.filter((d) => dimensions.has(d.id)).map((d) => d.constraintId).filter(Boolean);
     p.dimensions = p.dimensions.filter((d) => !dimensions.has(d.id));
     joints.push(...owned.filter((id) => !p.dimensions.some((d) => d.constraintId === id) && p.connections.some((j) => j.id === id && !j.builtin)));
     removeConnections(p, [...joints, ...p.connections.filter((j) => [j.a, j.b].some((r) => removed.has(r.elementId))).map((j) => j.id)]);
     for (const e of p.elements) {
-      if (removed.has(e.parentId)) detach(p, e, result.poses);
+      if (!removed.has(e.id) && removed.has(e.parentId)) detach(p, e, result.poses);
       if (removed.has(e.slotId)) e.slotId = '';
       for (const key of ['mountA', 'mountB']) if (removed.has(e[key]?.elementId)) e[key] = null;
     }
@@ -278,6 +296,12 @@
     const e = mutable(p.elements.find((v) => v.id === r.elementId)), pose = result.poses[e.id];
     if (!pose?.[r.point] || !Number.isFinite(at.x) || !Number.isFinite(at.y) || (at.z != null && at.z !== 0)) throw new Error('Zadajte platné X a Y; v 2D musí byť Z = 0.');
     const parent = result.poses[e.parentId], parentAngle = parent?.angle || 0;
+    const housing = e.type === 'motor' && r.point === 'a' && p.elements.find(v => v.id === e.parentId && v.role === 'motor-housing');
+    if (housing) {
+      if (housing.locked) throw new Error('Najskôr uvoľnite kryt motora.');
+      const host = result.poses[housing.parentId], delta = K.rotate({ x: at.x - pose.a.x, y: at.y - pose.a.y }, -(host?.angle || 0));
+      housing.x += delta.x; housing.y += delta.y; return;
+    }
     const localOrigin = (point) => parent ? K.rotate({ x: point.x - parent[e.parentPoint].x, y: point.y - parent[e.parentPoint].y }, -parentAngle) : point;
     if (e.type === 'rail' && K.carriagePoints.includes(r.point)) {
       const delta = { x: at.x - pose[r.point].x, y: at.y - pose[r.point].y }, axis = K.along({ x: 0, y: 0 }, 1, pose.angle);
@@ -384,6 +408,11 @@
   function translate(project, keys, delta, result = poseOf(project)) {
     let p = K.copy(project);
     const bodies = new Set(keys.map((key) => target(p, key)).filter((t) => ['link', 'path'].includes(t?.type)).map((t) => t.elementId));
+    for (const id of [...bodies]) {
+      const e = p.elements.find(v => v.id === id), housing = e.type === 'motor' && p.elements.find(v => v.id === e.parentId && v.role === 'motor-housing');
+      if (housing) { bodies.delete(id); bodies.add(housing.id); }
+    }
+    for (const id of [...bodies]) { const e = p.elements.find(v => v.id === id); if (e.rigidAssemblyId) { bodies.delete(id); bodies.add(root(p,e).id); } }
     const carried = (e) => {
       while (e?.parentId) {
         if (bodies.has(e.parentId)) return true;
@@ -404,8 +433,9 @@
   function setDriver(project, r, options, result = poseOf(project)) {
     if (project.kind !== 'custom') throw new Error('Zmenu pohonu vykonajte vo voľnej kópii šablóny.');
     const p = K.copy(project), e = mutable(p.elements.find((v) => v.id === r.elementId));
-    if (e.parentId || K.isElastic(e) || ['ground', 'slot'].includes(e.type)) throw new Error('Vyberte samostatný pohyblivý uzol alebo rameno.');
-    if (!options.enabled) { if (e.type === 'rail') storePose(e, result); e.drive = false; return validateEdit(p); }
+    const housing = e.type === 'motor' && p.elements.find(v => v.id === e.parentId && v.role === 'motor-housing');
+    if (e.parentId && !housing || K.isElastic(e) || ['ground', 'slot'].includes(e.type)) throw new Error('Vyberte samostatný pohyblivý uzol alebo rameno.');
+    if (!options.enabled) { if (e.type === 'rail' || housing) storePose(e, result); e.drive = false; return validateEdit(p); }
     if(['cam','motor'].includes(e.type)){r={elementId:e.id,point:'a'};for(const j of p.connections){if(j.type!=='fixed')continue;const other=same(j.a,r)?j.b:same(j.b,r)?j.a:null;const body=other&&p.elements.find(v=>v.id===other.elementId);if(body&&(body.type==='ground'||body.locked)){j.type='revolute';j.value=0;}}}
     const linear = options.mode === 'linear', min = options.min, max = options.max;
     if (!Number.isFinite(options.speed) || !(max > min)) throw new Error('Pohon vyžaduje konečnú rýchlosť a zoradené limity.');
@@ -425,7 +455,82 @@
       const pivot = support?K.point(result,same(support.a,r)?support.b:support.a):K.point(result, r), local = r.point === 'c' ? e.localC || { x: e.bearingOffset, y: 0 } : { x: r.point === 'b' ? e.length : 0, y: 0 };
       e.angle = result.poses[e.id].angle - min;
       const v = K.rotate(local, e.angle); e.x = pivot.x - v.x; e.y = pivot.y - v.y;
+      if (housing) {
+        const parent = result.poses[housing.id], at = K.localPoint({ a: parent[e.parentPoint], angle: parent.angle }, pivot);
+        e.x = at.x; e.y = at.y; e.angle -= parent.angle;
+      }
     }
+    return validateEdit(p);
+  }
+  // The housing is a real rigid member: its mounting joints never constrain rotor angle.
+  // Keep the rotor ID so existing shaft joints, dimensions and traces remain valid.
+  function separateMotor(project, id) {
+    const p = K.copy(project), e = mutable(p.elements.find(v => v.id === id));
+    if (e.type !== 'motor') throw new Error('Vyberte elektromotor.');
+    if (p.elements.find(v => v.id === e.parentId)?.role === 'motor-housing') return validateEdit(p);
+    if (p.elements.length >= 120) throw new Error('Na kryt motora je potrebné jedno voľné miesto v projekte.');
+    const diameter = e.motorDiameter, span = diameter * .7, offset = K.rotate({ x: span / 2, y: 0 }, e.angle);
+    const housing = { ...K.makeElement('panel', e.x - offset.x, e.y - offset.y),
+      name: `${e.name} · kryt`, role: 'motor-housing', angle: e.angle, length: span, width: diameter,
+      localC: { x: span / 2, y: 0 }, bearingOffset: span / 2, parentId: e.parentId, parentPoint: e.parentPoint,
+      locked: e.locked, group: e.group, plane: e.plane, color: e.color, mass: e.mass,
+      outline: Array.from({ length: 48 }, (_, i) => ({ x: span / 2 + diameter / 2 * Math.cos(i * Math.PI / 24), y: diameter / 2 * Math.sin(i * Math.PI / 24) })) };
+    p.elements.splice(p.elements.indexOf(e), 0, housing);
+    Object.assign(e, { parentId: housing.id, parentPoint: 'c', x: 0, y: 0, angle: 0, locked: false, mass: 0 });
+    return validateEdit(p);
+  }
+  function resizeMotorHousing(project, id) {
+    const p = K.copy(project), motor = p.elements.find(e => e.id === id);
+    if (motor?.type !== 'motor') throw new Error('Vyberte elektromotor.');
+    const housing = p.elements.find(e => e.id === motor.parentId && e.role === 'motor-housing');
+    if (housing && Math.abs(housing.width - motor.motorDiameter) > K.EPS) {
+      const ratio = motor.motorDiameter / housing.width, center = housing.localC || {x:housing.bearingOffset,y:0};
+      const offset = K.rotate({x:center.x*(1-ratio),y:center.y*(1-ratio)},housing.angle);
+      housing.x += offset.x; housing.y += offset.y;
+      housing.length *= ratio; housing.bearingOffset *= ratio; housing.width = motor.motorDiameter;
+      housing.localC = {x:center.x*ratio,y:center.y*ratio};
+      housing.outline = housing.outline.map(p => ({x:p.x*ratio,y:p.y*ratio}));
+    }
+    return validateEdit(p);
+  }
+  function rigidMembers(project, keys) {
+    const ids = keys.map(key => target(project,key)).flatMap(t => t?.elementId ? [t.elementId] : t?.joint ? [t.joint.a.elementId,t.joint.b.elementId] : []);
+    return [...new Set(ids.map(id => root(project,project.elements.find(e=>e.id===id))?.id).filter(Boolean))];
+  }
+  function bindRigid(project, keys, name = 'Pevná zostava', result = poseOf(project)) {
+    if (project.kind !== 'custom') throw new Error('Pevnú zostavu vytvorte vo vlastnom modeli alebo vo voľnej kópii.');
+    const p = K.copy(project), ids = rigidMembers(p,keys), members = ids.map(id => mutable(p.elements.find(e=>e.id===id)));
+    if (members.length < 2) throw new Error('Vyberte aspoň dve samostatné telesá.');
+    if (members.some(e=>K.isElastic(e)||e.type==='rail'||e.drive&&e.driveMode==='linear')) throw new Error('Pružina, piest a vedenie obsahujú pohyblivé časti. Vyberte ich montážne telesá.');
+    if (members.some(e=>e.rigidAssemblyId)) throw new Error('Najskôr rozpojte pôvodnú pevnú zostavu.');
+    if (project.driveProgram && members.some(e=>e.drive)) throw new Error('Pred pevným spojením vypnite časový program vybraných pohonov.');
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > 60) throw new Error('Názov zostavy musí mať 1 až 60 znakov.');
+    members.sort((a,b)=>Number(b.locked||b.type==='ground'||b.type==='slot')-Number(a.locked||a.type==='ground'||a.type==='slot')||Number(b.drive)-Number(a.drive));
+    const host = members[0], pose = result.poses[host.id], group = K.uid(), family = new Set(ids);
+    for(let pass=0;pass<p.elements.length;pass++) for(const e of p.elements) if(family.has(e.parentId))family.add(e.id);
+    for (const e of members) {
+      e.rigidAssemblyId = group; e.rigidAssemblyName = name.trim();
+      if (e === host) continue;
+      const shown = result.poses[e.id], local = K.localPoint(pose,shown.controlOrigin||shown.a);
+      e.rigidOriginal = {locked:e.locked,drive:e.drive};
+      Object.assign(e,{parentId:host.id,parentPoint:'a',x:local.x,y:local.y,angle:shown.angle-pose.angle,locked:false,drive:false});
+    }
+    for (const j of p.connections) if (family.has(j.a.elementId) && family.has(j.b.elementId)) j.rigidAssemblyId = group;
+    return validateEdit(p);
+  }
+  function unbindRigid(project, id, result = poseOf(project)) {
+    const p = K.copy(project), selected = p.elements.find(e=>e.id===id), group = selected?.rigidAssemblyId;
+    if (!group) throw new Error('Vyberte člen pevnej zostavy.');
+    const restored = p.elements.filter(e=>e.rigidAssemblyId===group), busy = p.elements.some(e=>e.drive && e.rigidAssemblyId!==group);
+    for (const e of restored) {
+      if (e.rigidOriginal) {
+        const previous = e.rigidOriginal, shown = result.poses[e.id];
+        Object.assign(e,{parentId:'',parentPoint:'a',x:(shown.controlOrigin||shown.a).x,y:(shown.controlOrigin||shown.a).y,angle:shown.angle,locked:previous.locked,drive:previous.drive&&!busy});
+        if (e.drive && e.driveMode!=='linear') e.angle -= result.motion || 0;
+      }
+      delete e.rigidAssemblyId; delete e.rigidAssemblyName; delete e.rigidOriginal;
+    }
+    for (const j of p.connections) if (j.rigidAssemblyId === group) delete j.rigidAssemblyId;
     return validateEdit(p);
   }
   function setLimits(project, min, max) {
@@ -550,6 +655,6 @@
   global.KinmoInteraction = Object.freeze({
     nodeKey, elementKey, jointKey, dimensionKey, controlKey, outlineKey, pathKey, controlPoints, pointKeys, target, reference, validSelection, select, fixed, status, root, suggestJoint, hitTest, hitTargets, setRailMotion,
     addNode, disconnect, disconnectBody, toggleBodyFixed, setJoint, toggleFixed, deleteSelection, setCoordinates, transformPoints, translate,
-    setDriver, setLimits, setJointLimits, setProperties, addPOI, addCamFollower, split, insertAssembly, removeControl, insertControl, setControlPoint, semicircle,
+    rigidMembers, bindRigid, unbindRigid, separateMotor, resizeMotorHousing, setDriver, setLimits, setJointLimits, setProperties, addPOI, addCamFollower, split, insertAssembly, removeControl, insertControl, setControlPoint, semicircle,
   });
 })(globalThis);

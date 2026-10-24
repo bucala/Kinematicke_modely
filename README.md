@@ -15,6 +15,28 @@ Slovenské webové štúdio na tvorbu, analýzu a simuláciu rovinných mechaniz
 
 > Kinematika a odhadová dynamika jedného pohonu, nie pevnostný výpočet ani výrobný výkres. Pred použitím návrhu si prečítajte [hranice simulácie](#limits).
 
+## 2.5.0: pevné zostavy a prehľadnejšia montáž
+
+Vyberte aspoň dve samostatné telesá cez **Shift + klik** na plátne alebo v strome; na mobile zapnite **Výber → Vybrať viac dielov**. Zvoľte **Spojiť napevno**, pomenujte zostavu a potvrďte. Diely zachovajú zobrazenú vzájomnú polohu a pohybujú sa spolu. **Rozpojiť zostavu** obnoví samostatné telesá a pôvodné vnútorné väzby; vonkajšie spoje sa zachovávajú. Každá operácia má jeden krok Späť a zostava sa prenáša súborom `.kinmo` aj knižnicou. Pohyblivé vedenia, pružiny a piesty spájajte cez ich montážne telesá; pred spojením programovaných pohonov vypnite časový program.
+
+Motor má jeden rozbaľovací riadok s kopírovaním a odstránením celej zostavy. Režimy **Montáž / Pohon** vyberú kryt alebo rotor a zobrazia príslušné body. **Základné ovládanie** ponúka bežné úpravy, **Pokročilé ovládanie** sprístupní úplné vlastnosti. Body sa v základnom režime ukazujú pri výbere, prejdení myšou a spájaní. **Izolovať výber** dočasne zobrazí vybrané telesá a ich diely; **Zobraziť všetko** obnoví pohľad bez zmeny modelu.
+
+**Overiť motor** porovná vzorkovaný potrebný moment a rozbeh s menovitým momentom na výstupe prevodu. Zobrazuje rezervu a umožňuje zapnúť zastavenie prehrávania pri preťažení. Vyžaduje jeden rotačný motor a určený mechanizmus. Je to odhad z hmotností, gravitácie, pružín, tlmičov, trenia a zotrvačnosti, bez elektrických prechodov, tepelného modelu a katalógovej momentovej krivky.
+
+Magic import rozlišuje **telesá → vlastníctvo otvorov → väzby → skúšku pohybu**. Otvor jednoznačne vo vnútri telesa vytvorí montážny bod bez ďalšieho ložiska. Neisté kruhy používateľ priradí na očíslovanej predlohe k telesu, spoločnému čapu, samostatnému ložisku alebo ich vynechá. Navrhnuté väzby sa vkladajú iba po výslovnom výbere. Skúška použije dočasný pohon okolo potvrdeného pevného čapu v piatich polohách 0–30°; nevkladá odhadnutý pohon do projektu a nepreukazuje celý cyklus. Ak chýba pevný čap, pomenuje chýbajúce uloženie.
+
+## 2.4.1: jednoduchá editácia motora
+
+Motor má samostatnú ikonu a technický symbol s rebrami, svorkovnicou a pätkami. Po výbere krytu alebo rotora sa zobrazuje **jeden úchyt priemeru Ø**, nie vrcholy obrysového mnohouholníka. Teleso presuniete ťahaním, presnú polohu a uhol zadáte v dolnej lište. **Parametre elektromotora** obsahujú výkon, napätie, otáčky a rozmery; **Spojenia / uloženie** slúžia na pripojenie montážnych bodov. Zmena priemeru z krytu aj z rotora zachová stred hriadeľa a má jeden krok Späť. Technický symbol je zobrazenie pre schému, nie výrobný 3D model.
+
+## 2.4.0: kryt a rotor motora, náhľad opráv a prekryté body
+
+Nový elektromotor má **samostatný kryt a rotor**. Cez **Vlastnosti → Kryt a montážne body** vyberte kryt a jeho úchyty A/B alebo stred C pripojte k rámu. Os A rotora spojte napevno s poháňaným ramenom alebo vačkou; čap B rotora použite pre ojnicu. Potom na rotore zvoľte **Zapnúť motor**. Kryt má vlastné uloženie, takže jeho pevné spojenie neblokuje otáčanie hriadeľa. Rovnaké tlačidlo pripraví kryt aj pre starší motor bez prepisovania pôvodných väzieb. Presúvanie motora, zmena priemeru a duplikovanie zachovávajú zostavu; kryt aj rotor sa ukladajú do `.kinmo`.
+
+V **Ďalšie nástroje → Prečo sa nehýbe?** vyberte konkrétny problém. Návrhy na uvoľnenie otáčania, odstránenie nadbytočnej väzby, preverenie dorazu alebo úpravu zdvihu najprv ukážu **náhľad pred/po**. Overte zmenený počet nesplnených väzieb a voľných súradníc a potvrďte **Použiť opravu**. Model sa pred potvrdením nemení; Späť obnoví pôvodný stav. Návrh sa týka aktuálnej polohy bez kolízií, celý cyklus skontrolujte samostatne.
+
+Pri prichytení na prekryté uzly vyberte číslo v **zväčšenom okolí bodov** alebo jeho názov v zozname. Potom zvoľte **Vložiť otočný čap**, **Spojiť napevno**, vhodné vedenie alebo **Iba zarovnať**. Poloha a spojenie zostávajú jedným krokom Späť.
+
 ## 13. 10. 2026: prichytávanie, vačka a úpravy kriviek
 
 Rozšírenie zdrojov nad `5e9798b` pridáva:

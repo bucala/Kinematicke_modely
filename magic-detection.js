@@ -343,5 +343,34 @@
       check(); return result;
     } finally { decoded.src = ''; canvas.width = canvas.height = 0; }
   }
-  global.KinmoDetection = Object.freeze({ limits, detectPixels, detectImage });
+  // Interpret geometry before proposing mechanics. A hole belongs to a body;
+  // it does not become an independent bearing merely because it is circular.
+  function mechanismCandidates(input, decisions = {}) {
+    const candidates = JSON.parse(JSON.stringify(input)), bodies = candidates.filter(c=>c.selected&&c.points.length>1&&['ground','panel','link','rail'].includes(c.type));
+    const holes = candidates.filter(c=>c.selected&&c.points.length===1&&['bearing','node'].includes(c.type));
+    const ownership = [];
+    for (const body of bodies) body.anchors = (body.anchors||[]).filter(a=>!holes.some(h=>distance(a,h.points[0])<=Math.max(2,h.radius*.6)));
+    for (const hole of holes) {
+      const at = hole.points[0], owners = bodies.flatMap(body=>{
+        const polygon = body.outline||[], interior = polygon.length>=3 && inside(at,polygon);
+        const edge = polygon.length>=3 ? Math.min(...polygon.map((a,i)=>segmentDistance(at,a,polygon[(i+1)%polygon.length]))) : Math.min(...body.points.slice(1).map((b,i)=>segmentDistance(at,body.points[i],b)));
+        const near = interior || edge <= (polygon.length?Math.max(2,hole.radius+2):Math.max(body.width/2,hole.radius+2));
+        return near ? [{id:body.id,confidence:interior?.9:.6,reason:interior?'Otvor leží v uzavretom obryse telesa.':'Kruh leží pri obryse alebo osi člena; vlastníctvo treba overiť.'}] : [];
+      });
+      const automatic = owners.length===1&&owners[0].confidence>=.85 ? owners[0].id : null;
+      const choice = Object.hasOwn(decisions,hole.id) ? decisions[hole.id] : automatic;
+      if (choice && !['pin','shared','ignore',...owners.map(o=>o.id)].includes(choice) || choice==='shared'&&owners.length<2) throw new Error('Vyberte platného vlastníka otvoru.');
+      ownership.push({id:hole.id,at,radius:hole.radius,owners,choice,automatic:choice===automatic&&!!automatic});
+      hole.selected = choice==='pin';
+      if (!choice || choice==='ignore') continue;
+      const assigned = choice==='shared'||choice==='pin' ? owners : owners.filter(o=>o.id===choice);
+      for (const owner of assigned) {
+        const body=bodies.find(c=>c.id===owner.id);
+        if (!['ground','link','panel'].includes(body.type)) continue;
+        body.useAnchors=true;body.anchors||=[];body.anchors.push({...at,radius:hole.radius});
+      }
+    }
+    return {candidates,ownership,unresolved:ownership.filter(h=>!h.choice),stages:['Telesá','Vlastníctvo otvorov','Návrh väzieb','Skúška pohybu']};
+  }
+  global.KinmoDetection = Object.freeze({ limits, detectPixels, detectImage, mechanismCandidates });
 })(globalThis);

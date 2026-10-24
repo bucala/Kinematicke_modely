@@ -252,7 +252,23 @@
         }
       }
     }
-    return { project: K.validateProject(p), added };
+    return { project: K.validateProject(p), added, candidateMap:Object.fromEntries([...candidateBodies].map(([id,e])=>[id,e.id])) };
+  }
+  function probeMechanism(project, jointIds) {
+    const p = K.copy(K.validateProject(project)), I = global.KinmoInteraction;
+    const joints = p.connections.filter(j=>jointIds.includes(j.id));
+    for (const j of joints.filter(j=>j.type==='revolute')) for (const [a,b] of [[j.a,j.b],[j.b,j.a]]) {
+      const fixed = I.root(p,p.elements.find(e=>e.id===a.elementId)), body = I.root(p,p.elements.find(e=>e.id===b.elementId));
+      if (!fixed || !(fixed.locked||fixed.type==='ground') || !body || body.locked || body.parentId || !['link','panel'].includes(body.type)) continue;
+      const design=K.solve(p,0,{design:true,collisions:false}), at=K.point(design,b), pose=design.poses[body.id];
+      body.type='panel';body.localC=K.localPoint(pose,at);
+      try {
+        const driven = I.setDriver(p,{elementId:body.id,point:'c'},{enabled:true,mode:'rotary',min:0,max:30,speed:15,continuous:false},K.solve(p,0,{design:true,collisions:false}));
+        const samples=[0,5,10,20,30].map(q=>K.solve(driven,q,{collisions:false}));
+        return {project:driven,samples,checked:true,bodyId:body.id,blocked:samples.filter(r=>r.blocked),note:'Dočasný pohon okolo potvrdeného čapu: vzorky 0–30°. Skúška nepreukazuje celý pracovný cyklus.'};
+      } catch(error) { return {checked:false,note:error.message,samples:[]}; }
+    }
+    return {checked:false,samples:[],note:'Na skúšku pohybu chýba potvrdený pevný čap na pohyblivom telese. Doplňte uloženie a pohon v ďalšom kroku.'};
   }
   function finish(project, image, scale, name) {
     const p = K.copy(K.validateProject(project));
@@ -268,5 +284,5 @@
     p.source = { kind: 'custom', name: 'Magic import', motion: 0, note: `Schéma z lokálneho obrázka, obkreslená alebo navrhnutá lokálnou detekciou. Geometriu a väzby treba overiť. Kalibrácia: ${checked.distance} mm / ${Number(checked.pixels.toFixed(3))} px. Zmenšená predloha sa ukladá do projektu; jedna mierka neodstraňuje perspektívu ani skreslenie objektívu.` };
     return K.validateProject(p);
   }
-  global.KinmoMagicImport = Object.freeze({ limits, steps, validateFile, imageMetadata, loadImage, portableRaster, calibration, rescale, worldFromPixel, pixelFromWorld, imageRect, traceBody, placeElement, applyDetected, finish });
+  global.KinmoMagicImport = Object.freeze({ limits, steps, validateFile, imageMetadata, loadImage, portableRaster, calibration, rescale, worldFromPixel, pixelFromWorld, imageRect, traceBody, placeElement, applyDetected, probeMechanism, finish });
 })(globalThis);

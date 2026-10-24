@@ -124,7 +124,7 @@
         if (!point || K.distance(point,at) > tolerance || project.connections.some(j => [j.a,j.b].some(r=>r.elementId===reference.elementId&&r.point===reference.point)&&[j.a,j.b].some(r=>r.elementId===target.id&&r.point===key))) continue;
         const kind = key === 'curve' ? target.type === 'cam' ? 'cam-contact' : 'guide' : 'endpoint';
         if (kind === 'cam-contact' && source.type !== 'bearing') continue;
-        out.push({ kind, direct: true, wholeBody, motion: result.motion, source:{elementId:source.id,ref:K.copy(reference),at:K.copy(origin)}, target:{elementId:target.id,ref:{elementId:target.id,point:key},at:{x:point.x,y:point.y}}, point:{x:point.x,y:point.y}, delta:{x:point.x-origin.x,y:point.y-origin.y}, distance:K.distance(at,point), label:`${target.name} · ${K.pointName(key)}` });
+        out.push({ kind, direct: true, wholeBody, motion: result.motion, source:{elementId:source.id,ref:K.copy(reference),at:K.copy(origin)}, target:{elementId:target.id,ref:{elementId:target.id,point:key},at:{x:point.x,y:point.y}}, point:{x:point.x,y:point.y}, delta:{x:point.x-origin.x,y:point.y-origin.y}, distance:K.distance(at,point), label:`${target.name} · ${K.pointName(key,target)}` });
       }
     }
     return out.sort((a,b)=> {

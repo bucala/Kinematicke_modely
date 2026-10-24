@@ -59,6 +59,7 @@
     };
     for (const key of ['grid', 'dimensions', 'ghosts', 'trace', 'labels', 'collisions', 'snap', 'forceArrows']) result[key] = input[key] !== false;
     for (const key of ['mainDimensions', 'profileVisible', 'timelineVisible', 'angleSnap']) result[key] = input[key] === true;
+    result.detailLevel=input.detailLevel==='advanced'?'advanced':'basic';result.motorMode=input.motorMode==='drive'?'drive':'mount';
     result.language=['sk','en','de'].includes(input.language)?input.language:'sk';
     return result;
   }

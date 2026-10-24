@@ -1,14 +1,28 @@
 # História zmien
 
-## 2026-10-21: presnejší rastrový Magic import
+## 2.5.0 · 2026-10-23: pevné zostavy, montáž a kontrola motora
 
-- Druhý dodaný obrázok s priehľadnými platňami: kruhovosť vyžaduje podrobnejší obrys, radiálnu zhodu a plochu podobnú disku. Zelený hranatý blok ani malý biely klin už nevytvárajú ďalšie ložiská; štyri hlavné kruhové miesta ostávajú zachované.
-- Dutý profil sa posudzuje podľa obsadenia skutočného obrysu, nie obdĺžnika hlavnej osi. Široká zahnutá platňa sa preto nezamení za vedenie iba pre prázdne rohy tohto obdĺžnika.
-- Potlačenie drobných JPEG odchýlok zachováva tenké čiary a malé kruhové montážne body. Dodaný farebný obrázok zachová všetky tri viditeľné čapy.
-- Základňa s lokálnym výstupkom zostáva editovateľným telesom; nepravidelná šírka sa nemá vydávať za zakrivenú drážku. Skutočné zakrivené pásy ostávajú podporované.
-- Dlhé uzavreté svetlé dutiny môžu vytvoriť návrh strednice drážky. Dutiny dlhých profilov rámu sa nevkladajú ako ďalšie vedenia.
-- Vnorené výplne a obrysové fragmenty kompatibilného vzhľadu sa zlúčia so siluetou. Odlišné prekrývajúce sa telesá ostávajú návrhmi na kontrolu; farba neurčuje mechanickú funkciu.
-- Regresia používa raster dodaného obrázka a overuje aj vloženie a natívny export/import. Zakryté konce drážok, vlastníctvo otvorov a pevné/pohyblivé uloženie stále vyžadujú kontrolu používateľa.
+- Viacnásobný výber funguje cez Shift/Ctrl v strome, Shift na plátne a prepínač pre postupné kliknutia alebo dotyky. Dve a viac samostatných telies možno spojiť do pomenovanej pevnej zostavy, ktorá zachová aktuálnu polohu a prenáša pohyb. Rozpojenie obnoví telesá aj pozastavené vnútorné väzby; obe operácie sú atómové a vratné. Uloženie, knižnica, samostatné kópie a mazanie zachovávajú identitu zostáv.
+- Motor je v strome rozbaľovacia zostava krytu a rotora s kopírovaním a odstránením. Montáž a Pohon prepínajú výber aj dostupné body; skúšku otáčania možno spustiť priamo z lišty.
+- Základné a pokročilé vlastnosti, prípojné body podľa kontextu a dočasné izolovanie výberu uľahčujú prácu s hustými modelmi. Mobilná ponuka sprístupňuje viacnásobný výber, spojenie, rozpojenie a izolovanie.
+- Overenie motora zohľadní menovitý výkon, otáčky, prevod a jeho účinnosť, zaťaženie a čas rozbehu. Graf zobrazuje potrebný a dostupný moment; voliteľná ochrana zastaví kinematické prehrávanie pri preťažení. Ide o vzorkovaný mechanický odhad jedného pohonu.
+- Magic import určuje vlastníctvo otvorov a zabraňuje duplicitnému ložisku pre ten istý otvor. Neisté priradenie používateľ potvrdí nad očíslovanou predlohou. Väzby sa kontrolujú v samostatnom kroku a možno ich skúsiť dočasným pohonom okolo pevného čapu bez zmeny projektu.
+- Publikuje sa iba web; Windows ani Android balíky sa nevytvárajú.
+
+## 2.4.1 · 2026-10-22: čitateľný motor a jednoduchá editácia
+
+- Elektromotor má vlastnú vektorovú ikonu so svorkovnicou, rebrami a pätkami; od vačky sa odlišuje v knižnici aj v strome.
+- Na plátne sa kryt zobrazuje ako technický symbol motora. Rotor a montážne body zostávajú funkčné; nadbytočný nápis M a dlhý popis výkonu sa odstránili z kresby.
+- Kryt nemá 48 viditeľných ani skrytých úchytov vrcholov. Kryt aj rotor používajú jediný úchyt priemeru; polohu a uhol možno stále upraviť číselne a teleso presúvať ťahaním.
+- Úprava priemeru cez kryt rovnomerne prepočíta aj rozmery motora a zachová os hriadeľa. Panel krytu ponúka rozmer, parametre motora a montáž. Pohon sa nastavuje na rotore.
+
+## 2.4.0 · 2026-10-22: kryt motora, opravy väzieb a výber prichytenia
+
+- Nový motor sa vkladá ako kryt s úchytmi A/B a stredom C a samostatný rotor s osou A a výstupným čapom B. Pevná väzba krytu k rámu neobmedzí otáčanie rotora; pevné spojenie hriadeľa prenáša otáčanie na rameno alebo vačku. Kryt je bežné tuhé teleso a treba mu určiť uloženie.
+- **Vlastnosti → Kryt a montážne body** vyberie kryt; starší motor rozdelí pri zachovaní jeho ID, väzieb a fázy pohonu. Presun motora presúva kryt s rotorom, zmena priemeru zachová os a kópia dostane vlastný kryt. Vypnutie a opätovné zapnutie uchová zobrazenú fázu. CAD obsahuje kryt a úzky výstup rotora ako samostatné profily.
+- **Prečo sa nehýbe?** označí konkrétnu väzbu aj jej telesá. Pri nesplnenej pevnej väzbe ponúkne uvoľnenie otáčania, pri doraze jeho vypnutie a pri konflikte odpojenie väzby. Náhľad ukazuje stav pred/po, počet nesplnených väzieb a voľných súradníc. Zmenu potvrdzuje používateľ; Späť ju obnoví. Náhľad hodnotí aktuálnu polohu bez kolízií, neurčuje automaticky správny mechanizmus.
+- Prekryté ciele prichytávania majú zväčšený náhľad s číslami a tlačidlami na výber konkrétneho bodu. Výber funguje pri priamom ťahaní bodu aj pri inteligentnom prichytávaní; zachová spoločný krok Späť. Ponuka rozlišuje otočný čap, pevné spojenie, vedenie a samotné zarovnanie.
+- Publikovanie zostáva iba pre web cez existujúce Workers Builds; nové Windows ani Android balíky sa nevytvárajú.
 
 ## 2026-10-13: viac polôh, predloha a pracovné postupy
 

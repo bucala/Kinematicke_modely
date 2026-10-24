@@ -91,10 +91,10 @@
     return Object.fromEntries(Object.entries(state?.bodies || {}).map(([id, b]) => [id, { x: b.x, y: b.y, angle: b.angle }]));
   }
   function prepareBodies(project, initial, config, profile, freedom, collisions) {
-    const contactMode=project.connections.some(j=>j.contact?.enabled);
+    const contactMode=project.connections.some(j=>!j.rigidAssemblyId&&j.contact?.enabled);
     if ((freedom.driven&&!contactMode) || !freedom.free || (!project.elements.some(K.isElastic)&&!contactMode)) return null;
     const rootId = (id) => { let e = project.elements.find((e) => e.id === id); while (e?.parentId) e = project.elements.find((v) => v.id === e.parentId); return e?.id; };
-    const connected = new Set([...project.elements.filter(K.isElastic).map((e) => e.id),...project.connections.filter(j=>j.contact?.enabled).flatMap(j=>[j.a.elementId,j.b.elementId])]), edges = project.connections.map((j) => [j.a.elementId, j.b.elementId]);
+    const connected = new Set([...project.elements.filter(K.isElastic).map((e) => e.id),...project.connections.filter(j=>!j.rigidAssemblyId&&j.contact?.enabled).flatMap(j=>[j.a.elementId,j.b.elementId])]), edges = project.connections.map((j) => [j.a.elementId, j.b.elementId]);
     for (const e of project.elements) { if (e.parentId) edges.push([e.id, e.parentId]); if (e.slotId) edges.push([e.id, e.slotId]); for (const r of [e.mountA, e.mountB]) if (r) edges.push([e.id, r.elementId]); }
     for (let pass = 0; pass < project.elements.length; pass++) { let changed = false; for (const [a,b] of edges) if (connected.has(a) !== connected.has(b)) { connected.add(a); connected.add(b); changed = true; } if (!changed) break; }
     const roots = project.elements.filter((e) => !e.primary && !e.locked && !e.parentId && !e.drive && ['link','panel','cam','motor','node','bearing'].includes(e.type));
@@ -108,7 +108,7 @@
       return { id: root.id, mass, inertia: Math.max(1e-8,moment), localCenter: K.localPoint(initial.poses[root.id], center), oriented: !['node','bearing'].includes(root.type) };
     });
     let maxStep = 1/1000;
-    for(const b of bodies)for(const j of project.connections.filter(j=>j.contact?.enabled))maxStep=Math.min(maxStep,.05*Math.sqrt(b.mass/(j.contact.stiffness*1000)),.1*b.mass/Math.max(1,j.contact.damping));
+    for(const b of bodies)for(const j of project.connections.filter(j=>!j.rigidAssemblyId&&j.contact?.enabled))maxStep=Math.min(maxStep,.05*Math.sqrt(b.mass/(j.contact.stiffness*1000)),.1*b.mass/Math.max(1,j.contact.damping));
     if(config.softStops)for(const b of bodies)maxStep=Math.min(maxStep,.05*Math.sqrt(b.mass/(config.stopStiffness*1000)),.1*b.mass/Math.max(1,config.stopDamping));
     for (const b of [...bodies, ...particles]) {
       const members = project.elements.filter(K.isElastic).filter((e) => ['a','b'].some((key) => { const group = graph.groups.find((g) => g.id === graph.ports[`${e.id}:${key}`]); return group.id === b.id || group.anchors.some((r) => owners[r.elementId] === b.id); }));
@@ -142,7 +142,7 @@
       }
     }
     const contacts=[];
-    for(const j of context.project.connections.filter(j=>j.contact?.enabled)){const rollerRef=j.a.point==='curve'?j.b:j.a,camRef=j.a.point==='curve'?j.a:j.b,roller=context.project.elements.find(e=>e.id===rollerRef.elementId),pose=result.poses[roller.id],cam=result.poses[camRef.elementId],owner=context.bodyDynamics.owners[roller.id],s=state.bodies[owner];if(!s)continue;const point=K.point(result,rollerRef),near=K.contactTarget(point,cam,pose,j.surface,roller.radius||0),gap=near.gap??((point.x-near.x)*near.normal.x+(point.y-near.y)*near.normal.y);const motor=context.project.elements.find(e=>e.id===camRef.elementId),omega=!motor.drive?0:(context.project.driveProgram?((global.KinmoAdvanced.at(context.project,motor,state.motion,(context.programStart||0)+state.time+.0001)-global.KinmoAdvanced.at(context.project,motor,state.motion,(context.programStart||0)+state.time))/ .0001):(motor.driveSpeed??60))*K.DEG,r={x:(near.surface.x-cam.a.x)/1000,y:(near.surface.y-cam.a.y)/1000},surface={x:omega*r.y,y:-omega*r.x},vn=(s.vx-surface.x)*near.normal.x+(s.vy-surface.y)*near.normal.y,force=gap<=0?Math.max(0,-j.contact.stiffness*gap-j.contact.damping*vn):0;loads[owner].x+=near.normal.x*force;loads[owner].y+=near.normal.y*force;const body=context.bodyDynamics.bodies.find(b=>b.id===owner),center=bodyCenter(body,result.poses[owner]);loads[owner].torque+=((point.y-center.y)*near.normal.x-(point.x-center.x)*near.normal.y)/1000*force;contacts.push({id:j.id,elementId:roller.id,gap,force,detached:gap>0,a:near.surface,b:point,normal:near.normal});}
+    for(const j of context.project.connections.filter(j=>!j.rigidAssemblyId&&j.contact?.enabled)){const rollerRef=j.a.point==='curve'?j.b:j.a,camRef=j.a.point==='curve'?j.a:j.b,roller=context.project.elements.find(e=>e.id===rollerRef.elementId),pose=result.poses[roller.id],cam=result.poses[camRef.elementId],owner=context.bodyDynamics.owners[roller.id],s=state.bodies[owner];if(!s)continue;const point=K.point(result,rollerRef),near=K.contactTarget(point,cam,pose,j.surface,roller.radius||0),gap=near.gap??((point.x-near.x)*near.normal.x+(point.y-near.y)*near.normal.y);const motor=context.project.elements.find(e=>e.id===camRef.elementId),omega=!motor.drive?0:(context.project.driveProgram?((global.KinmoAdvanced.at(context.project,motor,state.motion,(context.programStart||0)+state.time+.0001)-global.KinmoAdvanced.at(context.project,motor,state.motion,(context.programStart||0)+state.time))/ .0001):(motor.driveSpeed??60))*K.DEG,r={x:(near.surface.x-cam.a.x)/1000,y:(near.surface.y-cam.a.y)/1000},surface={x:omega*r.y,y:-omega*r.x},vn=(s.vx-surface.x)*near.normal.x+(s.vy-surface.y)*near.normal.y,force=gap<=0?Math.max(0,-j.contact.stiffness*gap-j.contact.damping*vn):0;loads[owner].x+=near.normal.x*force;loads[owner].y+=near.normal.y*force;const body=context.bodyDynamics.bodies.find(b=>b.id===owner),center=bodyCenter(body,result.poses[owner]);loads[owner].torque+=((point.y-center.y)*near.normal.x-(point.x-center.x)*near.normal.y)/1000*force;contacts.push({id:j.id,elementId:roller.id,gap,force,detached:gap>0,a:near.surface,b:point,normal:near.normal});}
     for(const b of context.bodyDynamics.bodies){const e=context.project.elements.find(e=>e.id===b.id),s=state.bodies[b.id],speed=Math.hypot(s.vx,s.vy),friction=e.guideFriction||context.config.friction;if(speed>1e-8&&friction){loads[b.id].x-=friction*s.vx/speed;loads[b.id].y-=friction*s.vy/speed;}}
     return { result,loads,tipLoads,lengthRates,contacts };
   }
@@ -202,10 +202,10 @@
       e.damping += p.simulation.returnDamping;
       for (const key of ['dampingCompression', 'dampingExtension']) if (e[key] != null) e[key] += p.simulation.returnDamping;
     }
-    if(p.connections.some(j=>j.type==='cam-contact'&&j.contact?.enabled&&p.elements.some(e=>e.type==='rail'&&K.carriageReference(p,e,j.a.point==='curve'?j.b:j.a))))throw new Error('Dynamický kontakt vozíka vyžaduje samostatné pohyblivé teleso; pre priamy vozík použite kinematický kontakt.');
-    if (p.connections.some((j) => j.type === 'cam-contact'&&!j.contact?.enabled)) throw new Error('Vačkový kontakt je kinematický s predpokladom trvalého dotyku. Odhadová dynamika nepočíta kontaktné reakcie, predpätie ani odtrhnutie valčeka.');
+    if(p.connections.some(j=>!j.rigidAssemblyId&&j.type==='cam-contact'&&j.contact?.enabled&&p.elements.some(e=>e.type==='rail'&&K.carriageReference(p,e,j.a.point==='curve'?j.b:j.a))))throw new Error('Dynamický kontakt vozíka vyžaduje samostatné pohyblivé teleso; pre priamy vozík použite kinematický kontakt.');
+    if (p.connections.some((j) => !j.rigidAssemblyId && j.type === 'cam-contact'&&!j.contact?.enabled)) throw new Error('Vačkový kontakt je kinematický s predpokladom trvalého dotyku. Odhadová dynamika nepočíta kontaktné reakcie, predpätie ani odtrhnutie valčeka.');
     const profile = options.profile || K.prepareProject(p);
-    const initial = K.solve(p, options.motion ?? range.min, { profile, softContact:p.connections.some(j=>j.contact?.enabled),strokeTolerance:p.simulation.softStops?2:0, collisions: options.collisions !== false, elasticPositions: options.elasticPositions, bodyPositions: options.bodyPositions });
+    const initial = K.solve(p, options.motion ?? range.min, { profile, softContact:p.connections.some(j=>!j.rigidAssemblyId&&j.contact?.enabled),strokeTolerance:p.simulation.softStops?2:0, collisions: options.collisions !== false, elasticPositions: options.elasticPositions, bodyPositions: options.bodyPositions });
     if (initial.blocked) throw new Error(`Dynamiku nemožno spustiť: ${initial.issues[0]}`);
     const freedom = E.freedom(p, initial);
     const bodies = prepareBodies(p,initial,settings(p),profile,freedom,options.collisions !== false);
@@ -466,6 +466,48 @@
     if(context.bodyDynamics)return [];
     return context.rows.map((row) => ({ motion: row.motion, ...generalized(context, row.motion), blocked: row.blocked }));
   }
+  function motorCapacity(project, id, options = {}) {
+    const p=K.validateProject(project), motor=p.elements.find(e=>e.id===id), range=K.driveRange(p);
+    if(!motor||motor.type!=='motor'||!motor.drive||range.unit!=='°'||p.elements.filter(e=>e.drive).length!==1||p.driveProgram)throw new Error('Overenie potrebuje jeden aktívny elektromotor s rotačným pohonom.');
+    const initial=K.solve(p,range.min,{collisions:false});
+    if(E.freedom(p,initial).free)throw new Error('Najskôr doplňte uloženie mechanizmu. Voľné telesá nemajú jednoznačnú požiadavku na moment.');
+    const count=options.count??Math.max(121,Math.ceil((range.max-range.min)/30)+1), startup=options.startupSeconds??motor.startupSeconds??1;
+    if(!Number.isInteger(count)||count<31||count>241||(range.max-range.min)/(count-1)>30||!Number.isFinite(startup)||startup<.1||startup>60)throw new Error('Skúška potrebuje 31–241 polôh a rozbeh 0,1–60 s.');
+    const direction=options.direction??motor.direction;if(![1,-1].includes(direction))throw new Error('Smer pohonu musí byť kladný alebo záporný.');
+    const samples=K.sample(p,count,{collisions:false,forces:false}), speed=direction*motor.rpm*2*Math.PI/60/motor.gearRatio;
+    const available=motor.rpm>0?motor.powerW/(motor.rpm*2*Math.PI/60)*motor.gearRatio*motor.gearEfficiency:0, config=settings(p);
+    // Five-point derivatives use equally accurate one-sided stencils at range ends.
+    // Mixing forward and central differences fabricates inertia torque at those ends.
+    const h=(samples[1].motion-samples[0].motion)*K.DEG;
+    const derivative=(i,value)=>{
+      const start=Math.max(0,Math.min(samples.length-5,i-2)),offset=i-start;
+      const weights=[[-25,48,-36,16,-3],[-3,-10,18,-6,1],[1,-8,0,8,-1],[-1,6,-18,10,3],[3,-16,36,-48,25]][offset];
+      return weights.reduce((sum,w,j)=>sum+w*value(start+j),0)/(12*h);
+    };
+    const rows=samples.map((sample,i)=>{
+      let mass=0, gravity=0, elastic=0, damp=0;
+      for(const e of p.elements.filter(e=>!K.isElastic(e)&&e.mass>0)){
+        const pose=sample.poses[e.id];if(!pose)continue;
+        const dx=derivative(i,j=>centerOfMass(e,samples[j].poses[e.id]).x)/1000;
+        const dy=derivative(i,j=>centerOfMass(e,samples[j].poses[e.id]).y)/1000;
+        const da=derivative(i,j=>deltaAngle(pose.angle,samples[j].poses[e.id].angle));
+        mass+=e.mass*(dx*dx+dy*dy)+inertia(e,pose)*da*da;gravity+=e.mass*config.gravity*dy;
+      }
+      for(const e of p.elements.filter(K.isElastic)){
+        const jac=derivative(i,j=>samples[j].poses[e.id].length)/1000,value=axial(e,sample.poses[e.id].length,jac*speed);
+        elastic+=value.nominalForce*jac;damp+=value.dampingForce*jac;
+      }
+      return {motion:sample.motion,mass,gravity,elastic,damp,blocked:sample.blocked,issues:sample.issues};
+    });
+    rows.forEach((row,i)=>{
+      const massDerivative=derivative(i,j=>rows[j].mass);
+      row.running=-row.gravity-row.elastic-row.damp-config.inputForce+Math.sign(speed)*config.friction+.5*massDerivative*speed*speed;
+      row.starting=row.running+row.mass*speed/startup;row.utilization=available?Math.abs(row.running)/available:Math.abs(row.running)>1e-9?Infinity:0;
+    });
+    const blocked=rows.filter(r=>r.blocked),peak=Math.max(...rows.map(r=>Math.abs(r.running))),startPeak=Math.max(...rows.map(r=>Math.abs(r.starting)));
+    return {motorId:id,rows,available,peak,startPeak,startupSeconds:startup,outputRPM:speed*60/(2*Math.PI),margin:available-peak,
+      firstOverload:rows.find(r=>r.utilization>1+1e-6)||null,status:blocked.length?'blocked':motor.rpm===0?'stopped':Math.max(peak,startPeak)>available+1e-6?'overloaded':'sufficient',blocked:blocked.length,estimated:true};
+  }
 
-  global.KinmoPhysics = Object.freeze({ springRate, axial, forces, centerOfMass, inertia, prepare, generalized, initialState, step, forceCurve, elasticPositions, dynamicForces, dragTip, bodyPositions, dragBody });
+  global.KinmoPhysics = Object.freeze({ motorCapacity, springRate, axial, forces, centerOfMass, inertia, prepare, generalized, initialState, step, forceCurve, elasticPositions, dynamicForces, dragTip, bodyPositions, dragBody });
 })(globalThis);

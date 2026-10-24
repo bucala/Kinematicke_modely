@@ -91,6 +91,11 @@
   }
   function transform(project, keys, options, result = design(project)) {
     const p = K.copy(project), ids = new Set(bodies(project, keys));
+    for (const id of [...ids]) {
+      const e = p.elements.find(v => v.id === id), housing = e.type === 'motor' && p.elements.find(v => v.id === e.parentId && v.role === 'motor-housing');
+      if (housing) { ids.delete(id); ids.add(housing.id); }
+    }
+    for(const id of [...ids]){const e=p.elements.find(v=>v.id===id);if(e.rigidAssemblyId){ids.delete(id);ids.add(I.root(p,e).id);}}
     const dx = options.dx ?? 0, dy = options.dy ?? 0, rotation = options.angle ?? 0, origin = options.pivot || pivot(project, keys, result);
     if (!ids.size || ![dx, dy, rotation, origin.x, origin.y].every(Number.isFinite)) throw new Error('Vyberte členy a zadajte konečný posun, uhol a bod otáčania.');
     for (const id of ids) {
@@ -168,17 +173,22 @@
     if (!element || element.primary) return null;
     const key = element.type==='motor'?'motorDiameter':K.isElastic(element) ? 'diameter' : ['bearing', 'node', 'cam'].includes(element.type) ? 'radius' : ['slot', 'rail'].includes(element.type) ? 'slotWidth' : 'width';
     const span = key === 'width' && element.outline?.length ? Math.max(...element.outline.map(p => p.y)) - Math.min(...element.outline.map(p => p.y)) : 0;
-    return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: element.type === 'motor' ? 'Priemer telesa' : key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : element.type === 'rail' ? 'Šírka vedenia' : element.type === 'slot' ? 'Šírka drážky' : 'Hrúbka' };
+    return { key, value: span || element[key] * (key === 'radius' ? 2 : 1), label: element.type === 'motor' || element.role === 'motor-housing' ? 'Priemer krytu' : key === 'radius' ? 'Priemer' : K.isElastic(element) ? 'Vonkajší priemer' : element.type === 'rail' ? 'Šírka vedenia' : element.type === 'slot' ? 'Šírka drážky' : 'Hrúbka' };
   }
   function setThickness(project, id, value) {
     const p = K.copy(project), e = p.elements.find((e) => e.id === id), size = thickness(e);
     if (!size || !Number.isFinite(value) || value < .1 || value > 500) throw new Error('Priečny rozmer musí byť 0,1 až 500 mm na vlastnom prvku.');
+    if (e.role === 'motor-housing') {
+      const motor = p.elements.find(v => v.type === 'motor' && v.parentId === e.id);
+      if (motor) { motor.motorDiameter = value; return I.resizeMotorHousing(p,motor.id); }
+    }
     if (K.isElastic(e) && value <= (e.type.startsWith('piston-') ? e.rodDiameter : 2 * e.wireDiameter)) throw new Error('Vonkajší priemer musí byť väčší než priemer tyče alebo drôtu.');
     if (e.outline?.length && size.key === 'width') {
       const center = (Math.min(...e.outline.map(p => p.y)) + Math.max(...e.outline.map(p => p.y))) / 2;
       e.outline = e.outline.map((p) => ({ x: p.x, y: center + (p.y - center) * value / size.value }));
     }
     e[size.key] = size.key === 'radius' ? value / 2 : value;
+    if (e.type === 'motor') return I.resizeMotorHousing(p, e.id);
     return K.validateProject(p);
   }
 
@@ -223,7 +233,7 @@
   }
   function constraints(project, result) {
     const elements = new Map(project.elements.map((e) => [e.id, e])), rows = [];
-    for (const j of project.connections) {
+    for (const j of project.connections.filter(j=>!j.rigidAssemblyId)) {
       const pa = result.poses[j.a.elementId], pb = result.poses[j.b.elementId], type = j.type || 'revolute';
       let a = pa?.[j.a.point], b = pb?.[j.b.point];
       const roller = elements.get((j.a.point === 'curve' ? j.b : j.a).elementId);
@@ -266,7 +276,7 @@
   function diagnose(project, result) {
     const rows = constraints(project, result), freedom = E.freedom(project, result), hints = [], duplicates = [], conflicts = [];
     const groups = new Map();
-    for (const j of project.connections.filter((j) => !j.builtin)) {
+    for (const j of project.connections.filter((j) => !j.rigidAssemblyId && !j.builtin)) {
       const first = `${j.a.elementId}:${j.a.point}`, second = `${j.b.elementId}:${j.b.point}`, reversed = first > second;
       const key = `${j.type}:${[first, second].sort().join('|')}`;
       const value = ['angle', 'parallel', 'fixed', 'prismatic'].includes(j.type) ? angle((reversed ? -1 : 1) * j.value) : j.value;
@@ -378,7 +388,7 @@
     const enterTolerance = tolerance, releaseTolerance = options.previous ? tolerance * 1.5 : tolerance;
     tolerance = releaseTolerance;
     const roots = new Set(sources.map((s) => I.root(project, project.elements.find((e) => e.id === s.elementId))?.id));
-    const candidates = [], destinations = project.elements.filter((e) => e.visible && !excluded.has(e.id) && !roots.has(I.root(project, e)?.id));
+    const candidates = [], destinations = project.elements.filter((e) => e.visible && (!options.allowedElements || options.allowedElements.includes(e.id)) && !excluded.has(e.id) && !roots.has(I.root(project, e)?.id));
     const offer = (source, target, point, kind, distance, tier = 0) => {
       const at = { x: source.at.x + delta.x, y: source.at.y + delta.y };
       if (options.axis === 'x' && Math.abs(point.y - at.y) > .00001 || options.axis === 'y' && Math.abs(point.x - at.x) > .00001) return;
@@ -429,10 +439,17 @@
     const retained = options.previous && candidates.find((c) => sameTarget(c, options.previous) && c.distance <= releaseTolerance);
     const entering = candidates.filter((c) => c.distance <= enterTolerance);
     const stronger = retained && entering.filter((c) => c.tier < retained.tier || c.tier === retained.tier && priority[c.kind] < priority[retained.kind]);
-    if (retained && !stronger.length) return { ...retained, motion: result.motion };
-    if (stronger?.length) { stronger.sort((a, b) => a.tier - b.tier || priority[a.kind] - priority[b.kind] || a.distance - b.distance); return { ...stronger[0], motion: result.motion }; }
+    const choice = selected => {
+      if (!selected) return null;
+      const alternatives = [selected, ...entering.filter(c => c !== selected && c.source.elementId === selected.source.elementId && c.source.ref?.point === selected.source.ref?.point && ['endpoint','midpoint','guide','cam-contact'].includes(c.kind))];
+      const unique = alternatives.filter((c, i) => !alternatives.slice(0, i).some(other => sameTarget(c, other))).slice(0, 16);
+      return { ...selected, motion: result.motion, wholeBody: !!options.wholeBodies || !!options.inserting,
+        alternatives: unique.map(c => ({ ...c, motion: result.motion, wholeBody: !!options.wholeBodies || !!options.inserting })) };
+    };
+    if (retained && !stronger.length) return choice(retained);
+    if (stronger?.length) { stronger.sort((a, b) => a.tier - b.tier || priority[a.kind] - priority[b.kind] || a.distance - b.distance); return choice(stronger[0]); }
     entering.sort((a, b) => a.tier - b.tier || (Math.abs(a.distance - b.distance) > .00001 ? a.distance - b.distance : priority[a.kind] - priority[b.kind] || a.priority - b.priority));
-    return entering[0] ? { ...entering[0], motion: result.motion } : null;
+    return choice(entering[0]);
   }
   function findPlacementSnap(project, element, options = {}) {
     if (options.enabled !== true) return null;
@@ -524,6 +541,7 @@
       if (t?.type === 'joint') ids.push(t.joint.a.elementId, t.joint.b.elementId);
     }
     if (!ids.length) throw new Error('Najskôr vyberte členy, uzly alebo ich vnútorné väzby.');
+    for(const id of [...ids]){const e=original.elements.find(e=>e.id===id);if(e?.rigidAssemblyId)ids.push(I.root(original,e).id);}
     const included = descendants(original, ids), result = design(original), p = K.copy(original);
     for (const j of original.connections) for (const [r, other] of [[j.a, j.b], [j.b, j.a]]) if (included.has(r.elementId) && original.elements.find((e) => e.id === other.elementId)?.role === 'canvas-anchor') included.add(other.elementId);
     p.importReference = null; p.motionPlan = null;
@@ -560,6 +578,7 @@
     if (!at || ![at.x, at.y].every(Number.isFinite)) throw new Error('Zadajte platný bod vloženia X / Y.');
     const p = K.copy(K.validateProject(project)), source = K.copy(normalizeRecord(record, 'assembly').file.project);
     const elements = new Map(source.elements.map((e) => [e.id, K.uid()])), joints = new Map(source.connections.map((j) => [j.id, K.uid()]));
+    const rigidGroups=new Map([...new Set(source.elements.map(e=>e.rigidAssemblyId).filter(Boolean))].map(id=>[id,K.uid()]));
     const driver = source.elements.find((e) => e.drive), preserveDrive = !!driver && keepDrive && p.kind === 'custom' && !p.elements.some((e) => e.drive);
     const remap = (r) => {
       if (!r) return;
@@ -568,11 +587,12 @@
     };
     for (const e of source.elements) {
       e.id = elements.get(e.id);
+      if(e.rigidAssemblyId)e.rigidAssemblyId=rigidGroups.get(e.rigidAssemblyId);
       if (e.parentId) e.parentId = elements.get(e.parentId); else { e.x += at.x; e.y += at.y; }
       if (e.slotId) e.slotId = elements.get(e.slotId);
       remap(e.mountA); remap(e.mountB); e.drive = e.drive && preserveDrive;
     }
-    for (const j of source.connections) { j.id = joints.get(j.id); remap(j.a); remap(j.b); }
+    for (const j of source.connections) { if(j.rigidAssemblyId)j.rigidAssemblyId=rigidGroups.get(j.rigidAssemblyId);j.id = joints.get(j.id); remap(j.a); remap(j.b); }
     for (const d of source.dimensions) {
       d.id = K.uid(); remap(d.a); remap(d.b);
       if (d.control) d.control.elementId = elements.get(d.control.elementId);
