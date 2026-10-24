@@ -4,16 +4,19 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fusionArchive } from './archive.mjs';
+import { manifest, noCacheHeaders } from './manifest.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const destination = path.join(root, 'dist');
 // dist contains generated output only; remove retired assets from previous builds.
 await rm(destination, { recursive: true, force: true });
 await mkdir(destination, { recursive: true });
-for (const file of ['index.html', 'build-info.js', 'debug.js', 'contacts.js', 'i18n.js', 'help.js', 'app.js', 'advanced.js', 'usability.js', 'workflow.js', 'engine.js', 'double-drawer.js', 'editor.js', 'interaction.js', 'workbench.js', 'magic-import.js', 'magic-detection.js', 'context-menu.js', 'physics.js', 'slot-outline.js', 'scene-export.js', 'gif-export.js', 'exports.js', 'cad.js', 'styles.css', 'favicon.svg', '_headers', 'projects/dvojite-sklopeny-suflik-reference.png', ...['pdfmake.min.js', 'vfs_fonts.js', 'LICENSE', 'Roboto-LICENSE.txt', 'PROVENANCE.md'].map((file) => `vendor/pdfmake/${file}`)]) {
+const files = await manifest(root);
+for (const file of files.web) {
   await mkdir(path.dirname(path.join(destination, file)), { recursive: true });
   await copyFile(path.join(root, file), path.join(destination, file));
 }
+await writeFile(path.join(destination, '_headers'), `${(await readFile(path.join(root, '_headers'), 'utf8')).trimEnd()}\n\n${noCacheHeaders(files.web)}\n`);
 // One content version for scripts and CSS prevents mixing a cached UI with a newer skin.
 const packageInfo = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 let revision = process.env.KINMO_REVISION || process.env.WORKERS_CI_COMMIT_SHA || process.env.GITHUB_SHA;

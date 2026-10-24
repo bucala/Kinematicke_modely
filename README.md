@@ -149,7 +149,7 @@ Lokálny odkaz je dostupný až po spustení servera. Pre Fusion použite presne
 
 1. V hlavičkovej ponuke otvorte **Vlastný mechanizmus**.
 2. Pravým kliknutím na prázdne plátno pridajte samostatný voľný uzol.
-3. Na uzle otvorte **Zmeniť typ väzby → Posuvný kĺb (Prismatic)**.
+3. Na uzle otvorte **Posuvný kĺb po vedení…**.
 4. V dialógu kliknite na **Pridať nové lineárne vedenie**. Vznikne pevné priame vedenie od polohy uzla. Vyberte jeho dráhu a potvrďte **Použiť**.
 5. Na uzle otvorte **Priradiť / upraviť pohon…** a nastavte:
 
@@ -403,13 +403,17 @@ Všetky tri voľby si pamätajú nastavenia pracovného priestoru aj `.kinmo`. P
 
 Výber používa aj geometriu, takže nemusíte trafiť presný SVG element a prekrývajúca vrstva neodstráni dostupnosť člena. **Vybrať entitu pod kurzorom** rozlíši prekrývajúce sa uzly, kĺby a telesá. Podponuky sa otvoria kurzorom alebo pravou šípkou a neoreže ich posuvná hlavná ponuka. **Klik mimo číselného dialógu ho nezatvorí**, dialóg sa potvrdzuje alebo ruší výslovne.
 
+Každý typ entity má vlastnú krátku ponuku: najprv akcie typické pre daný typ, potom spoločné úpravy a odstránenie vždy na konci. Nedostupné akcie sa nezobrazujú. Každá akcia má jedno miesto: typ väzby mení väzba, pohon a vlastnosti patria telesu. Uzol väčšieho člena odkazuje na **Celý člen**. Chránená šablóna ponúka iba cestu k voľnej kópii.
+
 | Cieľ ponuky | Operácie |
 |---|---|
-| Bod / kĺb | Otočný alebo posuvný kĺb, odpojenie, fixácia, pohon, limity, absolútne XYZ, mriežka 5 mm, zarovnanie, trajektória a odstránenie |
-| Telo jednoduchého ramena | Zoznam väzieb, odpojenie všetkých väzieb, fixácia celého telesa, pohon vybraného konca, XYZ, rozdelenie v strede, pripojený POI, vlastnosti a odstránenie |
+| Uzol | Spojiť s iným bodom, posuvný kĺb po vedení, väzby uzla, ukotvenie, pohon a limity (ak sa dajú použiť), poloha a zarovnanie (absolútne XYZ, mriežka, osi), trajektória, celý člen, odpojenie |
+| Väzba | Typ (otočný / posuvný), pohybové limity, úprava typu, bodov a hodnoty, výber koncového bodu, odstránenie iba tejto väzby |
+| Teleso | Akcie typu (rameno: rozdelenie a POI; vačka: otáčanie, tvar, kontakt, sledovač; motor: zapnutie, overenie, parametre; vedenie: pohyblivá časť; kulisa: body dráhy a polkruh; pružina: pracovný rozsah), pohon na uzle, vlastnosti, hrúbka, ukotvenie, súradnice, väzby člena, odpojenie a odstránenie |
+| Výber dvoch a viac telies | Spojenie do pevnej zostavy, rozpojenie, izolovanie, uloženie do knižnice a odstránenie celého výberu |
 | Rozmerová kóta | Úprava a odstránenie iba tejto kóty a jej vlastnej riadiacej väzby, nie vybraných členov |
 | Riadiaci bod / vrchol obrysu | Lokálne súradnice, pridanie alebo odstránenie iba presnej časti; bod nie je montážny kĺb |
-| Dráha kulisy | Pridanie riadiaceho bodu a prevod na polkruh s R |
+| Dráha kulisy | Pridanie riadiaceho bodu, prevod na polkruh s R a úprava bodov dráhy |
 | Prázdne plátno | Samostatný bod, pevný Ground bod, priame vedenie, štvorkĺbová alebo kľuková podzostava a prispôsobenie pohľadu |
 
 <details>
@@ -881,6 +885,15 @@ python -B tests/test_fusion.py
 
 Python testy používajú izolovaný lokálny most a náhradné Fusion API. Neotvárajú CAD aplikáciu.
 
+Automaticky v headless Chromiu (spoločná sada, spustenie cez HTTP aj `file://`, mobilné rozloženie). Playwright nie je závislosťou projektu:
+
+```sh
+npm i --no-save playwright && npx playwright install chromium
+npm run test:browser
+```
+
+Súčasťou je kontrola prekladov: v EN a DE prejde šablóny a všetky akcie rozhrania a zlyhá pri každom texte, ktorý zostal po slovensky. Nový text doplňte ako riadok `[sk, en, de]` do `i18n.js`; čísla zapíšte ako `{n}`, prekladané vložky ako `{s}` a doslovné vložky (názvy súborov) ako `{x}`.
+
 Bez Node.js môžete otvoriť `tests/browser.html`. Spúšťa spoločné výpočtové testy; transportné, archivačné a VM UI testy bežia v Node.js. Pri vývojovom serveri otvorte [prehliadačové testy](http://localhost:5173/tests/browser.html).
 
 </details>
@@ -945,7 +958,17 @@ Stav vzdialeného CI overte v GitHub Actions; aktuálny Workers build a skutočn
 ```text
 index.html             Vstupný bod, funguje aj bez servera
 CHANGELOG.md           Novinky, opravy, hranice a publikovaná história
-app.js                 Editor, SVG plátno, pohon, grafy a ukladanie
+app.js                 Stav, konštanty, akcie a spustenie UI (načíta sa posledný)
+app/panels.js          Pracovný priestor, strom modelu a inšpektor
+app/scene.js           Kreslenie mechanizmu, grafy, analýza a prehrávanie
+app/selection.js       Výber, úchyty, diagnostika a prichytávanie
+app/canvas.js          Zásahy na plátne, kontextová ponuka, vkladanie a ťahanie
+app/tools.js           Väzby, motor, opravy, predloha a pracovné nástroje
+app/magic.js           Magic import z obrázka
+app/projects.js        Projekty, podzostavy a pomenované verzie
+app/output.js          Exporty, GIF, PDF, nastavenia a Fusion
+app/dialogs.js         Dialógy prvkov, väzieb, kót a trajektórií
+app/events.js          Udalosti, klávesnica a animácia
 engine.js              Geometria, kinematické solvery a validácia
 double-drawer.js       Samostatný odhadový dvojkulisový projekt
 editor.js              Návrhové polohy, voľné kópie, kóty a analýza voľnosti
@@ -968,6 +991,10 @@ docs/readme-overview.svg  Ilustračný prehľad pre GitHub README
 styles.css             Responzívne rozhranie
 scripts/server.mjs     Bez-závislostný lokálny HTTP server
 scripts/build.mjs      Zostavenie statického dist/
+scripts/manifest.mjs   Spoločný zoznam súborov pre check, test, build a server
+scripts/check.mjs      Kontrola syntaxe všetkých JavaScriptových zdrojov
+scripts/test.mjs       Spustenie všetkých tests/*.test.mjs
+project-files.json     Jediný zoznam súborov projektu; nový súbor pridajte sem
 scripts/archive.mjs    Deterministický ZIP doplnku
 tests/cases.js         Spoločná sada testov
 tests/interaction-cases.js  Modelové regresie výberu a kontextových operácií

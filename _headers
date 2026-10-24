@@ -4,47 +4,4 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:8765; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
 
-/
-  Cache-Control: no-cache
-
-/index.html
-  Cache-Control: no-cache
-
-/app.js
-  Cache-Control: no-cache
-
-/engine.js
-  Cache-Control: no-cache
-
-/styles.css
-  Cache-Control: no-cache
-
-/double-drawer.js
-  Cache-Control: no-cache
-
-/editor.js
-  Cache-Control: no-cache
-
-/magic-import.js
-  Cache-Control: no-cache
-
-/magic-detection.js
-  Cache-Control: no-cache
-
-/physics.js
-  Cache-Control: no-cache
-
-/exports.js
-  Cache-Control: no-cache
-
-/scene-export.js
-  Cache-Control: no-cache
-
-/gif-export.js
-  Cache-Control: no-cache
-
-/cad.js
-  Cache-Control: no-cache
-
-/cad/KinmoFusion.zip
-  Cache-Control: no-cache
+# Pravidla Cache-Control pre index.html a vsetky skripty doplni scripts/build.mjs podla project-files.json.

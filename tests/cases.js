@@ -436,5 +436,28 @@
     const base = K.camProfile(e), turned = K.camProfile({ ...e, angle: 35 });
     for (let i = 0; i < base.length; i++) near(K.distance(K.worldPoint({ a: { x: 10, y: 20 }, angle: 35 }, { x: base[i].x - 10, y: base[i].y - 20 }), turned[i]), 0);
   });
+  add('Dlhá otvorená reťaz na pohyblivom člene konverguje bez falošných chýb väzieb.', () => {
+    const project = K.preset('fourbar');
+    let previous = project.elements.find((e) => e.id === 'output-1');
+    for (let i = 0; i < 8; i++) {
+      const link = { ...K.makeElement('link', 100 + i * 30, 100), length: 30 };
+      project.elements.push(link);
+      project.connections.push(joint(previous, 'b', link, 'a'));
+      previous = link;
+    }
+    for (const result of K.sample(K.validateProject(project), 20)) {
+      assert(result.positionResidual < K.TOLERANCE, `Reziduum ${result.positionResidual} mm prekračuje toleranciu.`);
+      assert(!result.issues.some((issue) => issue.startsWith('Väzba')), result.issues.join(' '));
+    }
+  });
+  add('Snímka histórie zodpovedá JSON kópii a zdieľa dlhé reťazce.', () => {
+    const image = `data:image/png;base64,${'A'.repeat(200000)}`;
+    const project = { ...K.preset('fourbar'), importReference: { frames: [{ name: 'Predloha', dataURL: image, rect: { x: 0, y: 0, width: 10, height: 10 } }] }, extra: { missing: undefined, bad: NaN, list: [undefined, Infinity, 1] } };
+    const copied = K.snapshot(project);
+    assert(JSON.stringify(copied) === JSON.stringify(K.copy(project)), 'Snímka sa líši od JSON kópie.');
+    assert(copied !== project && copied.elements !== project.elements && copied.elements[0] !== project.elements[0], 'Snímka zdieľa meniteľné objekty.');
+    assert(!('missing' in copied.extra) && copied.extra.bad === null && copied.extra.list[0] === null && copied.extra.list[1] === null);
+    assert(copied.importReference.frames[0].dataURL === image);
+  });
   global.KinematicsTestCases = Object.freeze(cases);
 })(globalThis);

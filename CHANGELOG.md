@@ -1,5 +1,13 @@
 # História zmien
 
+## Nevydané: kontextové ponuky podľa typu entity
+
+- Každý typ entity má vlastnú krátku ponuku (uzol, väzba, teleso podľa typu, výber viacerých telies, dráha, riadiaci bod, kóta, plocha). Telesá predtým zdieľali 13 – 15 rovnakých položiek a ponúkali neaktívne akcie, ktoré sa na daný typ nehodili.
+- Každá akcia má jedno miesto. Typ väzby mení väzba (predtým uzol, aj bez väzby), pohon a vlastnosti patria telesu, uzol väčšieho člena odkazuje na **Celý člen**. Odstránené duplicity: dvojité odpojenie, tri cesty k vlastnostiam a dve cesty k pohonu.
+- Motor a vačka majú na telese zapnutie, overenie a parametre. Výber dvoch a viac telies ponúka spojenie do pevnej zostavy, izolovanie a uloženie do knižnice. Chránená šablóna ponúka iba cestu k voľnej kópii.
+- Z ponúk zmizol pomocník ku klikaniu (je v návode) a zápis do knižnice pri jednotlivých telesách. Kontextové ponuky sú preložené do EN a DE.
+- `npm run test:browser` kontroluje ponuky 12 typov entít: žiadne duplicity a neaktívne položky, najviac 10 položiek na hornej úrovni, každá položka sa vykoná a je preložená.
+
 ## 2.5.0 · 2026-10-23: pevné zostavy, montáž a kontrola motora
 
 - Viacnásobný výber funguje cez Shift/Ctrl v strome, Shift na plátne a prepínač pre postupné kliknutia alebo dotyky. Dve a viac samostatných telies možno spojiť do pomenovanej pevnej zostavy, ktorá zachová aktuálnu polohu a prenáša pohyb. Rozpojenie obnoví telesá aj pozastavené vnútorné väzby; obe operácie sú atómové a vratné. Uloženie, knižnica, samostatné kópie a mazanie zachovávajú identitu zostáv.

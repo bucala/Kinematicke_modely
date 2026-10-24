@@ -40,3 +40,23 @@ jobs:
 
       - name: Build static application
         run: npm run build
+
+  browser:
+    name: Browser suite and application boot
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+
+      # Playwright stays out of package.json; the application itself needs no packages.
+      - name: Install Playwright Chromium
+        run: npm i --no-save playwright@1.49.1 && npx playwright install --with-deps chromium
+
+      - name: Run browser suite, HTTP and file:// boot, mobile layout
+        run: npm run test:browser

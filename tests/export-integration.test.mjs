@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fusionArchive } from '../scripts/archive.mjs';
+import { manifest, noCacheHeaders } from '../scripts/manifest.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pdfDistributions = [
@@ -144,10 +145,8 @@ test('Git preserves pinned PDF bytes when staging and checking out on any newlin
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 test('Publisher includes the PDF newline policy and changelog in its explicit file allowlist', async () => {
-  const publisher = await readFile(path.join(root, 'push-github.ps1'), 'utf8');
-  const files = publisher.match(/\$ProjectFiles = @\(([\s\S]*?)\n\)/)?.[1];
-  assert(files); assert.match(files, /^\s*'\.gitattributes'\s*$/m);
-  assert.match(files, /^\s*'CHANGELOG\.md'\s*$/m);
+  const { source } = await manifest(root);
+  assert(source.includes('.gitattributes')); assert(source.includes('CHANGELOG.md'));
   const readme = await readFile(path.join(root, 'README.md'), 'utf8'), changelog = await readFile(path.join(root, 'CHANGELOG.md'), 'utf8');
   assert(readme.includes('(CHANGELOG.md)')); assert(changelog.includes('Magic import') && changelog.includes('5e985fd'));
   assert((await readFile(path.join(root, 'cad/KinmoFusion/README.md'), 'utf8')).includes('## História zmien'));
@@ -162,24 +161,31 @@ test('Manifest requires a manual add-in start', async () => {
   assert.equal(value.type, 'addin'); assert.equal(value.runOnStartup, false);
 });
 test('Canvas modules and regression cases are in the public build and explicit publisher', async () => {
-  const html = await readFile(path.join(root, 'index.html'), 'utf8'), build = await readFile(path.join(root, 'scripts/build.mjs'), 'utf8');
-  const server = await readFile(path.join(root, 'scripts/server.mjs'), 'utf8'), publisher = await readFile(path.join(root, 'push-github.ps1'), 'utf8');
-  for (const file of ['interaction.js', 'workbench.js', 'magic-import.js', 'magic-detection.js', 'context-menu.js', 'slot-outline.js', 'scene-export.js', 'gif-export.js']) {
-    assert(html.includes(`src="./${file}"`)); assert(build.includes(`'${file}'`)); assert(server.includes(`'${file}'`)); assert(publisher.includes(`'${file}'`));
+  const html = await readFile(path.join(root, 'index.html'), 'utf8'), files = await manifest(root);
+  const publisher = await readFile(path.join(root, 'push-github.ps1'), 'utf8'), source = new Set(files.source);
+  assert(publisher.includes("Join-Path $SourceDirectory 'project-files.json'") && publisher.includes('.source)'));
+  for (const file of ['interaction.js', 'workbench.js', 'magic-import.js', 'magic-detection.js', 'context-menu.js', 'slot-outline.js', 'scene-export.js', 'gif-export.js', 'i18n.js', 'help.js', 'workflow.js']) {
+    assert(html.includes(`src="./${file}"`)); assert(files.web.includes(file)); assert(source.has(file), file);
   }
+  for (const file of [...files.web, ...files.serverOnly, ...files.browserTests, ...files.nodeTests]) assert(source.has(file), `${file} chýba v project-files.json`);
   assert(html.indexOf('src="./editor.js"') < html.indexOf('src="./interaction.js"') && html.indexOf('src="./context-menu.js"') < html.indexOf('src="./app.js"'));
   assert(html.indexOf('src="./slot-outline.js"') < html.indexOf('src="./exports.js"'));
   assert(html.indexOf('src="./magic-import.js"') > html.indexOf('src="./engine.js"') && html.indexOf('src="./magic-import.js"') < html.indexOf('src="./app.js"'));
   assert(html.indexOf('src="./magic-detection.js"') > html.indexOf('src="./magic-import.js"') && html.indexOf('src="./magic-detection.js"') < html.indexOf('src="./app.js"'));
-  assert.match(await readFile(path.join(root, '_headers'), 'utf8'), /\/magic-detection\.js\r?\n\s+Cache-Control: no-cache/);
+  assert.match(noCacheHeaders(files.web), /\/magic-detection\.js\n\s+Cache-Control: no-cache/);
   const accept = html.match(/id="magic-image-file"[^>]*accept="([^"]+)"/)?.[1];
   assert.deepEqual(accept?.split(','), ['image/png', 'image/jpeg', 'image/webp', '.png', '.jpg', '.jpeg', '.webp']);
-  for (const file of ['tests/interaction-cases.js', 'tests/workbench-cases.js', 'tests/magic-import-cases.js', 'tests/gif-decoder.js', 'tests/gif-cases.js']) {
-    assert(server.includes(`'${file}'`)); assert(publisher.includes(`'${file}'`));
-  }
-  for (const file of ['tests/magic-detection.test.mjs', 'tests/context-menu.test.mjs']) {
-    assert(publisher.includes(`'${file}'`)); assert(!build.includes(`'${file}'`));
-  }
+  for (const file of ['tests/interaction-cases.js', 'tests/workbench-cases.js', 'tests/magic-import-cases.js', 'tests/gif-decoder.js', 'tests/gif-cases.js']) assert(files.browserTests.includes(file));
+  for (const file of ['tests/magic-detection.test.mjs', 'tests/context-menu.test.mjs']) { assert(files.nodeTests.includes(file)); assert(!files.web.includes(file)); }
+});
+test('Every tracked file is listed once in project-files.json', async (context) => {
+  let tracked;
+  try { tracked = execFileSync('git', ['ls-files'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim().split('\n'); }
+  catch { context.skip('Git nie je k dispozícii (napríklad rozbalený ZIP).'); return; }
+  const { source } = await manifest(root);
+  assert.equal(new Set(source).size, source.length, 'project-files.json obsahuje duplicitu.');
+  const listed = new Set(source), missing = tracked.filter((file) => file !== 'LICENSE' && !listed.has(file));
+  assert.deepEqual(missing, [], `Doplňte do project-files.json: ${missing.join(', ')}`);
 });
 
 
