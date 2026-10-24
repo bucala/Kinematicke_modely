@@ -99,6 +99,16 @@
     for (let y = 0; y < height; y += Math.max(1, Math.floor(height / 100))) for (const x of [0, width - 1]) for (let k = 0; k < 3; k++) border[k].push(rgb[(y * width + x) * 3 + k]);
     for (let x = 0; x < width; x += Math.max(1, Math.floor(width / 100))) for (const y of [0, height - 1]) for (let k = 0; k < 3; k++) border[k].push(rgb[(y * width + x) * 3 + k]);
     const background = border.map((values) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)]), contrast = 10 + (90 - sensitivity) * .4, barrier = 12 + (90 - sensitivity) * .35;
+    // Only replace small deviations from a 3x3 median. Unconditional median
+    // filtering would erase genuine one-pixel lines and small mounting holes.
+    const sourceRGB = rgb.slice(), samples = new Array(9);
+    for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) for (let k = 0; k < 3; k++) {
+      let n = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) samples[n++] = sourceRGB[((y + dy) * width + x + dx) * 3 + k];
+      samples.sort((a, b) => a - b);
+      const at = (y * width + x) * 3 + k;
+      if (Math.abs(samples[4] - sourceRGB[at]) <= 32) rgb[at] = samples[4];
+    }
     const difference = (a, b) => Math.max(Math.abs(rgb[a * 3] - rgb[b * 3]), Math.abs(rgb[a * 3 + 1] - rgb[b * 3 + 1]), Math.abs(rgb[a * 3 + 2] - rgb[b * 3 + 2]));
     for (let i = 0; i < count; i++) {
       if (Math.hypot(rgb[i * 3] - background[0], rgb[i * 3 + 1] - background[1], rgb[i * 3 + 2] - background[2]) >= contrast && data[i * 4 + 3] >= 32) mask[i] = 1;
@@ -110,8 +120,8 @@
     const add = (type, points, stroke, confidence, color, outline = [], evidence = {}) => {
       if (points.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return;
       if (points.length > 64) { limited = true; return; }
-      // Secondary partitions often isolate one-pixel JPEG/antialias edges, not additional members.
-      if (pass && points.length === 2 && !outline.length && stroke <= 1.5) return;
+      // Secondary edge strips and unclosed contours are not reliable extra bodies.
+      if (pass && points.length === 2 && (stroke <= 2.5 || !outline.length)) return;
       points = points.map((p) => ({ x: Math.max(0, Math.min(width - 1, p.x)), y: Math.max(0, Math.min(height - 1, p.y)) }));
       if (points.length > 1 && distance(points[0], points.at(-1)) < 8) return;
       if (proposals.length >= limits.proposals) { limited = true; return; }
@@ -166,7 +176,9 @@
       const roundness = meanRadius ? Math.sqrt(radii.reduce((sum, v) => sum + (v - meanRadius) ** 2, 0) / (radii.length || 1)) / meanRadius : 1;
       const orthogonal = outline.reduce((sum, a, i) => { const b = outline[(i + 1) % outline.length], l = distance(a, b); return sum + (Math.min(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= 1 ? l : 0); }, 0) / (outline.reduce((sum, a, i) => sum + distance(a, outline[(i + 1) % outline.length]), 0) || 1);
       const smallHole = pass === 2 && Math.max(bw, bh) <= 10 && foreground / tail < .25;
-      const circular = Math.max(bw, bh) <= 64 && Math.min(bw, bh) >= (pass === 2 ? 5 : 8) && Math.max(bw, bh) / Math.min(bw, bh) < (smallHole ? 1.5 : 1.3) && roundness < (smallHole ? .25 : .16);
+      // Nearly square bounds alone also fit blocks and tiny triangular windows.
+      // Require radial consistency and a sufficiently detailed, disk-like contour.
+      const circular = Math.max(bw, bh) <= 64 && Math.min(bw, bh) >= (pass === 2 ? 5 : 8) && Math.max(bw, bh) / Math.min(bw, bh) < (smallHole ? 1.5 : 1.3) && roundness < (Math.max(bw, bh) > 16 ? .1 : .16) && outline.length >= 6 && area(outline) / (bw * bh) >= .55 && area(outline) / (bw * bh) <= .86;
       // Thin white interiors are useful in outline-only diagrams. Large white windows are background.
       if (pass === 2 && !circular) {
         if (foreground / tail >= .75 && uncertain / tail < .5) continue;
@@ -194,25 +206,76 @@
           const u = low + (index + .5) * length / bins.length, v = (min + max) / 2;
           return [{ x: cx + u * ux - v * uy, y: cy + u * uy + v * ux }];
         });
+        const interiorWidths = widths.slice(Math.floor(widths.length * .15), Math.ceil(widths.length * .85));
         const stroke = widths.sort((a, b) => a - b)[Math.floor(widths.length / 2)] || 2, continuity = centreline.length / bins.length;
         const meanWidth = widths.reduce((sum, v) => sum + v, 0) / widths.length, variation = Math.sqrt(widths.reduce((sum, v) => sum + (v - meanWidth) ** 2, 0) / widths.length) / meanWidth;
         const branched = separated / bins.length > .2 && variation > .45 || widths.some((v) => v > stroke * 3.5) || centreline.some((p, i) => i && distance(p, centreline[i - 1]) > Math.max(20, stroke * 3));
         const deviation = Math.max(...centreline.map((p) => segmentDistance(p, centreline[0], centreline.at(-1)))), path = simplify(centreline, .65);
         const curved = deviation > Math.max(2, stroke * .55) && path.length >= 4;
-        const evidence = { edgeSupport: support, continuity, branched, widthRatio: stroke / Math.max(1, length) };
+        const evidence = { edgeSupport: support, continuity, branched, widthRatio: stroke / Math.max(1, length), widthVariation: variation };
         // A bent silhouette is not necessarily a guide: broad plates keep their editable outline.
-        if (curved && !branched && continuity >= .85 && stroke / Math.max(1, length) <= .1) add('slot', resample(path), stroke, .76 + support * .08, color, [], evidence);
+        // Ignore the end caps: a real semicircle widens there in PCA coordinates.
+        // A local upright in the middle of a base is not a curved guide, however.
+        const uniformInterior = interiorWidths.every((v) => v <= stroke * 1.5);
+        const cavity = pass === 2 && foreground / tail < .25 && aspect >= 3 && !branched && uniformInterior;
+        if (cavity || curved && !branched && continuity >= .85 && uniformInterior && stroke / Math.max(1, length) <= .1) add('slot', resample(path), stroke, .76 + support * .08, color, [], { ...evidence, ...(cavity ? { cavity: true } : {}) });
         else {
-          const type = pass === 2 && branched ? 'panel' : tail / (Math.max(1, length) * breadth) < .35 ? 'rail' : aspect < 6 ? 'panel' : 'link';
-          add(type, points, stroke, branched || continuity < .85 ? .58 : .78 + support * .08, color, outline, evidence);
+          // Empty corners of a bent plate's PCA box do not establish a hollow
+          // guide. Compare raster occupancy with its actual silhouette instead.
+          const type = curved && !uniformInterior || pass === 2 && branched ? 'panel' : outline.length && tail / Math.max(1, area(outline)) < .5 ? 'rail' : aspect < 6 ? 'panel' : 'link';
+          add(type, points, stroke, branched || continuity < .85 || curved && !uniformInterior ? .58 : .78 + support * .08, color, outline, evidence);
         }
       } else if (outline.length && Math.max(bw, bh) >= 24) add('panel', points, Math.max(2, breadth), .6, color, outline, { edgeSupport: support, continuity: 1, branched: true });
       if (!pass && proposals.slice(firstProposal).some((c) => !c.selected)) {
         ambiguous = true;
+        proposals.slice(firstProposal).forEach((c) => { c.evidence.foregroundComposite = true; });
         for (let n = 0; n < tail; n++) mask[queue[n]] = 2;
       }
     }
     }
+    // Prefer the outer silhouette to JPEG edge bands and enclosed fill fragments.
+    // Require geometric containment AND compatible appearance; overlapping parts
+    // of different appearance must remain separate, reviewable hypotheses.
+    const bounds = (c) => ({ x: Math.min(...c.outline.map((p) => p.x)), y: Math.min(...c.outline.map((p) => p.y)), r: Math.max(...c.outline.map((p) => p.x)), b: Math.max(...c.outline.map((p) => p.y)) });
+    const shapes = proposals.filter((c) => c.outline.length).map((c) => ({ c, bounds: bounds(c), area: area(c.outline) }));
+    const nearShape = (p, polygon, tolerance = 2) => inside(p, polygon) || polygon.some((a, i) => segmentDistance(p, a, polygon[(i + 1) % polygon.length]) <= tolerance);
+    const contained = (points, polygon) => points.every((p, i) => {
+      const q = points[(i + 1) % points.length];
+      return [0, .25, .5, .75].every((t) => nearShape({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t }, polygon));
+    });
+    const compatible = (a, b) => {
+      const rgbOf = (c) => [1, 3, 5].map((at) => parseInt(c.color.slice(at, at + 2), 16)), x = rgbOf(a), y = rgbOf(b);
+      if (Math.max(...x.map((v, i) => Math.abs(v - y[i]))) < 70) return true;
+      const chroma = (values) => { const lo = Math.min(...values), delta = Math.max(...values) - lo; return delta < 25 ? null : values.map((v) => (v - lo) / delta); };
+      const cx = chroma(x), cy = chroma(y);
+      return cx && cy && Math.max(...cx.map((v, i) => Math.abs(v - cy[i]))) < .4;
+    };
+    const redundant = new Set();
+    for (const shape of shapes) {
+      const c = shape.c;
+      if (c.evidence.foregroundComposite) {
+        const children = shapes.filter((other) => other !== shape && !other.c.evidence.foregroundComposite && other.area < shape.area * .85 && contained(other.c.outline, c.outline));
+        if (children.length >= 3 && (shape.bounds.r - shape.bounds.x) * (shape.bounds.b - shape.bounds.y) > count * .55) { redundant.add(c); continue; }
+      }
+      if (!c.evidence.closedRegion && !c.evidence.edgePartition) continue;
+      for (const outer of shapes) {
+        if (outer === shape || outer.c.evidence.foregroundComposite || outer.area <= shape.area * 1.05) continue;
+        const hollowFrame = outer.c.type === 'ground' && c.evidence.closedRegion && distance(c.points[0], c.points.at(-1)) / c.width > 15 && /^#(?:f[0-9a-f]){3}$/i.test(c.color);
+        if (!hollowFrame && !compatible(c, outer.c)) continue;
+        const a = shape.bounds, b = outer.bounds;
+        if (a.x < b.x - 2 || a.y < b.y - 2 || a.r > b.r + 2 || a.b > b.b + 2) continue;
+        if (contained(c.outline, outer.c.outline)) {
+          outer.c.evidence = { ...c.evidence, ...outer.c.evidence, branched: !!(c.evidence.branched || outer.c.evidence.branched) };
+          redundant.add(c); break;
+        }
+      }
+    }
+    // White interiors of long hollow frame sections are not extra guide paths.
+    for (const c of proposals) {
+      if (c.type !== 'slot' || !c.evidence.cavity || distance(c.points[0], c.points.at(-1)) / c.width <= 15) continue;
+      if (shapes.some((outer) => !redundant.has(outer.c) && outer.c.type === 'ground' && c.points.every((p) => nearShape(p, outer.c.outline)))) redundant.add(c);
+    }
+    for (let i = proposals.length - 1; i >= 0; i--) if (redundant.has(proposals[i])) proposals.splice(i, 1);
     proposals.sort((a, b) => b.confidence - a.confidence);
     const unique = [];
     for (const candidate of proposals) {
@@ -229,7 +292,7 @@
       });
       if (!duplicate) unique.push(candidate);
       else {
-        duplicate.evidence = { ...duplicate.evidence, ...candidate.evidence };
+        duplicate.evidence = { ...duplicate.evidence, ...candidate.evidence, branched: !!(duplicate.evidence.branched || candidate.evidence.branched) };
         if (candidate.outline.length && area(candidate.outline) > area(duplicate.outline)) { duplicate.outline = candidate.outline; duplicate.geometry = 'contour'; }
       }
       if (unique.length > limits.candidates) { limited = true; break; }
