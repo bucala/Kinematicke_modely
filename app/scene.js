@@ -2,6 +2,80 @@
    Klasický skript bez IIFE: zdieľa najvyššiu úroveň s ostatnými app/*.js a app.js, ktorý sa načíta posledný
    a definuje stav a konštanty. Súbor obsahuje iba deklarácie funkcií, pri načítaní nič nespúšťa. */
 'use strict';
+  // Screen pixels per model millimetre, from the canvas size and the view box (preserveAspectRatio "meet").
+  // Reading getScreenCTM right after a new viewBox would force the browser to lay the page out mid-frame.
+  function canvasScale(view = state.view) {
+    const size = state.canvasSize || $('#mechanism-canvas')?.getBoundingClientRect?.();
+    if (!size?.width || !size?.height || !view?.width || !view?.height) return 1;
+    return Math.min(size.width / view.width, size.height / view.height) || 1;
+  }
+
+  // Client coordinates to model coordinates for a view that may not be drawn yet (coalesced wheel events).
+  function viewPoint(event, view = state.view) {
+    const rect = $('#mechanism-canvas').getBoundingClientRect(), scale = Math.min(rect.width / view.width, rect.height / view.height) || 1;
+    return { x: view.x + (event.clientX - (rect.left || 0) - (rect.width - view.width * scale) / 2) / scale, y: view.y + (event.clientY - (rect.top || 0) - (rect.height - view.height * scale) / 2) / scale };
+  }
+
+  // Panels redrawn with every scene frame touch the DOM only when their markup changes.
+  function setMarkup(el, html) {
+    if (el._markup === html) return false;
+    el.innerHTML = html; el._markup = html;
+    return true;
+  }
+
+  // Each scene part lives in its own group; unchanged parts keep their DOM, so the browser re-lays out and repaints
+  // only what moved. Nodes added to the canvas by other code are dropped, as a full innerHTML replacement did.
+  function patchScene(svg, chunks) {
+    if (!svg.children || typeof document.createElementNS !== 'function') { svg.innerHTML = chunks.join(''); return; }
+    let layers = svg._sceneLayers;
+    if (!layers?.every((layer) => layer.node.parentNode === svg)) { svg.innerHTML = ''; layers = []; }
+    const own = new Set(layers.map((layer) => layer.node));
+    for (const child of [...svg.children]) if (!own.has(child)) child.remove();
+    chunks.forEach((html, i) => {
+      let layer = layers[i];
+      if (!layer) { const node = document.createElementNS(svgNS, 'g'); node.setAttribute('class', 'scene-part'); svg.append(node); layer = layers[i] = { node, html: null }; }
+      if (layer.html !== html) { layer.node.innerHTML = html; layer.html = html; }
+    });
+    for (const layer of layers.splice(chunks.length)) layer.node.remove();
+    svg._sceneLayers = layers;
+  }
+
+  // In debug mode a small meter shows the frame rate, the worst frame and the scene render time, so a report can be measured.
+  function updateFpsMeter() {
+    const area = $('#canvas-area'); if (!area || typeof requestAnimationFrame !== 'function') return;
+    let meter = $('#fps-meter');
+    if (!globalThis.KinmoDebug?.status().enabled) { meter?.remove(); state.fpsMeter = null; return; }
+    if (!meter) { meter = document.createElement('div'); meter.id = 'fps-meter'; meter.className = 'fps-meter'; meter.setAttribute('aria-hidden', 'true'); area.append(meter); }
+    if (state.fpsMeter) return;
+    const meterState = state.fpsMeter = { frames: [], last: performance.now() };
+    const tick = (time) => {
+      if (state.fpsMeter !== meterState) return;
+      meterState.frames.push(time - meterState.last); meterState.last = time;
+      const total = meterState.frames.reduce((sum, value) => sum + value, 0);
+      if (total >= 500) {
+        meter.textContent = `${fmt(meterState.frames.length * 1000 / total, 0)} snímok/s · najhorší ${fmt(Math.max(...meterState.frames), 0)} ms · scéna ${fmt(state.renderTime ?? 0, 1)} ms`;
+        meterState.frames = [];
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // At most one scene render per display frame for high-rate input (wheel, trackpad, simulation).
+  function scheduleScene() {
+    if (typeof requestAnimationFrame !== 'function') { renderScene(); return; }
+    state.sceneFrame ||= requestAnimationFrame(() => { state.sceneFrame = 0; renderScene(); });
+  }
+
+  // Extreme positions only change with the model, not with zoom, selection or the drive position.
+  function ghostSamples() {
+    const cache = state.ghostCache;
+    if (cache?.project === state.project && cache.profile === state.profile && cache.epoch === state.ghostEpoch) return cache.samples;
+    const samples = K.projectPhases(state.project).map((phase) => K.solve(state.project, phase.motion, { profile: state.profile, collisions: false }));
+    state.ghostCache = { project: state.project, profile: state.profile, epoch: state.ghostEpoch, samples };
+    return samples;
+  }
+
   function line(a, b, attrs = '') { return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" ${attrs}/>`; }
   function panelPoints(pose, width) {
     const dx = pose.b.x - pose.a.x, dy = pose.b.y - pose.a.y, l = Math.hypot(dx, dy) || 1;
@@ -14,7 +88,7 @@
   function node(id, key, point, label = '', active = false, scale = null) {
     const identity = I.nodeKey({ elementId: id, point: key }), kind = I.status(state.project, { elementId: id, point: key }, state.samples);
     active = state.selectedElementIds.includes(identity);
-    scale ||= Math.hypot(...['a', 'b'].map((v) => $('#mechanism-canvas').getScreenCTM()?.[v] || 0)) || 1;
+    scale ||= canvasScale();
     const r = 5 / scale;
     return `<g data-element="${escape(id)}" data-point="${key}" data-selection-key="${escape(identity)}" class="joint-node node-${kind}${active ? ' active' : ''}${state.hoveredTargetId === identity ? ' hovered' : ''}" role="button" tabindex="0" aria-pressed="${active}" aria-label="Uzol ${escape(label || `${state.project.elements.find((e) => e.id === id)?.name} · ${K.pointName(key, state.project.elements.find(e => e.id === id))}`)}, ${({ fixed: 'pevný', driven: 'poháňaný', free: 'voľný' })[kind]}">
       <circle cx="${point.x}" cy="${point.y}" r="${(window.innerWidth<=640 ? 22 : 11) / scale}" fill="transparent" stroke="none"/>
@@ -141,17 +215,21 @@
   function sceneMarkup(result = state.result, options = {}) {
     const svg = options.source || $('#mechanism-canvas'), p = state.project.parameters, elements = state.project.elements.filter(e=>options.exporting||viewElementVisible(e.id)), view = options.view || state.view;
     const diagnostics = options.diagnostics || W.constraints(state.project, result);
-    const scale = options.scale || Math.hypot(svg.getScreenCTM()?.a ?? 1, svg.getScreenCTM()?.b ?? 0) || 1;
+    const scale = options.scale || (options.source ? Math.hypot(svg.getScreenCTM()?.a ?? 1, svg.getScreenCTM()?.b ?? 0) || 1 : canvasScale(view));
+    // Parts are separated so the canvas can replace only the parts that changed (see patchScene).
+    const cut = '<!--§-->';
     let content = `<defs>
       <pattern id="small-grid" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="var(--canvas)"/><path d="M20 0H0V20" fill="none" stroke="var(--grid-small)" stroke-width="0.7"/></pattern>
       <pattern id="large-grid" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#small-grid)"/><path d="M100 0H0V100" fill="none" stroke="var(--grid-large)" stroke-width="0.9"/></pattern>
       <pattern id="frame-hatch" width="7" height="7" patternUnits="userSpaceOnUse"><rect width="7" height="7" fill="#e4e9ed"/><path d="m-1 1 8 8m-1-9 8 8" stroke="#cbd4db" stroke-width="0.8"/></pattern>
       <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e3bc77" stop-opacity=".25"/><stop offset="1" stop-color="#e3bc77" stop-opacity="0"/></linearGradient>
-    </defs><rect x="${view.x}" y="${view.y}" width="${view.width}" height="${view.height}" fill="${state.grid ? 'url(#large-grid)' : 'var(--canvas)'}"/>`;
-    if (!options.exporting) content += magicImageSVG() + referenceSVG();
+    </defs>${cut}<rect x="${view.x}" y="${view.y}" width="${view.width}" height="${view.height}" fill="${state.grid ? 'url(#large-grid)' : 'var(--canvas)'}"/>`;
+    content += cut;
+    if (!options.exporting) content += magicImageSVG() + referenceSVG() + cut;
     if (!elements.length && !state.magic?.image) content += `<g class="empty-canvas"><circle cx="${view.x + view.width / 2}" cy="${view.y + view.height / 2 - 28}" r="24" fill="#eef1f4"/><path d="M${view.x + view.width / 2 - 8} ${view.y + view.height / 2 - 28}h16m-8-8v16" stroke="#9ca9b3" stroke-width="1.8"/><text x="${view.x + view.width / 2}" y="${view.y + view.height / 2 + 20}" text-anchor="middle" class="empty-canvas-title">Vytvorte svoj prvý mechanizmus</text><text x="${view.x + view.width / 2}" y="${view.y + view.height / 2 + 41}" text-anchor="middle" class="empty-canvas-text">Pretiahnite prvky z knižnice alebo vyberte šablónu</text></g>`;
+    content += cut;
     if (state.ghosts && elements.length) {
-      const samples = options.ghostSamples || K.projectPhases(state.project).map((phase) => K.solve(state.project, phase.motion, { profile: state.profile, collisions: false }));
+      const samples = options.ghostSamples || ghostSamples();
       for (const sample of samples) {
         for (const e of elements.filter((e) => ['panel', 'link'].includes(e.type))) {
           const pose = sample.poses[e.id];
@@ -161,7 +239,8 @@
       }
     }
     const order = { ground: 0, slot: 1, cam: 2, rail: 2, link: 3, panel: 4, bearing: 5, node: 6, 'spring-compression': 4, 'spring-extension': 4, 'piston-push': 4, 'piston-pull': 4 };
-    for (const e of [...elements].sort((a, b) => order[a.type] - order[b.type])) content += drawElement(e, result.poses[e.id], result);
+    content += cut;
+    for (const e of [...elements].sort((a, b) => order[a.type] - order[b.type])) content += drawElement(e, result.poses[e.id], result) + cut;
     for (const joint of state.project.connections.filter(j=>!j.rigidAssemblyId)) {
       const { a, b } = jointPoints(joint, result);
       if (!a || !b || [joint.a, joint.b].some((r) => !elements.find((e) => e.id === r.elementId)?.visible)) continue;
@@ -171,8 +250,10 @@
         <title>${escape(joint.name)}</title>${line(a, b, 'class="joint-line" stroke="var(--green)" stroke-width="1.2" vector-effect="non-scaling-stroke" stroke-dasharray="4 3"')}
         <circle cx="${cx}" cy="${cy}" r="${radius}" class="joint-marker" fill="transparent" stroke="var(--secondary)" stroke-width="1" vector-effect="non-scaling-stroke"/>
         ${joint.type === 'prismatic' ? `<path d="M${cx - radius / 2} ${cy}h${radius}m-${radius * .8}-${radius * .2}-${radius * .2} ${radius * .2} ${radius * .2} ${radius * .2}m${radius * .6}-${radius * .4} ${radius * .2} ${radius * .2}-${radius * .2} ${radius * .2}" fill="none" stroke="var(--secondary)" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>` : ''}</g>`;
+      content += cut;
       if (!options.exporting && failed && (state.diagnosticsOpen || active)) content += `<text data-editor-overlay="diagnostic" x="${cx + 19 / scale}" y="${cy - 19 / scale}" class="diagnostic-label" font-size="${11 / scale}" pointer-events="none">${fmt(diagnostic.mm, 2)} mm · ${fmt(diagnostic.degrees, 2)}°</text>`;
     }
+    content += cut;
     if (state.trace && !state.isolatedIds) {
       for (const reference of traceReferences()) {
         const space = reference.space || state.traceSpace;
@@ -191,6 +272,7 @@
         if (point) content += `<g pointer-events="none"><circle cx="${point.x}" cy="${point.y}" r="9" fill="${reference.color}" fill-opacity=".1" stroke="${reference.color}" stroke-width="1"/><circle cx="${point.x}" cy="${point.y}" r="2.8" fill="${reference.color}"/><text x="${point.x + 13}" y="${point.y + 16}" class="trace-label" style="fill:${reference.color}">${isDoubleDrawer() ? escape(reference.label) : `Trajektória ${escape(reference.label)}`}</text></g>`;
       }
     }
+    content += cut;
     if (state.dimensions && isDoubleDrawer()) {
       content += dimHorizontal(0, p.frameLength, p.tableY + 58, p.tableY + p.tableThickness, `≈ ${fmt(p.frameLength)} mm · korpus`);
       content += dimHorizontal(p.frameLength, p.frameLength + p.travelMax - p.travelMin, p.tableY + 95, p.tableY + p.tableThickness, `≈ ${fmt(p.travelMax - p.travelMin)} mm · zdvih`, '#b49768');
@@ -210,15 +292,18 @@
       if (dimension.type === 'vertical') { p1 = { x: Math.max(a.x, b.x) + offset, y: a.y }; p2 = { x: p1.x, y: b.y }; }
       content += `<g data-dimension="${escape(dimension.id)}" class="editable-dimension" stroke="#7288a4" stroke-width=".8" fill="#7288a4">${line(a, p1, 'stroke-dasharray="2 3"')}${line(b, p2, 'stroke-dasharray="2 3"')}${line(p1, p2)}<circle cx="${p1.x}" cy="${p1.y}" r="2"/><circle cx="${p2.x}" cy="${p2.y}" r="2"/><text x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 5}" text-anchor="middle" stroke="none" class="dimension-label">${escape(dimension.name ? `${dimension.name}: ` : '')}${fmt(E.dimensionValue(result, dimension), 2)} ${dimension.type === 'angle' ? '°' : 'mm'}${dimension.constraintId || dimension.control ? ' · riadiaca' : ''}</text></g>`;
     }
+    content += cut;
     for (const e of elements) {
       if (!e.visible) continue;
       const pose = result.poses[e.id];
+      content += cut;
       if (!pose) continue;
       for (const key of I.pointKeys(e)) {
         const label = state.tool === 'connect' ? `${typeCodes[e.type]} · ${K.pointName(key, e)}` : e.primary && state.project.kind === 'drawer' && e.id === 'panel-1' ? ({ a: 'B', b: 'C', c: 'A' })[key] : '';
         if (pose[key] && (options.exporting || portVisible(e,key))) content += node(e.id, key, pose[key], label, false, scale);
       }
     }
+    content += cut;
     if (!options.exporting && state.mode === 'edit' && state.tool === 'select' && state.project.kind === 'drawer' && state.selected === 'slot-1' && ['bezier', 'spline'].includes(p.curveKind)) {
       const controls = state.project.controls || K.defaultControls(p);
       const positioned = controls.map((v) => ({ x: v.x + p.slotOffsetX, y: v.y + p.slotOffsetY }));
@@ -252,6 +337,7 @@
       const { a, b } = state.measure;
       content += `<g data-editor-overlay="measurement">${line(a, b, 'stroke="#7288a4" stroke-width="1.3" stroke-dasharray="4 3"')}<circle cx="${a.x}" cy="${a.y}" r="3" fill="#7288a4"/><circle cx="${b.x}" cy="${b.y}" r="3" fill="#7288a4"/><text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2 - 9}" text-anchor="middle" class="measure-label">${fmt(K.distance(a, b), 2)} mm</text></g>`;
     }
+    content += cut;
     if (!options.exporting) {
       if(state.dynamic?.contacts?.length)content+=`<g data-editor-overlay="contact-state" pointer-events="none">${state.dynamic.contacts.map(c=>`<text x="${c.b.x+12/scale}" y="${c.b.y-12/scale}" class="handle-value" font-size="${11/scale}">${c.detached?'Odtrhnutý valček':`Kontakt ${fmt(c.force,1)} N`} · vôľa ${fmt(c.gap,2)} mm</text>`).join('')}</g>`;
       content += manipulationSVG(scale) + freedomSVG(scale) + trialSVG(scale) + liveDimensionSVG(scale) + elasticStatusSVG(scale);
@@ -259,22 +345,24 @@
       content += magicDrawingSVG(scale);
       content += magicDetectionSVG(scale) + detectionEditSVG(scale);
     }
-    content += mainDimensionsSVG(result, scale);
-    return content;
+    content += cut + mainDimensionsSVG(result, scale);
+    return options.chunks ? content.split(cut).filter(Boolean) : content.replaceAll(cut, '');
   }
 
   function renderScene() {
     const svg = $('#mechanism-canvas');
     if (!svg || !state.view || !state.result) return;
     if (state.magic && state.magic.step <= 2) { renderMagicReference(); return; }
+    if (state.sceneFrame) { cancelAnimationFrame(state.sceneFrame); state.sceneFrame = 0; }
+    const started = globalThis.performance?.now() ?? 0;
     const { view, result } = state, elements = state.project.elements;
-    state.diagnosticRows = W.constraints(state.project, result);
+    if (state.diagnosticFor?.result !== result || state.diagnosticFor.project !== state.project) { state.diagnosticRows = W.constraints(state.project, result); state.diagnosticFor = { result, project: state.project }; }
     svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.width} ${view.height}`);
     svg.classList.toggle('pan-mode', state.tool === 'pan');
     svg.classList.toggle('connect-mode', state.tool === 'connect');
     svg.classList.toggle('magic-point-mode', state.tool === 'magic-draw');
-    const content = sceneMarkup(result, { diagnostics: state.diagnosticRows });
-    svg.innerHTML = content;
+    const chunks = sceneMarkup(result, { diagnostics: state.diagnosticRows, chunks: true }), content = chunks.join('');
+    patchScene(svg, chunks);
     renderWorkflowTools();
     renderDiagnostics(); renderSnapChoices(); renderPlacementTools(); renderBindingTools(); renderModelChecks();
     updateSelectionSummary();
@@ -284,6 +372,7 @@
     status.className = `scene-status${result.blocked ? ' blocked' : ''}`;
     status.innerHTML = `${icon(result.blocked ? 'warning' : 'check', 13)}<span>${state.mode === 'edit' ? 'Úprava geometrie · bez projekcie väzieb' : result.blocked ? 'Skontrolujte mechanizmus' : !elements.length ? 'Prázdny editor' : state.collisions ? 'Pohyb bez kolízií' : 'Kolízna kontrola vypnutá'}</span>`;
     status.title = result.issues.join('\n');
+    state.renderTime = (globalThis.performance?.now() ?? 0) - started;
   }
 
   function traceLabel() {
@@ -428,6 +517,7 @@
     play.setAttribute('aria-label', state.playing ? 'Pozastaviť simuláciu' : 'Spustiť simuláciu');
     play.title = `${state.playing ? 'Pozastaviť' : 'Spustiť'} simuláciu (medzerník)`;
     play.classList.toggle('playing', state.playing);
+    document.body.classList.toggle('simulation-playing', !!state.playing);
     $('#solver-dot').classList.toggle('warning', state.result.blocked);
     const positionError = Math.max(state.result.positionResidual || 0, ...(state.diagnosticRows || []).map((r) => r.mm || 0));
     const angleError = Math.max(0, ...(state.diagnosticRows || []).map((r) => r.degrees || 0));
@@ -461,8 +551,14 @@
     if(!manual&&state.playing)value=guardMotorMotion(value);
     if (state.trial) { const safe = WF.trial(state.project, state.motion, value, { profile: state.profile, collisions: state.collisions, samples: state.samples }); value = safe.motion; state.trialBlock = safe.blocked; }
     if (manual && state.mode === 'simulate' && !state.result.blocked && state.project.elements.some(K.isElastic)) {
-      const positions = P.elasticPositions(state.dynamic), safe = WF.trial(state.project, state.motion, value, { profile: state.profile, collisions: false, solve: (q) => K.solve(state.project, q, { profile: state.profile, collisions: false, elasticPositions: positions }) });
-      value = safe.motion;
+      // Once a drag has found the blocked end, pushing further the same way stays there without another bisection.
+      const limit = state.drag?.trialLimit, direction = Math.sign(value - state.motion);
+      if (limit && direction === limit.direction && (value - limit.motion) * direction >= 0) value = limit.motion;
+      else {
+        const positions = P.elasticPositions(state.dynamic), safe = WF.trial(state.project, state.motion, value, { profile: state.profile, collisions: false, solve: (q) => K.solve(state.project, q, { maxPasses: state.drag ? DRAG_PASSES : undefined, profile: state.profile, collisions: false, elasticPositions: positions }) });
+        if (state.drag) state.drag.trialLimit = safe.blocked ? { motion: safe.motion, direction } : null;
+        value = safe.motion;
+      }
     }
     if (manual) {
       if(!state.drag && state.dynamic?.bodies){state.forceContext=null;state.forceCurve=[];}

@@ -50,7 +50,7 @@
     if(input.closest?.('#surface-form')){try{if(input.name==='follower')updateSurfaceEdges();else updateSurfacePreview();}catch(error){toast(error.message,true);}return;}
     if(input.name==='language'){state.language=input.value;applyPreferences(state,true);globalThis.KinmoI18n?.setLanguage(input.value);return;}
     if (state.gifExport) return;
-    if(input.name==='debug-enabled'){globalThis.KinmoDebug.setEnabled(input.checked);return;}
+    if(input.name==='debug-enabled'){Promise.resolve(globalThis.KinmoDebug.setEnabled(input.checked)).then(updateFpsMeter);return;}
     if (input.name==='theme' && input.closest?.('#settings-form')) { if(input.checked)applyPreferences({...state,theme:input.value},true);return; }
     if (input.closest?.('#gif-form')) { updateGIFEstimate(); return; }
     if (input.closest?.('#dimension-form')) {
@@ -608,5 +608,11 @@
       if (state.dirty) saveProject(true);
     });
     let resizeTimer;
+    // The canvas size gives the drawing scale without forcing a layout during rendering.
+    if (typeof ResizeObserver === 'function') new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect, old = state.canvasSize;
+      state.canvasSize = { width, height };
+      if (old && (Math.abs(old.width - width) > .5 || Math.abs(old.height - height) > .5)) scheduleScene();
+    }).observe($('#mechanism-canvas'));
     window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (state.gifExport) { state.gifExport.resized = true; return; } fitView(); renderScene(); }, 150); });
   }

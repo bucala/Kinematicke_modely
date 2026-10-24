@@ -51,7 +51,7 @@
     el.hidden = !state.selectedElementIds.length;
     const target = I.target(state.project, state.selectedElementIds.at(-1)), editable = target?.element && !target.element.primary && state.mode === 'edit';
     const group=target?.element?.rigidAssemblyId,canBind=state.mode==='edit'&&I.rigidMembers(state.project,state.selectedElementIds).length>=2;
-    el.innerHTML = `<button data-action="multi-select" aria-pressed="${!!state.multiSelect}">${state.multiSelect?'Ukončiť výber':'Vybrať viac'}</button>${canBind?'<button data-action="bind-rigid">Spojiť napevno</button>':''}${group?'<button data-action="unbind-rigid">Rozpojiť zostavu</button>':''}<button data-action="isolate-selection" aria-pressed="${!!state.isolatedIds}">${state.isolatedIds?'Zobraziť všetko':'Izolovať výber'}</button><span>${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'}</span><button data-action="selection-settings"${editable ? '' : ' disabled'}>Spojenia / uloženie…</button><button data-action="properties-overview">Vlastnosti…</button><button class="mobile-selection-button" data-action="mobile-selection" aria-haspopup="dialog">${escape(target?.element?.name || 'Upraviť výber')}</button>`;
+    setMarkup(el, `<button data-action="multi-select" aria-pressed="${!!state.multiSelect}">${state.multiSelect?'Ukončiť výber':'Vybrať viac'}</button>${canBind?'<button data-action="bind-rigid">Spojiť napevno</button>':''}${group?'<button data-action="unbind-rigid">Rozpojiť zostavu</button>':''}<button data-action="isolate-selection" aria-pressed="${!!state.isolatedIds}">${state.isolatedIds?'Zobraziť všetko':'Izolovať výber'}</button><span>${state.selectedElementIds.length} ${state.selectedElementIds.length === 1 ? 'vybraná položka' : 'vybraných položiek'}</span><button data-action="selection-settings"${editable ? '' : ' disabled'}>Spojenia / uloženie…</button><button data-action="properties-overview">Vlastnosti…</button><button class="mobile-selection-button" data-action="mobile-selection" aria-haspopup="dialog">${escape(target?.element?.name || 'Upraviť výber')}</button>`);
   }
 
   function jointPoints(joint, result = state.result) {
@@ -178,11 +178,11 @@
 
   function renderBindingTools() {
     const el = $('#binding-tools'), target = I.target(state.project, state.selectedElementIds.at(-1)), e = target?.element;
-    if (!el) return; el.hidden = true; el.innerHTML = '';
-    if (!e || e.primary || state.mode !== 'edit') return;
+    if (!el) return; el.hidden = true;
+    if (!e || e.primary || state.mode !== 'edit') { setMarkup(el, ''); return; }
     const r = selectionReference(), linked = state.project.connections.filter((j) => [j.a, j.b].some((r) => r.elementId === e.id)).length;
     const fixed = target.type === 'node' ? I.fixed(state.project, r) : e.locked || e.type === 'ground';
-    el.innerHTML = `<strong>${escape(e.name)}${target.type === 'node' ? ` · ${r.point.toUpperCase()}` : ''}</strong><div><span>Spojenia · bod môžete potiahnuť na iný bod</span><button data-action="selection-connect">Spojiť bod · ${linked}</button><span>Uloženie</span>${e.type === 'rail' ? `<button data-action="selection-rail" data-moving="false" aria-pressed="${!e.movingRail}">Pevné vedenie · hýbe sa vozík</button><button data-action="selection-rail" data-moving="true" aria-pressed="${!!e.movingRail}">Pevný vozík · hýbe sa vedenie</button>` : `<button data-action="selection-support"${K.isElastic(e) ? ' disabled' : ''}>${fixed ? 'Uvoľniť' : 'Ukotviť'} ${target.type === 'node' ? 'bod k rámu' : 'teleso k rámu'}</button>`}<span>Pohon</span><button data-action="selection-motor"${['ground', 'slot'].includes(e.type) || e.parentId && e.type !== 'motor' || K.isElastic(e) ? ' disabled' : ''}>${e.drive ? 'Upraviť pohon' : 'Priradiť pohon'}</button></div>`;
+    setMarkup(el, `<strong>${escape(e.name)}${target.type === 'node' ? ` · ${r.point.toUpperCase()}` : ''}</strong><div><span>Spojenia · bod môžete potiahnuť na iný bod</span><button data-action="selection-connect">Spojiť bod · ${linked}</button><span>Uloženie</span>${e.type === 'rail' ? `<button data-action="selection-rail" data-moving="false" aria-pressed="${!e.movingRail}">Pevné vedenie · hýbe sa vozík</button><button data-action="selection-rail" data-moving="true" aria-pressed="${!!e.movingRail}">Pevný vozík · hýbe sa vedenie</button>` : `<button data-action="selection-support"${K.isElastic(e) ? ' disabled' : ''}>${fixed ? 'Uvoľniť' : 'Ukotviť'} ${target.type === 'node' ? 'bod k rámu' : 'teleso k rámu'}</button>`}<span>Pohon</span><button data-action="selection-motor"${['ground', 'slot'].includes(e.type) || e.parentId && e.type !== 'motor' || K.isElastic(e) ? ' disabled' : ''}>${e.drive ? 'Upraviť pohon' : 'Priradiť pohon'}</button></div>`);
 
   }
 
@@ -199,7 +199,7 @@
     if (!cached || cached.result !== state.result && (!(state.drag || state.playing) || now - cached.time > 500)) state.quickChecks = { result: state.result, time: now, analysis: W.diagnose(state.project, state.result) };
     const checks = state.quickChecks.analysis.checks || [];
     const open = el.querySelector?.('details')?.open;
-    el.innerHTML = `<details${open ? ' open' : ''}><summary>Overiť model · ${checks.length ? `${checks.length} odporúčaní` : 'bez zistených problémov'}</summary><div>${checks.map((check) => `<button class="model-check" data-action="check-model" data-key="${escape(check.key)}" data-kind="${check.action}"${check.otherKey ? ` data-other="${escape(check.otherKey)}"` : ''}>${escape(check.message)}</button>`).join('') || '<p>V zobrazenej polohe nie je zistený problém väzieb.</p>'}</div></details>`;
+    setMarkup(el, `<details${open ? ' open' : ''}><summary>Overiť model · ${checks.length ? `${checks.length} odporúčaní` : 'bez zistených problémov'}</summary><div>${checks.map((check) => `<button class="model-check" data-action="check-model" data-key="${escape(check.key)}" data-kind="${check.action}"${check.otherKey ? ` data-other="${escape(check.otherKey)}"` : ''}>${escape(check.message)}</button>`).join('') || '<p>V zobrazenej polohe nie je zistený problém väzieb.</p>'}</div></details>`);
   }
 
   function focusModelCheck(el) {

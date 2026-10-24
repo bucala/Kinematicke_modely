@@ -18,12 +18,21 @@
   const CM = globalThis.KinmoContextMenu;
   const $ = (selector, root = document) => root.querySelector(selector);
   const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const fmt = (value, digits = 1) => Number.isFinite(value) ? value.toLocaleString('sk-SK', { maximumFractionDigits: digits, minimumFractionDigits: 0 }) : '—';
+  // toLocaleString with options builds a new formatter on every call; the scene formats hundreds of numbers per frame.
+  const numberFormats = new Map();
+  const fmt = (value, digits = 1) => {
+    if (!Number.isFinite(value)) return '—';
+    let format = numberFormats.get(digits);
+    if (!format) numberFormats.set(digits, format = new Intl.NumberFormat('sk-SK', { maximumFractionDigits: digits, minimumFractionDigits: 0 }));
+    return format.format(value);
+  };
   const svgNS = 'http://www.w3.org/2000/svg';
   const storageKey = 'kinematika.projects.v1';
   const lastKey = 'kinematika.last.v1';
   const settingsKey = 'kinematika.settings.v2';
   const DOUBLE_CLICK_MS = 400;
+  // Solver passes per frame while dragging in simulation; releasing the pointer solves fully.
+  const DRAG_PASSES = 360;
   const collectionKeys = Object.freeze({ assembly: 'kinematika.assemblies.v1', revision: 'kinematika.revisions.v1' });
   const icons = {
     mechanism: '<path d="M4 19 11 4l9 11-16 4Z"/><circle cx="4" cy="19" r="2"/><circle cx="11" cy="4" r="2"/><circle cx="20" cy="15" r="2"/>',
@@ -228,7 +237,9 @@
     state.profile = K.prepareProject(state.project);
     const range = K.driveRange(state.project);
     state.motion = K.clamp(state.motion, range.min, range.max);
-    state.samples = K.sample(state.project, 121, { collisions: state.collisions });
+    // The 121-position sweep is the costliest step; names, simulation settings, dimensions and saved paths do not move parts.
+    const { name, simulation, dimensions, trajectories, importReference, ...kinematic } = state.project, signature = `${state.collisions}|${JSON.stringify(kinematic)}`;
+    if (state.samplesSignature !== signature || !state.samples) { state.samples = K.sample(state.project, 121, { collisions: state.collisions }); state.samplesSignature = signature; }
     state.result = solveCurrent();
     if (refit || !state.baseView) fitView();
     renderScene(); renderGraph(); updateMotion();
@@ -237,7 +248,7 @@
   function solveCurrent() {
     return state.mode === 'edit'
       ? E.design(state.project, state.motion, { profile: state.profile })
-      : K.solve(state.project, state.motion, { profile: state.profile, collisions: state.collisions, elasticPositions: P.elasticPositions(state.dynamic), bodyPositions: { ...P.bodyPositions(state.dynamic), ...state.guidePositions },softContact:state.project.connections.some(j=>j.contact?.enabled),strokeTolerance:state.project.simulation.softStops?2:0 });
+      : K.solve(state.project, state.motion, { maxPasses: state.drag ? DRAG_PASSES : undefined, profile: state.profile, collisions: state.collisions, elasticPositions: P.elasticPositions(state.dynamic), bodyPositions: { ...P.bodyPositions(state.dynamic), ...state.guidePositions },softContact:state.project.connections.some(j=>j.contact?.enabled),strokeTolerance:state.project.simulation.softStops?2:0 });
   }
 
   function prepareForces(notify = false, returning = false) {
@@ -744,6 +755,6 @@
   recalculate(true);
   renderTree(); renderInspector(); updateHeader(); updateToolbar();
   globalThis.KinmoDebug?.attach(debugSnapshot);
-  wireEvents();globalThis.KinmoI18n?.attach(state.language,()=>[state.project.name,...state.project.elements.map(e=>e.name)]);
+  wireEvents();updateFpsMeter();globalThis.KinmoI18n?.attach(state.language,()=>[state.project.name,...state.project.elements.map(e=>e.name)]);
   globalThis.KinmoHelp.attach({elementType:id=>state.project.elements.find(e=>e.id===id)?.type, blocked:()=>!!(state.playing || state.drag || state.contextMenuState.isOpen || state.magic), open:helpModal});
   requestAnimationFrame(animate);

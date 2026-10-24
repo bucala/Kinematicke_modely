@@ -13,7 +13,8 @@
   const CURVES = ['cam', 'arc', 'bezier', 'spline', 'polyline'];
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const lerp = (a, b, t) => a + (b - a) * t;
-  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  // Math.hypot guards against overflow that millimetre coordinates never reach, at several times the cost.
+  const distance = (a, b) => { const dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); };
   const copy = (v) => JSON.parse(JSON.stringify(v));
   // Same result as copy() for plain project data, but strings stay shared; history snapshots then do not duplicate image data URLs.
   function snapshot(value) {
@@ -308,13 +309,16 @@
     return { ...position, t, distance: distance(point, position) };
   }
 
+  // Same answer as nearestOnSegment over every segment, without an object per segment (it runs on every solver pass).
   function nearestOnPath(point, points) {
-    let result = { x: points[0]?.x || 0, y: points[0]?.y || 0, distance: Infinity, segment: 0, t: 0 };
+    let best = Infinity, x = points[0]?.x || 0, y = points[0]?.y || 0, t = 0, segment = 0;
     for (let i = 1; i < points.length; i++) {
-      const candidate = nearestOnSegment(point, points[i - 1], points[i]);
-      if (candidate.distance < result.distance) result = { ...candidate, segment: i - 1 };
+      const a = points[i - 1], b = points[i], dx = b.x - a.x, dy = b.y - a.y, lengthSq = dx * dx + dy * dy;
+      const u = lengthSq > EPS ? clamp(((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSq, 0, 1) : 0;
+      const px = a.x + u * dx, py = a.y + u * dy, d = (point.x - px) ** 2 + (point.y - py) ** 2;
+      if (d < best) { best = d; x = px; y = py; t = u; segment = i - 1; }
     }
-    return result;
+    return { x, y, t, distance: Math.sqrt(best), segment };
   }
   function pointInPolygon(point, polygon) {
     let inside = false;
@@ -545,7 +549,8 @@
       refreshFrom(body);
     };
     // Long open chains converge slowly; continue past the original 180 passes only while the error still falls.
-    const minPasses = 180, maxPasses = 1200;
+    // Interactive drags cap the passes per frame (options.maxPasses) and get a full solve on release.
+    const maxPasses = clamp(options.maxPasses || 1200, 1, 1200), minPasses = Math.min(180, maxPasses);
     let checkpoint = Infinity;
     for (let pass = 0; pass < (joints.length ? maxPasses : 1); pass++) {
       for (const joint of joints) {
@@ -874,8 +879,15 @@
   function sample(project, count = 121, options = {}) {
     count = Number.isFinite(count) ? clamp(Math.round(count), 2, 1001) : 121;
     const range = driveRange(project);
-    const profile = prepareProject(project);
-    return Array.from({ length: count }, (_, i) => solve(project, lerp(range.min, range.max, i / (count - 1)), { ...options, profile }));
+    const profile = prepareProject(project), free = project.elements.filter((e) => !e.primary && !e.drive && !e.locked && !e.parentId);
+    // Each position starts from its neighbour (continuation): far fewer solver passes, and an undetermined part
+    // follows one continuous branch instead of jumping between equally valid solutions.
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const previous = out[i - 1], seed = previous && !previous.blocked ? Object.fromEntries(free.filter((e) => previous.poses[e.id]?.a).map((e) => [e.id, { x: previous.poses[e.id].a.x, y: previous.poses[e.id].a.y, angle: previous.poses[e.id].angle }])) : null;
+      out.push(solve(project, lerp(range.min, range.max, i / (count - 1)), { ...options, profile, ...(seed ? { bodyPositions: { ...options.bodyPositions, ...seed } } : {}) }));
+    }
+    return out;
   }
 
   function point(pose, reference) { return pose.poses[reference?.elementId]?.[reference?.point || 'b'] || null; }
