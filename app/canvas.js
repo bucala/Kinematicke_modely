@@ -480,6 +480,9 @@
     if (event.pointerType !== 'touch' || event.deferredTouch) return false;
     const touch = state.touchGesture ||= { points: new Map(), pinching: false, timer: null };
     touch.points.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    // Finger origins, travel and count tell a two- or three-finger tap (Undo / Redo) from a pinch.
+    if (touch.points.size === 1) { touch.began = event.timeStamp ?? Date.now(); touch.origins = new Map(); touch.maxPoints = 1; touch.travel = 0; }
+    touch.origins.set(event.pointerId, { x: event.clientX, y: event.clientY }); touch.maxPoints = Math.max(touch.maxPoints, touch.points.size);
     clearTimeout(touch.timer);
     if (touch.points.size > 1) {
       if (state.drag) onPointerUp({pointerId:state.drag.pointerId,cancelled:true,touchInternal:true});
@@ -503,6 +506,7 @@
   function touchMove(event) {
     const touch=state.touchGesture;if(event.pointerType!=='touch'||!touch)return false;
     touch.points.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    const origin = touch.origins?.get(event.pointerId); if (origin) touch.travel = Math.max(touch.travel, Math.hypot(event.clientX - origin.x, event.clientY - origin.y));
     if (touch.longPressed) return true;
     if (!touch.pinching) { if(Math.hypot(event.clientX-touch.start.x,event.clientY-touch.start.y)>8){clearTimeout(touch.timer);touch.moved=true;}if(touch.deferred&&(state.insertingType||state.magic?.placementType)){touch.deferred.clientX=event.clientX;touch.deferred.clientY=event.clientY;} return false; }
     event.preventDefault();
@@ -515,7 +519,14 @@
     const touch=state.touchGesture;if(!touch||event.touchInternal)return false;
     clearTimeout(touch.timer);touch.points.delete(event.pointerId);
     const handled=touch.pinching||touch.longPressed;
-    if(!touch.points.size)state.touchGesture=null;
+    if(!touch.points.size){
+      state.touchGesture=null;
+      // A quick tap of two fingers undoes and of three fingers redoes; the pinch view is restored.
+      if(touch.maxPoints>=2&&touch.travel<12&&!touch.longPressed&&(event.timeStamp??Date.now())-touch.began<400){
+        if(touch.view){state.view=touch.view;renderScene();}
+        undo(touch.maxPoints>2);
+      }
+    }
     return handled;
   }
 
@@ -565,8 +576,10 @@
     const hit = repeat || hits[0] || null, selectedTarget = I.target(state.project, hit);
     const plain = event.button === 0 && !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey);
     state.press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, hits, cycle: repeat, plain };
-    const e = selectedTarget?.element || state.project.elements.find((e) => e.id === event.target.closest('[data-element]')?.dataset.element);
-    const nodeReference = I.reference(selectedTarget);
+    // In simulation a joint is grabbed by its rigid, movable member, so dragging a shared point moves the mechanism.
+    const jointEnd = state.mode === 'simulate' && selectedTarget?.type === 'joint' ? [selectedTarget.joint.a, selectedTarget.joint.b].find((r) => { const v = state.project.elements.find((x) => x.id === r.elementId); return r.point !== 'curve' && v && !K.isElastic(v) && !v.locked && !['ground', 'slot', 'rail'].includes(v.type); }) : null;
+    const e = jointEnd ? state.project.elements.find((v) => v.id === jointEnd.elementId) : selectedTarget?.element || state.project.elements.find((e) => e.id === event.target.closest('[data-element]')?.dataset.element);
+    const nodeReference = jointEnd || I.reference(selectedTarget);
     const nodeTarget = nodeReference ? { dataset: { element: nodeReference.elementId, point: nodeReference.point } } : null;
     const outlineControl = event.target.closest('[data-outline-control]');
     if (state.dimensionPick && state.tool === 'measure' && event.button === 0) { event.preventDefault(); pickDimensionPoint(event); return; }
@@ -603,7 +616,7 @@
         historyBefore: [...state.history], historySelectionsBefore: [...state.historySelections],
         futureBefore: state.future, futureSelectionsBefore: state.futureSelections, moved: false,
       };
-    } else if (selectedTarget?.type === 'joint') {
+    } else if (selectedTarget?.type === 'joint' && !jointEnd) {
       selectTarget(hit); state.playing = false;
     } else if (e) {
       const preserveGroup = state.selectedElementIds.length > 1 && state.selectedElementIds.includes(hit);
@@ -648,13 +661,16 @@
       } else if (beginGuideDrag(e, event.pointerId)) {
         // A standalone follower can be positioned without prescribing a motor.
       } else if (!e.primary && !e.locked) {
-        state.drag = { kind: 'inverse', id: e.id, key: nodeTarget?.dataset.point, fraction: K.nearestOnSegment(point, pose.a, pose.b).t, pointerId: event.pointerId };
+        state.drag = { kind: 'inverse', id: e.id, key: nodeTarget?.dataset.point, fraction: K.nearestOnSegment(point, pose.a, pose.b).t, pointerId: event.pointerId, startPose: K.copy(pose) };
       }
     } else if (state.tool === 'select' && event.button === 0 && event.pointerType !== 'touch') {
       // Dragging on empty canvas selects with a box (Shift/Cmd adds); a plain click there still clears the selection.
       const additive = event.shiftKey || event.metaKey;
       if (!additive) selectTarget(null);
       state.drag = { kind: 'marquee', pointerId: event.pointerId, start: point, end: point, clientStart: { x: event.clientX, y: event.clientY }, clientEnd: { x: event.clientX, y: event.clientY }, additive, base: [...state.selectedElementIds], moved: false };
+    } else if (state.tool === 'select' && event.button === 0 && event.pointerType === 'touch') {
+      // One finger on empty canvas pans; a tap without movement still clears the selection.
+      selectTarget(null); startPan(event);
     } else selectTarget(null);
     if (state.drag) {
       document.body.classList.add('canvas-dragging');
@@ -806,7 +822,9 @@
 
   function beginGuideDrag(e, pointerId) {
     if (e?.type !== 'bearing' || e.primary || e.locked || e.parentId || e.drive) return false;
-    const joints = state.project.connections.filter(j => [j.a,j.b].some(r => r.elementId === e.id));
+    // Springs and pistons on the follower are not kinematic constraints: their ends follow the pin.
+    const elastic = (j) => [j.a, j.b].some((r) => K.isElastic(state.project.elements.find((v) => v.id === r.elementId)));
+    const joints = state.project.connections.filter(j => [j.a,j.b].some(r => r.elementId === e.id) && !elastic(j));
     if (joints.some(j => j.type !== 'point-path')) return false;
     const guide = joints.map(j => j.a.point === 'curve' ? j.a : j.b).find(r => state.project.elements.find(v => v.id === r.elementId)?.type === 'slot');
     const slotId = guide?.elementId || e.slotId;
@@ -860,15 +878,15 @@
     onPointerUp({pointerId:event.pointerId,cancelled:true});
   }
   function onPointerUp(event) {
-    const press = state.press; state.press = null;
+    const press = state.press, gesture = state.touchGesture; state.press = null;
     releasePointer(event);
-    finishClick(press, event);
+    if (!(gesture && (gesture.maxPoints > 1 || gesture.longPressed))) finishClick(press, event);
   }
   // A plain click (no movement) on the spot of the previous click selects the next overlapping entity.
   function repeatedClick(event, hits) {
     const last = state.lastClick, time = event.timeStamp ?? Date.now();
     if (!last || state.tool !== 'select' || event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return null;
-    if (hits.length < 2 || !hits.includes(last.key) || Math.hypot(event.clientX - last.x, event.clientY - last.y) > 4) return null;
+    if (hits.length < 2 || !hits.includes(last.key) || Math.hypot(event.clientX - last.x, event.clientY - last.y) > clickRadius(event)) return null;
     // A second click within the double-click interval is a double click, not a cycle.
     if (time - last.time < DOUBLE_CLICK_MS || state.selectedElementIds.length !== 1 || state.selectedElementIds[0] !== last.key) return null;
     return last.key;
@@ -876,14 +894,18 @@
   // Double clicks are recognized from pointer releases: the canvas re-renders between clicks and
   // pointerdown is prevented, so the browser's own dblclick event is not delivered reliably.
   function finishClick(press, event) {
-    if (!press || event.pointerId !== press.pointerId || event.cancelled || event.type === 'pointercancel' || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4) return;
+    if (!press || event.pointerId !== press.pointerId || event.cancelled || event.type === 'pointercancel' || Math.hypot(event.clientX - press.x, event.clientY - press.y) > clickRadius(event)) return;
     // Only plain left clicks count towards double clicks and cycling; Shift/Ctrl clicks start over.
     if (!press.plain) { state.lastClick = null; return; }
     const time = event.timeStamp ?? Date.now(), last = state.lastClick;
-    if (!press.cycle && last && time - last.time < DOUBLE_CLICK_MS && Math.hypot(press.x - last.x, press.y - last.y) <= 4) { state.lastClick = null; onDoubleClick(event); return; }
+    if (!press.cycle && last && time - last.time < DOUBLE_CLICK_MS && Math.hypot(press.x - last.x, press.y - last.y) <= clickRadius(event)) { state.lastClick = null; onDoubleClick(event); return; }
     const key = press.cycle ? press.hits[(press.hits.indexOf(press.cycle) + 1) % press.hits.length] : state.selectedElementIds.at(-1) ?? null;
     if (press.cycle) selectTarget(key);
     state.lastClick = { x: press.x, y: press.y, time, key };
+  }
+  // A finger lands less precisely than a mouse pointer.
+  function clickRadius(event) {
+    return event.pointerType === 'touch' ? 14 : 4;
   }
   function isMacPlatform() {
     return /Mac|iPhone|iPad|iPod/.test(globalThis.navigator?.userAgentData?.platform || globalThis.navigator?.platform || '');
@@ -920,6 +942,11 @@
       if (drag.moved) { if (!drag.menuPending) state.suppressContextMenuUntil = Date.now() + 500; }
       else if (drag.menuPending && !event.cancelled && event.type !== 'pointercancel') onContextMenu(drag.menuPending);
       return;
+    }
+    // Dragging a body the drive does not move must not fail silently.
+    if (drag?.kind === 'inverse' && drag.simulationMoved && !event.cancelled && event.type !== 'pointercancel') {
+      const pose = state.result.poses[drag.id], name = state.project.elements.find((e) => e.id === drag.id)?.name;
+      if (pose && drag.startPose && ['a', 'b'].every((key) => !pose[key] || K.distance(pose[key], drag.startPose[key]) < 0.01)) toast(`„${name}“ sa s pohonom nepohybuje, preto ho ťahanie neposunie. Pripojte ho k poháňanému mechanizmu alebo ho presuňte v Úprave geometrie.`, true);
     }
     if (drag?.kind === 'marquee') { if ($('#mechanism-canvas').hasPointerCapture(event.pointerId)) $('#mechanism-canvas').releasePointerCapture(event.pointerId); finishMarquee(drag, event); return; }
     if ($('#mechanism-canvas').hasPointerCapture(event.pointerId)) $('#mechanism-canvas').releasePointerCapture(event.pointerId);

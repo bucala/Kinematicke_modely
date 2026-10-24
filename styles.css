@@ -678,6 +678,21 @@ dialog .property-select { height: 38px; font-size: 11px; }
 .help-steps strong { color: #5d7080; font-size: 10px; font-weight: 500; display: block; margin-bottom: 5px; }
 .shortcut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 24px; border-top: 1px solid #edf0f3; padding-top: 21px; }
 .shortcut-grid > div { display: flex; align-items: center; gap: 10px; font-size: 9px; color: #9dabb5; }
+.shortcut-group { margin: 18px 0 0; font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--secondary); }
+.shortcut-group + .shortcut-grid { border-top: 0; padding-top: 10px; }
+.shortcut-overview .shortcut-group:first-child { margin-top: 0; }
+dialog.modal-command { width: min(620px, calc(100vw - 32px)); padding: 20px; align-self: start; margin-top: max(16px, 12vh); }
+.command-palette { display: flex; flex-direction: column; gap: 10px; }
+.command-palette .text-field { height: 42px; font-size: 13px; }
+.command-results { list-style: none; margin: 0; padding: 0; max-height: min(420px, 55dvh); overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.command-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; font-size: 12px; color: var(--ink); }
+.command-item + .command-item { border-top: 1px solid var(--border); }
+.command-item.is-active { background: var(--accent-soft); color: var(--accent-ink); }
+.command-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.command-item small { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.command-empty { padding: 14px 12px; color: var(--muted); font-size: 12px; }
+.command-hint { margin: 0; color: var(--muted); font-size: 10px; }
+@media (max-width: 640px) { .command-item small { display: none; } dialog.modal-command { margin-top: 16px; } }
 kbd { border: 1px solid #e3e9ee; border-radius: 4px; background: #f6f8fa; color: #7e909e; font-family: var(--font); font-size: 8px; min-width: 32px; padding: 5px 7px; text-align: center; box-shadow: 0 1px 0 #e7edf2; }
 .help-disclaimer { font-size: 8px; line-height: 1.9; color: #afbac3; border-top: 1px solid #edf0f3; padding-top: 17px; margin-top: 22px; }
 .add-component-grid { display: flex; flex-direction: column; gap: 8px; margin-top: 19px; }

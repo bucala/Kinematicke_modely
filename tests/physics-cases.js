@@ -349,5 +349,23 @@
     assert(state.stopped && !result.blocked);near(result.poses[piston.id].length,piston.maxLength,.002);near(K.distance(result.poses[link.id].a,result.poses[pivot.id].a),0,.001);
     assert(Object.values(state.bodies).every(b=>[b.vx,b.vy,b.omega].every(v=>v===0)));
   });
+  add('Odhadová dynamika pomenuje diely, ktoré sa ešte voľne pohybujú.', () => {
+    const crank = { ...K.makeElement('link', 0, 0), id: 'crank', drive: true }, loose = { ...K.makeElement('link', 300, 0), id: 'loose', name: 'Voľné rameno' };
+    const ground = { ...K.makeElement('ground', 0, 0), id: 'base' }, project = K.validateProject({ ...K.preset('custom'), elements: [ground, crank, loose], connections: [{ id: 'pivot', name: 'Uloženie', type: 'revolute', a: { elementId: 'base', point: 'a' }, b: { elementId: 'crank', point: 'a' } }] });
+    project.simulation.mode = 'dynamic';
+    let message = '';
+    try { P.prepare(project); } catch (error) { message = error.message; }
+    assert(/Voľne sa pohybuje: Voľné rameno\./.test(message), message || 'Dynamika mala odmietnuť voľné rameno.');
+  });
+  add('Ťahanie ramena otočne uloženého na pevnom čape ho otočí za kurzorom a čap zostane na mieste.', () => {
+    const ground = { ...K.makeElement('ground', 0, 0), id: 'base' }, arm = { ...K.makeElement('link', 0, 0), id: 'arm', mass: 1, angle: 90 }, spring = { ...K.makeElement('spring-compression', 0, 0), id: 'push' };
+    const joint = (id, a, ap, b, bp) => ({ id, name: id, type: 'revolute', a: { elementId: a, point: ap }, b: { elementId: b, point: bp } });
+    const project = K.validateProject({ ...K.preset('custom'), elements: [ground, arm, spring], connections: [joint('pivot', 'base', 'a', 'arm', 'a'), joint('top', 'push', 'a', 'base', 'b'), joint('tip', 'push', 'b', 'arm', 'b')] });
+    project.simulation.mode = 'dynamic';
+    const context = P.prepare(project), start = P.initialState(context, 0), tip = { x: 0, y: -120 }, target = { x: 85, y: -85 };
+    const moved = P.dragBody(context, start, 'arm', target, K.localPoint({ a: { x: start.bodies.arm.x, y: start.bodies.arm.y }, angle: start.bodies.arm.angle }, tip));
+    const body = moved.bodies.arm;
+    near(body.x, 0, 0.01); near(body.y, 0, 0.01); near(body.angle, 45, 0.5);
+  });
   global.KinematicsTestCases = Object.freeze([...global.KinematicsTestCases, ...cases]);
 })(globalThis);

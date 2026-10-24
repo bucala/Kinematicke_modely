@@ -10,7 +10,7 @@
         <button class="project-name" data-action="projects" title="Mechanizmy, šablóny a projekty" aria-haspopup="dialog"><span id="project-name">${escape(state.project.name)}</span>${icon('chevron', 14)}</button>
         <span class="save-status" id="save-status"><i></i>Lokálny projekt</span>
         <div class="header-actions">
-          ${ib('help', 'help', 'Pomoc a klávesové skratky')}
+          ${ib('search', 'command-palette', 'Paleta príkazov (Ctrl+K)')}${ib('help', 'help', 'Pomoc a klávesové skratky')}
           <button class="button button-secondary save-button" data-action="save">${icon('save', 16)}<span>Uložiť</span></button>
           <button class="button button-dark" data-action="export">${icon('export', 16)}<span>Exportovať</span>${icon('chevron', 13)}</button>
         </div>

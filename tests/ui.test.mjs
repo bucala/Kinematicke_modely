@@ -97,7 +97,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['updateSelectionSummary','motorParts','viewElementVisible','portVisible','guardMotorMotion','treeMemberHTML','assemblyTreeHTML','basicInspectorHTML','setDetailLevel','setMotorMode','isolateSelection','quantityTextInput','rigidAssemblyModal','submitRigidAssembly','reviewHoleOwnership','submitHoleOwnership','testDetectedMechanism','automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','onWheel','startPan','zoom','onKeyUp','releasePointer','finishClick','repeatedClick','isMacPlatform','renderMarquee','finishMarquee','onDoubleClick','runPrimaryAction','primaryAction','menuHas','markPrimary','tidyMenu','memberLink','selectedBodyCount','canvasMenu','templateMenu','jointMenu','curvePointMenu','pathMenu','nodeMenu','bodyTypeItems','bodyMenu','selectionMenu','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','snapTargetDiagram','repairDiagram','applyRepairPreview','motorHousing','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'mobileToolsModal', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['updateSelectionSummary','motorParts','viewElementVisible','portVisible','guardMotorMotion','treeMemberHTML','assemblyTreeHTML','basicInspectorHTML','setDetailLevel','setMotorMode','isolateSelection','quantityTextInput','rigidAssemblyModal','submitRigidAssembly','reviewHoleOwnership','submitHoleOwnership','testDetectedMechanism','automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','onWheel','startPan','zoom','onKeyUp','releasePointer','finishClick','repeatedClick','clickRadius','isMacPlatform','renderMarquee','finishMarquee','onDoubleClick','runPrimaryAction','primaryAction','menuHas','markPrimary','tidyMenu','memberLink','selectedBodyCount','canvasMenu','templateMenu','jointMenu','curvePointMenu','pathMenu','nodeMenu','bodyTypeItems','bodyMenu','selectionMenu','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','snapTargetDiagram','repairDiagram','applyRepairPreview','motorHousing','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'mobileToolsModal', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -2427,4 +2427,84 @@ test('A right drag pans without a menu; a right click still opens it on every pl
   context.onContextMenu(menuEvent(170, 140)); assert.equal(context.openedMenu, null, 'Neskorá ponuka po posune sa potlačí.');
   context.onPointerDown(right(55, 22)); context.onPointerUp(right(55, 22)); context.onContextMenu(menuEvent(55, 22));
   assert(context.openedMenu, 'Neskorá ponuka po pravom kliku sa otvorí.');
+});
+
+test('A two-finger tap undoes and a three-finger tap redoes; pinching or holding does neither', () => {
+  const { context, state } = controller();
+  state.view = { x: 0, y: 0, width: 800, height: 450 }; state.baseView = { ...state.view };
+  const finger = (id, x, y, time, extra = {}) => pointer(x, y, { pointerType: 'touch', pointerId: id, timeStamp: time, ...extra });
+  const tap = (count, time, { move = 0, hold = 100 } = {}) => {
+    for (let i = 1; i <= count; i++) context.onPointerDown(finger(i, 300 + i * 50, 300, time + i * 10));
+    if (move) context.onPointerMove(finger(count, 300 + count * 50 + move, 300 + move, time + 50, { buttons: 1 }));
+    for (let i = count; i >= 1; i--) context.onPointerUp(finger(i, 300 + i * 50 + (i === count ? move : 0), 300 + (i === count ? move : 0), time + hold + i * 10));
+  };
+  context.selectTarget('n:body:a'); context.fixSelected(); assert.equal(state.history.length, 1);
+  tap(2, 1000); assert.equal(state.history.length, 0, 'Ťuk dvoma prstami vráti krok.'); assert.equal(state.future.length, 1);
+  assert.deepEqual(state.view, { x: 0, y: 0, width: 800, height: 450 }, 'Ťuk nezmení pohľad.');
+  tap(3, 2000); assert.equal(state.history.length, 1, 'Ťuk troma prstami krok zopakuje.'); assert.equal(state.future.length, 0);
+  tap(2, 3000, { move: 80 }); assert.equal(state.history.length, 1, 'Štipnutie nevracia krok.');
+  tap(2, 4000, { hold: 700 }); assert.equal(state.history.length, 1, 'Dlhé podržanie dvoma prstami nevracia krok.');
+});
+test('One finger on empty canvas pans, a tap clears the selection and a double tap tolerates finger jitter', () => {
+  const { context, state } = controller(), empty = { target: { closest: () => null } };
+  state.view = { x: 0, y: 0, width: 800, height: 450 }; state.baseView = { ...state.view };
+  const finger = (x, y, time, extra = {}) => pointer(x, y, { pointerType: 'touch', pointerId: 7, timeStamp: time, ...empty, ...extra });
+  context.canvasHit = (_event, all) => (all ? [] : null);
+  context.onPointerDown(finger(100, 100, 1000)); context.onPointerMove(finger(160, 130, 1050, { buttons: 1 })); context.onPointerUp(finger(160, 130, 1100));
+  assert(state.view.x < 0 && state.view.y < 0, 'Jeden prst po prázdnej ploche posúva plátno.'); assert.equal(state.history.length, 0);
+  context.selectTarget('e:body'); context.onPointerDown(finger(400, 300, 3000)); context.onPointerUp(finger(400, 300, 3050));
+  assert.equal(state.selectedElementIds.length, 0, 'Ťuk na prázdnu plochu zruší výber.');
+  const hits = ['e:body']; context.canvasHit = (_event, all) => (all ? hits : hits[0]); context.dialog = null;
+  context.onPointerDown(finger(10, 20, 5000)); context.onPointerUp(finger(12, 21, 5060));
+  context.onPointerDown(finger(18, 26, 5200)); context.onPointerUp(finger(19, 27, 5260));
+  assert.equal(context.dialog?.title, 'Vlastnosti prvku', 'Dvojťuk s chvením prsta otvorí hlavnú úpravu.');
+  context.dialog = null; state.lastClick = null;
+  const mouse = (x, y, time) => pointer(x, y, { timeStamp: time });
+  context.onPointerDown(mouse(10, 20, 7000)); context.onPointerUp(mouse(10, 20, 7060)); context.onPointerDown(mouse(18, 26, 7200)); context.onPointerUp(mouse(18, 26, 7260));
+  assert.equal(context.dialog, null, 'Pri myši je tolerancia dvojkliku menšia.');
+});
+
+test('A pin in a slot stays draggable in simulation when a spring is attached to it', () => {
+  const { context, state } = controller(), K = context.K, I = globalThis.KinmoInteraction;
+  const slot = { ...K.makeElement('slot', 0, 0), id: 'guide' }, pin = { ...K.makeElement('bearing', 0, 0), id: 'pin' }, spring = { ...K.makeElement('spring-compression', 0, 0), id: 'spring' };
+  // A separately driven crank, as in a model with a motor: force dragging is then unavailable and the guide drag must work.
+  const base = { ...K.makeElement('ground', -300, 0), id: 'base' }, crank = { ...K.makeElement('link', -300, 0), id: 'crank', drive: true };
+  let project = K.validateProject({ ...K.preset('custom'), elements: [slot, pin, spring, base, crank] });
+  const path = context.E.design(project, 0).poses.guide.path, at = path[Math.floor(path.length / 2)];
+  Object.assign(project.elements.find((e) => e.id === 'pin'), { x: at.x, y: at.y });
+  project.connections = [
+    { id: 'j-path', name: 'Čap vo vedení', type: 'point-path', a: { elementId: 'pin', point: 'a' }, b: { elementId: 'guide', point: 'curve' } },
+    { id: 'j-tip', name: 'Pružina na čape', type: 'revolute', a: { elementId: 'spring', point: 'b' }, b: { elementId: 'pin', point: 'a' } },
+    { id: 'j-base', name: 'Pružina na kulise', type: 'revolute', a: { elementId: 'spring', point: 'a' }, b: { elementId: 'guide', point: 'b' } },
+    { id: 'j-crank', name: 'Uloženie kľuky', type: 'revolute', a: { elementId: 'base', point: 'a' }, b: { elementId: 'crank', point: 'a' } },
+  ];
+  state.project = K.validateProject(project); state.result = K.solve(state.project, 0); state.mode = 'simulate';
+  context.canvasHit = (_event, all) => (all ? [I.nodeKey({ elementId: 'pin', point: 'a' })] : I.nodeKey({ elementId: 'pin', point: 'a' }));
+  context.onPointerDown(pointer(at.x, at.y, { target: { closest: () => null } }));
+  assert.equal(state.drag?.kind, 'guide-follower', 'Pružina na čape nesmie vypnúť ťahanie čapu po kulise.');
+});
+test('Dragging a body the drive does not move explains why instead of doing nothing', () => {
+  const { context, state } = controller(), K = context.K, I = globalThis.KinmoInteraction;
+  const crank = { ...K.makeElement('link', 0, 0), id: 'crank', drive: true }, loose = { ...K.makeElement('link', 300, 0), id: 'loose', name: 'Voľné rameno' };
+  state.project = K.validateProject({ ...K.preset('custom'), elements: [crank, loose] }); state.result = K.solve(state.project, 0); state.mode = 'simulate';
+  context.canvasHit = (_event, all) => (all ? [I.elementKey('loose')] : I.elementKey('loose')); context.lastToast = '';
+  const at = state.result.poses.loose.b, target = { target: { closest: () => null } };
+  context.onPointerDown(pointer(at.x, at.y, target)); assert.equal(state.drag?.kind, 'inverse');
+  context.onPointerMove(pointer(at.x + 40, at.y + 40, { ...target, buttons: 1 })); context.onPointerUp(pointer(at.x + 40, at.y + 40, target));
+  assert.match(context.lastToast, /„Voľné rameno“ sa s pohonom nepohybuje/);
+});
+
+test('The command palette search ignores case and diacritics and ranks word starts first', () => {
+  const context = vm.createContext({});
+  for (const name of ['foldText', 'commandScore', 'filterCommands', 'commandShortcut']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  const commands = [{ label: 'Exportovať', group: 'Projekt' }, { label: 'Zakrivená kulisa', group: 'Knižnica prvkov' }, { label: 'Uložiť', group: 'Projekt', keywords: 'save' }, { label: 'Kulisa 1', group: 'Vybrať v modeli' }, { label: 'Zobraziť mriežku', group: 'Zobrazenie' }];
+  const labels = (query) => context.filterCommands(commands, query).map((c) => c.label);
+  assert.deepEqual(labels('KULÍSA'), ['Kulisa 1', 'Zakrivená kulisa'], 'Diakritika a veľkosť písmen nehrajú rolu; zhoda na začiatku má prednosť.');
+  assert.deepEqual(labels('ulozit'), ['Uložiť']);
+  assert.deepEqual(labels('save'), ['Uložiť'], 'Hľadá sa aj v kľúčových slovách.');
+  assert.deepEqual(labels('zbr mriez'), ['Zobraziť mriežku'], 'Písmená v poradí stačia.');
+  assert.deepEqual(labels('kulisa export'), [], 'Každé slovo musí sedieť.');
+  assert.equal(labels('').length, commands.length, 'Prázdne hľadanie ukáže všetko v pôvodnom poradí.');
+  assert.equal(labels('')[0], 'Exportovať');
+  assert.equal(context.commandShortcut('undo'), 'Ctrl + Z'); assert.equal(context.commandShortcut('unknown'), '');
 });

@@ -325,6 +325,11 @@
     if (modifier && key === 'a' && !canSelectText(event.target)) {
       event.preventDefault(); window.getSelection()?.removeAllRanges(); return;
     }
+    if (modifier && key === 'k' && !event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      if (state.commandPalette && $('#modal').open && $('#command-search')) { state.commandPalette = null; $('#modal').close(); } else openCommandPalette();
+      return;
+    }
     if ($('#modal').open || event.target.closest?.('input,select,textarea,[contenteditable]')) return;
     if ((key === 'enter' || event.code === 'Space') && event.target.closest?.('button,a')) return;
     if (key === 'alt') { state.snapSuppressed = true; state.snapPreview = null; renderSmartSnapPreview(); return; }
@@ -375,6 +380,7 @@
     else if (modifier && key === 'y') { event.preventDefault(); undo(true); }
     else if (modifier && key === 'd') { event.preventDefault(); duplicateElement(); }
     else if (modifier) return;
+    else if (event.key === '?') { event.preventDefault(); shortcutsModal(); }
     // Space plays on release; held down it pans with a left drag (see onPointerDown and onKeyUp).
     else if (event.code === 'Space') { event.preventDefault(); if (!event.repeat && !state.spacePan) { state.spacePan = { used: false }; document.body.classList.add('space-pan'); } }
     else if (key === 'v') setTool('select');
@@ -590,7 +596,7 @@
       // A queued close event can arrive after this shared dialog has been reopened.
       if ($('#modal').open) return;
       cancelGIF(); state.pendingSnap = null; state.pendingRevisionId = null; state.pendingCollectionDelete = null; state.pendingDeleteKeys = null;
-      state.pendingProjectDelete = null; state.pendingImpact = null; state.referenceDraft = null;
+      state.pendingProjectDelete = null; state.pendingImpact = null; state.referenceDraft = null; state.commandPalette = null;
       if (state.magic) state.magic.pendingScale = null;
     });
     document.addEventListener('visibilitychange', () => { lastFrame = 0; });
