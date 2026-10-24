@@ -64,6 +64,42 @@
     return e?.primary && (e.role === 'carrier' || p.kind === 'drawer' && point === 'b') || (e?.drive || e?.primary) && K.carriagePoints.includes(point);
   };
   // Shaft coupling transfers angle; a support or an eccentric pin permits rotation.
+  // Drawing order: an explicit z, otherwise by type (frames and guides at the back, pins and points in front).
+  // A motor housing sits behind the parts mounted on its shaft, so a cam on the shaft is visible.
+  const layerOf = (e) => Number.isFinite(e.z) ? e.z : e.role === 'motor-housing' ? 1.5 : ({ ground: 0, slot: 1, cam: 2, rail: 2, link: 3, motor: 3.5, panel: 4, bearing: 5, node: 6, 'spring-compression': 4, 'spring-extension': 4, 'piston-push': 4, 'piston-pull': 4 })[e.type] ?? 3;
+  function drawOrder(project) {
+    return project.elements.map((e, index) => ({ e, index })).sort((a, b) => layerOf(a.e) - layerOf(b.e) || a.index - b.index).map(({ e }) => e);
+  }
+  // Moves one element a step forward/backward among the parts drawn over it, or to the front/back. Writes explicit z to all.
+  function restack(project, id, how) {
+    const p = K.copy(project), order = drawOrder(p), index = order.findIndex((e) => e.id === id);
+    if (index < 0) throw new Error('Vyberte prvok.');
+    const [e] = order.splice(index, 1), to = how === 'front' ? order.length : how === 'back' ? 0 : K.clamp(index + (how === 'forward' ? 1 : -1), 0, order.length);
+    if (to === index && ['forward', 'backward'].includes(how)) throw new Error(how === 'forward' ? 'Prvok je už navrchu.' : 'Prvok je už úplne vzadu.');
+    order.splice(to, 0, e);
+    order.forEach((v, i) => { v.z = i; });
+    return K.validateProject(p);
+  }
+  // Motor output: the shaft with a lever (end B connectable) or the shaft alone.
+  function setMotorOutput(project, id, output) {
+    const p = K.copy(project), e = p.elements.find((v) => v.id === id && v.type === 'motor');
+    if (!e) throw new Error('Vyberte elektromotor.');
+    if (output === 'shaft') {
+      const onLever = (r) => r?.elementId === id && r.point === 'b';
+      const joints = p.connections.filter((j) => onLever(j.a) || onLever(j.b)).length, marks = (p.dimensions || []).filter((d) => [d.a, d.b, d.control].some(onLever)).length + (p.trajectories || []).filter((t) => onLever(t.reference)).length;
+      if (joints || marks) throw new Error(`Na páku motora (bod B) je pripojených ${joints} väzieb a ${marks} kót alebo dráh. Presuňte ich na hriadeľ A alebo ich odstráňte.`);
+      e.motorOutput = 'shaft';
+    } else delete e.motorOutput;
+    return K.validateProject(p);
+  }
+  // The motor shaft axis and the housing centre coincide. A part that should turn with the motor (cam, lever, plate)
+  // belongs on the shaft; frames, guides and pins belong on the housing. Lower ranks first among coinciding points.
+  function mountRank(project, source, target) {
+    const element = project.elements.find((e) => e.id === target?.elementId);
+    const turning = source && !source.locked && !source.primary && source.role !== 'motor-housing' && !K.isElastic(source) && !['ground', 'rail', 'slot', 'bearing', 'node'].includes(source.type);
+    const shaft = element?.type === 'motor' && target.point === 'a', housing = element?.role === 'motor-housing' && target.point === 'c';
+    return shaft ? (turning ? 0 : 2) : housing ? (turning ? 2 : 0) : 1;
+  }
   function suggestJoint(project, a, b) {
     const element = r => project.elements.find(e => e.id === r.elementId);
     const guide = [a, b].find(r => r.point === 'curve');
@@ -667,7 +703,7 @@
     return hitTargets(candidates, at, nodeRadius, jointRadius)[0] || null;
   }
   global.KinmoInteraction = Object.freeze({
-    nodeKey, elementKey, jointKey, dimensionKey, controlKey, outlineKey, pathKey, controlPoints, pointKeys, target, reference, validSelection, select, fixed, status, root, suggestJoint, hitTest, hitTargets, boxSelect, setRailMotion,
+    nodeKey, elementKey, jointKey, dimensionKey, controlKey, outlineKey, pathKey, controlPoints, pointKeys, target, reference, validSelection, select, fixed, status, root, suggestJoint, hitTest, hitTargets, boxSelect, mountRank, setMotorOutput, drawOrder, restack, setRailMotion,
     addNode, disconnect, disconnectBody, toggleBodyFixed, setJoint, toggleFixed, deleteSelection, setCoordinates, transformPoints, translate,
     rigidMembers, bindRigid, unbindRigid, separateMotor, resizeMotorHousing, setDriver, setLimits, setJointLimits, setProperties, addPOI, addCamFollower, split, insertAssembly, removeControl, insertControl, setControlPoint, semicircle,
   });

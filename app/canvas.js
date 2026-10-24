@@ -6,7 +6,8 @@
     const matrix = $('#mechanism-canvas').getScreenCTM();
     if (!matrix) return all ? [] : null;
     const screen = (p) => ({ x: p.x * matrix.a + p.y * matrix.c + matrix.e, y: p.x * matrix.b + p.y * matrix.d + matrix.f });
-    const candidates = [];
+    // Overlapping bodies: the one drawn on top wins.
+    const candidates = [], drawRank = new Map(I.drawOrder(state.project).map((e, i) => [e.id, i]));
     for (const e of state.project.elements.filter((e) => e.visible&&viewElementVisible(e.id))) {
       if (state.tool === 'connect' && state.pendingJoint?.elementId === e.id) continue;
       const pose = state.result.poses[e.id];
@@ -27,7 +28,7 @@
       }
       if (pose && !['node', 'bearing'].includes(e.type)) {
         const polygon = pose.outline?.length ? pose.outline : e.type === 'panel' ? panelPoints(pose, e.primary ? state.project.parameters.panelThickness : e.width) : null;
-        candidates.push({ type: 'body', key: e.type === 'slot' ? I.pathKey(e.id) : I.elementKey(e.id), path: (pose.path?.length ? pose.path : [pose.a, pose.b]).filter(Boolean).map(screen), polygon: polygon?.map(screen), radius: Math.max(7, (e.type === 'rail' ? e.slotWidth : e.type === 'slot' ? e.slotWidth + 20 : e.width + 3) * Math.hypot(matrix.a, matrix.b) / 2), priority: state.project.elements.indexOf(e) });
+        candidates.push({ type: 'body', key: e.type === 'slot' ? I.pathKey(e.id) : I.elementKey(e.id), path: (pose.path?.length ? pose.path : e.type === 'motor' && e.motorOutput === 'shaft' ? [pose.a, pose.a] : [pose.a, pose.b]).filter(Boolean).map(screen), polygon: polygon?.map(screen), radius: Math.max(7, (e.type === 'rail' ? e.slotWidth : e.type === 'slot' ? e.slotWidth + 20 : e.width + 3) * Math.hypot(matrix.a, matrix.b) / 2), priority: drawRank.get(e.id) });
       }
     }
     for (const joint of state.project.connections.filter(j=>!j.rigidAssemblyId)) {
@@ -37,6 +38,13 @@
       if (a && b) candidates.push({ type: 'joint', key: I.jointKey(joint.id), a: screen(a), b: screen(b), marker: screen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }) });
     }
     const hits = I.hitTargets(candidates, { x: event.clientX, y: event.clientY }, event.pointerType === 'touch' ? 22 : 12);
+    // Connecting a turning part at the motor centre picks the shaft before the coinciding housing centre.
+    const pending = state.tool === 'connect' && state.pendingJoint && state.project.elements.find((e) => e.id === state.pendingJoint.elementId);
+    if (pending && hits.length > 1) {
+      const at = (key) => { const t = I.target(state.project, key); return t?.type === 'node' ? K.point(state.result, t) : null; }, first = at(hits[0]);
+      const same = hits.filter((key) => { const p = at(key); return first && p && K.distance(p, first) < .01; });
+      if (same.length > 1) { const rest = hits.filter((key) => !same.includes(key)); same.sort((a, b) => I.mountRank(state.project, pending, I.target(state.project, a)) - I.mountRank(state.project, pending, I.target(state.project, b))); hits.splice(0, hits.length, ...same, ...rest); }
+    }
     // In simulation a fixed guide or frame body cannot be dragged, so a moving part under the pointer wins (a wide slot hides its pin).
     if (state.mode === 'simulate') {
       const still = (key) => { const t = I.target(state.project, key), e = t?.element; return !['node', 'joint'].includes(t?.type) && !!e && (e.type === 'ground' || e.locked || ['slot', 'rail'].includes(e.type) && !e.parentId); };
@@ -268,6 +276,8 @@
       else if(action==='spin')startRotation(t.elementId);
       else if(action==='surface-contact')surfaceModal(t.elementId);
       else if(action==='motor-spec')motorSpecModal(t.elementId);
+      else if (action.startsWith('stack-')) restackElement(t.elementId, action.slice(6));
+      else if (action === 'motor-output') { const e = p.elements.find((v) => v.id === t.elementId); editCanvas(I.setMotorOutput(p, e.id, e.motorOutput === 'shaft' ? 'lever' : 'shaft'), e.motorOutput === 'shaft' ? 'Motor má hriadeľ s pákou; na páku B možno pripájať.' : 'Motor má iba hriadeľ; diely pripájajte na os A.'); }
       else if (action.startsWith('motor-')) canvasDialog('motor', { elementId: t.elementId, point: action.slice(6) });
       else if (action === 'edit-joint') jointModal(t.id);
       else if (action === 'edit-dimension') dimensionModal(t.id);
@@ -331,6 +341,14 @@
     state.snapPreview = null; dismissSnapChoices(); state.insertingType = null; state.placementPreview = null; state.placementMount = null; renderPlacementTools();
     if (tool !== 'measure') state.measure = null;
     updateToolbar(); renderScene();
+  }
+
+  // Drawing order (front/back) is a visual setting; it is undoable like other edits.
+  function restackElement(id, how) {
+    const e = state.project.elements.find((v) => v.id === id);
+    if (!e) return;
+    try { editCanvas(I.restack(state.project, id, how), `„${e.name}“ · ${({ front: 'navrchu', back: 'naspodku', forward: 'o úroveň vpredu', backward: 'o úroveň vzadu' })[how]}.`); }
+    catch (error) { toast(error.message, true); }
   }
 
   function addElement(type, position) {
@@ -430,12 +448,12 @@
     // Several wheel events can arrive per frame; the view is updated each time and drawn once.
     if (pinch) { zoom(K.clamp(Math.exp(event.deltaY * 0.01), 0.5, 2), viewPoint(event), true); return; }
     if (!state.trackpad && !event.shiftKey) { zoom(event.deltaY > 0 ? 1.08 : 0.925, viewPoint(event), true); return; }
-    const rect = $('#mechanism-canvas').getBoundingClientRect(), unit = event.deltaMode === 1 ? 16 : 1;
+    const rect = state.viewGesture?.rect || $('#mechanism-canvas').getBoundingClientRect(), unit = event.deltaMode === 1 ? 16 : 1;
     const scale = Math.max(state.view.width / rect.width, state.view.height / rect.height) * unit;
     const dx = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX, dy = event.shiftKey ? 0 : event.deltaY;
     closeContextMenu();
     state.view = { ...state.view, x: state.view.x + dx * scale, y: state.view.y + dy * scale };
-    scheduleScene();
+    previewView();
   }
   function startPan(event, extra = {}) {
     $('#mechanism-canvas').setPointerCapture(event.pointerId);
@@ -451,10 +469,11 @@
     const f = w / view.width;
     const c = center || { x: view.x + view.width / 2, y: view.y + view.height / 2 };
     state.view = { x: c.x - (c.x - view.x) * f, y: c.y - (c.y - view.y) * f, width: w, height: view.height * f };
-    if (deferred) scheduleScene(); else renderScene();
+    if (deferred) previewView(); else renderScene();
   }
 
   function worldPoint(event) {
+    if (state.viewGesture) return viewPoint(event);
     const svg = $('#mechanism-canvas'), point = svg.createSVGPoint();
     point.x = event.clientX; point.y = event.clientY;
     const matrix = svg.getScreenCTM();
@@ -538,6 +557,8 @@
 
   function onPointerDown(event) {
     if (state.gifExport) return;
+    // A press ends a zoom/pan preview, so hit tests and drags use the sharp, exactly placed scene.
+    if (state.viewGesture) renderScene();
     if (touchStart(event)) return;
     if(event.pointerType==='touch'&&!event.deferredTouch&&(state.tool==='connect'||state.insertingType||state.magic?.placementType)){state.touchGesture.deferred={pointerId:event.pointerId,clientX:event.clientX,clientY:event.clientY,button:event.button,target:event.target,pointerType:'touch',deferredTouch:true,preventDefault(){}};if(state.insertingType||state.magic?.placementType)clearTimeout(state.touchGesture.timer);return;}
     if (state.drag) return;
@@ -779,10 +800,10 @@
     else if (drag.kind === 'inverse') setMotion(K.inverseDrive(state.project, point, drag.fraction, { profile: state.profile, collisions: false, elementId: drag.id, point: drag.key }));
     else if (drag.kind === 'pan') {
       drag.moved ||= Math.hypot(event.clientX - drag.clientStart.x, event.clientY - drag.clientStart.y) > 4;
-      const rect = $('#mechanism-canvas').getBoundingClientRect();
+      const rect = state.viewGesture?.rect || $('#mechanism-canvas').getBoundingClientRect();
       const scale = Math.max(drag.view.width / rect.width, drag.view.height / rect.height);
       state.view = { ...drag.view, x: drag.view.x - (event.clientX - drag.clientStart.x) * scale, y: drag.view.y - (event.clientY - drag.clientStart.y) * scale };
-      renderScene();
+      previewView();
     } else if (drag.kind === 'measure') { state.measure.b = point; renderScene(); }
     else if (drag.kind === 'element') {
       const e = state.project.elements.find((e) => e.id === drag.id);
@@ -872,7 +893,7 @@
     }
     if (!prepareForces(true, true)) return;
     if (state.dynamic) { state.dynamic.time = 0; state.dynamic.stopped = false; state.dynamic.reason = ''; }
-    state.playing = false; actions.play(); renderWorkflowTools();
+    state.playing = false; state.physicsPace = 1; actions.play(); renderWorkflowTools();
   }
 
   function onLostPointerCapture(event) {
@@ -940,6 +961,7 @@
     const drag = state.drag;
     if (drag && event.pointerId !== drag.pointerId) return;
     state.drag = null;
+    if (drag?.kind === 'pan' && state.viewGesture) renderScene();
     state.snapPreview = null;
     document.body.classList.remove('canvas-dragging');
     if (drag?.kind === 'pan' && drag.button === 2) {

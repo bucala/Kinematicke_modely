@@ -11,8 +11,9 @@
   }
 
   // Client coordinates to model coordinates for a view that may not be drawn yet (coalesced wheel events).
+  // During a zoom/pan gesture the canvas is CSS-transformed, so its layout box from the gesture start is used.
   function viewPoint(event, view = state.view) {
-    const rect = $('#mechanism-canvas').getBoundingClientRect(), scale = Math.min(rect.width / view.width, rect.height / view.height) || 1;
+    const rect = state.viewGesture?.rect || $('#mechanism-canvas').getBoundingClientRect(), scale = Math.min(rect.width / view.width, rect.height / view.height) || 1;
     return { x: view.x + (event.clientX - (rect.left || 0) - (rect.width - view.width * scale) / 2) / scale, y: view.y + (event.clientY - (rect.top || 0) - (rect.height - view.height * scale) / 2) / scale };
   }
 
@@ -59,6 +60,24 @@
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
+  }
+
+  // Zoom and pan gestures: re-rasterising the whole vector scene at every step is what makes zooming jerky with
+  // springs, wide slots and large labels. While the gesture lasts, the already drawn picture is scaled and moved
+  // on the GPU (CSS transform); the sharp redraw follows once the gesture pauses.
+  function previewView() {
+    const svg = $('#mechanism-canvas');
+    if (!svg?.style || !state.renderedView || typeof setTimeout !== 'function') { scheduleScene(); return; }
+    if (!state.viewGesture) state.viewGesture = { rect: svg.getBoundingClientRect(), base: state.renderedView };
+    const { rect, base } = state.viewGesture, view = state.view;
+    const fit = (v) => { const s = Math.min(rect.width / v.width, rect.height / v.height) || 1; return { s, x: (rect.width - v.width * s) / 2, y: (rect.height - v.height * s) / 2 }; };
+    const from = fit(base), to = fit(view), k = to.s / from.s;
+    // Model point base.(x, y) is drawn at from.(x, y) and has to appear at the position the new view gives it.
+    const tx = to.x + (base.x - view.x) * to.s - k * from.x, ty = to.y + (base.y - view.y) * to.s - k * from.y;
+    svg.style.transformOrigin = '0 0'; svg.style.transform = `translate(${tx}px, ${ty}px) scale(${k})`;
+    const label = $('#zoom-value'); if (label && state.baseView) label.textContent = `${Math.round(state.baseView.width / view.width * 100)}%`;
+    clearTimeout(state.viewGesture.timer);
+    state.viewGesture.timer = setTimeout(() => { if (state.viewGesture) renderScene(); }, VIEW_SETTLE_MS);
   }
 
   // At most one scene render per display frame for high-rate input (wheel, trackpad, simulation).
@@ -152,7 +171,7 @@
       body = drawMotorHousing(e, pose, color);
     } else if (e.type === 'motor') {
       const separate=state.project.elements.some(v=>v.id===e.parentId&&v.role==='motor-housing');
-      body=`${separate?'':drawMotorHousing(e,pose,color)}${line(pose.a,pose.b,`stroke="${color}" stroke-width="3"`)}<circle cx="${pose.a.x}" cy="${pose.a.y}" r="${e.shaftDiameter/2}" fill="var(--paper)" stroke="${color}"/>`;
+      body=`${separate?'':drawMotorHousing(e,pose,color)}${e.motorOutput==='shaft'?'':line(pose.a,pose.b,`stroke="${color}" stroke-width="3"`)}<circle cx="${pose.a.x}" cy="${pose.a.y}" r="${e.shaftDiameter/2}" fill="var(--paper)" stroke="${color}"/>`;
     } else if (e.type === 'cam') {
       body = `<path d="${pathD(pose.path)} Z" fill="#e6c7a4" fill-opacity=".7" stroke="${color}" stroke-width="1.8"/>${line(pose.a, pose.b, 'stroke="#8c7f6d" stroke-width="1" stroke-dasharray="4 4"')}<circle cx="${pose.a.x}" cy="${pose.a.y}" r="4" fill="var(--paper)" stroke="${color}"/><text x="${pose.a.x}" y="${Math.max(...pose.path.map((p) => p.y)) + 18}" text-anchor="middle" class="part-label">${escape(e.name)}</text>`;
     } else if (pose.outline?.length) {
@@ -238,9 +257,9 @@
         }
       }
     }
-    const order = { ground: 0, slot: 1, cam: 2, rail: 2, link: 3, panel: 4, bearing: 5, node: 6, 'spring-compression': 4, 'spring-extension': 4, 'piston-push': 4, 'piston-pull': 4 };
+    const shown = new Set(elements);
     content += cut;
-    for (const e of [...elements].sort((a, b) => order[a.type] - order[b.type])) content += drawElement(e, result.poses[e.id], result) + cut;
+    for (const e of I.drawOrder(state.project).filter((e) => shown.has(e))) content += drawElement(e, result.poses[e.id], result) + cut;
     for (const joint of state.project.connections.filter(j=>!j.rigidAssemblyId)) {
       const { a, b } = jointPoints(joint, result);
       if (!a || !b || [joint.a, joint.b].some((r) => !elements.find((e) => e.id === r.elementId)?.visible)) continue;
@@ -354,10 +373,11 @@
     if (!svg || !state.view || !state.result) return;
     if (state.magic && state.magic.step <= 2) { renderMagicReference(); return; }
     if (state.sceneFrame) { cancelAnimationFrame(state.sceneFrame); state.sceneFrame = 0; }
+    if (state.viewGesture) { clearTimeout(state.viewGesture.timer); state.viewGesture = null; svg.style.transform = ''; }
     const started = globalThis.performance?.now() ?? 0;
     const { view, result } = state, elements = state.project.elements;
     if (state.diagnosticFor?.result !== result || state.diagnosticFor.project !== state.project) { state.diagnosticRows = W.constraints(state.project, result); state.diagnosticFor = { result, project: state.project }; }
-    svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.width} ${view.height}`);
+    svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.width} ${view.height}`); state.renderedView = { ...view };
     svg.classList.toggle('pan-mode', state.tool === 'pan');
     svg.classList.toggle('connect-mode', state.tool === 'connect');
     svg.classList.toggle('magic-point-mode', state.tool === 'magic-draw');
@@ -517,7 +537,7 @@
     play.setAttribute('aria-label', state.playing ? 'Pozastaviť simuláciu' : 'Spustiť simuláciu');
     play.title = `${state.playing ? 'Pozastaviť' : 'Spustiť'} simuláciu (medzerník)`;
     play.classList.toggle('playing', state.playing);
-    document.body.classList.toggle('simulation-playing', !!state.playing);
+    $('#canvas-area')?.classList.toggle('simulation-playing', !!state.playing);
     $('#solver-dot').classList.toggle('warning', state.result.blocked);
     const positionError = Math.max(state.result.positionResidual || 0, ...(state.diagnosticRows || []).map((r) => r.mm || 0));
     const angleError = Math.max(0, ...(state.diagnosticRows || []).map((r) => r.degrees || 0));
@@ -530,7 +550,7 @@
     readout.hidden = state.project.simulation?.mode !== 'dynamic';
     if (!readout.hidden) {
       const dynamic = state.dynamic, tipSpeed = Math.max(0, ...Object.values(dynamic?.particles || {}).map((p) => Math.hypot(p.vx, p.vy) * 1000), ...Object.values(dynamic?.bodies||{}).map((b)=>Math.hypot(b.vx,b.vy)*1000));
-      readout.textContent = `ODHADOVÁ DYNAMIKA · t = ${fmt(dynamic?.time || 0, 2)} s · v = ${fmt((dynamic?.velocity || 0) / (state.forceContext?.scale || .001), 2)} ${range.unit}/s${dynamic?.particles ? ` · ${dynamic?.bodies ? 'členy / čapy' : 'čapy'} ${fmt(tipSpeed, 2)} mm/s` : ''}${dynamic?.reason ? ` · ${dynamic.reason}` : ''}`;
+      readout.textContent = `ODHADOVÁ DYNAMIKA · t = ${fmt(dynamic?.time || 0, 2)} s · v = ${fmt((dynamic?.velocity || 0) / (state.forceContext?.scale || .001), 2)} ${range.unit}/s${dynamic?.particles ? ` · ${dynamic?.bodies ? 'členy / čapy' : 'čapy'} ${fmt(tipSpeed, 2)} mm/s` : ''}${state.playing && state.physicsPace < .95 ? ` · spomalené na ${fmt(state.physicsPace * 100, 0)} %` : ''}${dynamic?.reason ? ` · ${dynamic.reason}` : ''}`;
     }
   }
 

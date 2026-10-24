@@ -145,9 +145,11 @@
   function portVisible(e, point) {
     if(!viewElementVisible(e.id))return false;
     if(state.detailLevel!=='basic')return true;
+    // While connecting, both the housing centre and the shaft are offered; the shaft wins for turning parts (I.mountRank).
+    if(state.tool==='connect'||state.pendingJoint||state.drag?.nodeConnection)return true;
     const parts=motorParts(e.id);
     if(parts?.housing && (state.motorMode==='drive'?e.id===parts.housing.id:e.id===parts.motor.id))return false;
-    if(['node','bearing'].includes(e.type)||state.tool==='connect'||state.pendingJoint||state.drag?.nodeConnection)return true;
+    if(['node','bearing'].includes(e.type))return true;
     const hover=I.target(state.project,state.hoveredTargetId),owner=I.root(state.project,e)?.id;
     return state.selectedElementIds.some(key=>{const t=I.target(state.project,key);return t?.elementId===e.id||t?.elementId===owner;}) || hover?.elementId===e.id || state.snapPreview?.target.ref?.elementId===e.id;
   }

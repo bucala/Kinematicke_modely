@@ -33,6 +33,10 @@
   const DOUBLE_CLICK_MS = 400;
   // Solver passes per frame while dragging in simulation; releasing the pointer solves fully.
   const DRAG_PASSES = 360;
+  // A zoom or pan gesture is shown as a scaled picture and redrawn sharp after this pause.
+  const VIEW_SETTLE_MS = 140;
+  // Wall-clock milliseconds of physics per animation frame.
+  const PHYSICS_BUDGET_MS = 9;
   const collectionKeys = Object.freeze({ assembly: 'kinematika.assemblies.v1', revision: 'kinematika.revisions.v1' });
   const icons = {
     mechanism: '<path d="M4 19 11 4l9 11-16 4Z"/><circle cx="4" cy="19" r="2"/><circle cx="11" cy="4" r="2"/><circle cx="20" cy="15" r="2"/>',

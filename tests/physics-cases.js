@@ -367,5 +367,16 @@
     const body = moved.bodies.arm;
     near(body.x, 0, 0.01); near(body.y, 0, 0.01); near(body.angle, 45, 0.5);
   });
+  add('Ľahké rameno s tlmenou pružinou: krok nie je zbytočne krátky, rozpočet času obmedzí prácu a pohyb zostane stabilný.', () => {
+    const p=K.preset('custom'),pivot=K.makeElement('ground',0,0),anchor=K.makeElement('ground',0,200),link={...K.makeElement('link',0,0),mass:.1},spring=K.makeElement('spring-extension',0,200);
+    spring.mountA={elementId:anchor.id,point:'a'};spring.mountB={elementId:link.id,point:'b'};
+    p.elements=[pivot,anchor,link,spring];p.connections=[{id:K.uid(),type:'revolute',a:{elementId:link.id,point:'a'},b:{elementId:pivot.id,point:'a'}}];p.simulation.gravity=0;
+    const c=P.prepare(p,{collisions:false}),initial=P.initialState(c);
+    // Explicit damping is stable below 2·m/c; the step keeps a margin but is not 20× shorter than needed.
+    assert(c.maxStep>=.5*.1/(spring.damping+c.config.damping),`Krok ${c.maxStep} s je zbytočne krátky.`);
+    const limited=P.step(c,initial,.25,{budgetMs:.001});assert(limited.time>0&&limited.time<.25,`Rozpočet má skrátiť simulovaný čas, nie ${limited.time}.`);
+    let state=initial;for(let i=0;i<60;i++)state=P.step(c,state,1/60);
+    const body=state.bodies[link.id];assert([body.x,body.y,body.angle,body.vx,body.vy,body.omega].every(Number.isFinite)&&!/nestabil/i.test(state.reason||''),'Pohyb má zostať numericky stabilný.');
+  });
   global.KinematicsTestCases = Object.freeze([...global.KinematicsTestCases, ...cases]);
 })(globalThis);

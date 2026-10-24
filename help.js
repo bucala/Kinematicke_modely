@@ -50,7 +50,7 @@
   const shortcuts = [
     ['Všeobecné', [['Ctrl + K','Paleta príkazov'],['?','Prehľad skratiek'],['F1','Obrázkový návod'],['Ctrl + S','Uložiť projekt'],['Ctrl + Z','Späť'],['Ctrl + Shift + Z / Ctrl + Y','Znova'],['Esc','Zavrieť ponuku / zrušiť výber']]],
     ['Plátno', [['Space','Prehrať / pozastaviť'],['Space + ťahanie','Posun plátna'],['Pravé tlačidlo + ťahanie','Posun plátna'],['Ctrl + koliesko','Zoom, aj štipnutie na trackpade'],['Alt + koliesko','Poloha pohonu'],['← / →','Poloha pohonu, so Shift po 10'],['Shift + F','Prispôsobiť pohľad'],['V / H','Výber / posun plátna'],['J / M','Spojenie / meranie']]],
-    ['Výber', [['Enter','Hlavná úprava výberu'],['Opakovaný klik','Ďalšia prekrytá entita'],['Ťahanie po ploche','Obdĺžnikový výber'],['Shift + F10','Kontextová ponuka výberu'],['F','Ukotviť / uvoľniť uzly'],['Ctrl + D','Duplikovať'],['Delete','Odstrániť výber']]],
+    ['Výber', [['Enter','Hlavná úprava výberu'],['Opakovaný klik','Ďalšia prekrytá entita'],['Ťahanie po ploche','Obdĺžnikový výber'],['Shift + F10','Kontextová ponuka výberu'],['F','Ukotviť / uvoľniť uzly'],['Ctrl + D','Duplikovať'],['Ctrl + ]  Ctrl + [','Dopredu a dozadu, so Shift navrch a naspodok'],['Delete','Odstrániť výber']]],
     ['Dotyk', [['Ťuk dvoma prstami','Vrátiť krok'],['Ťuk troma prstami','Zopakovať krok'],['Dvojťuk','Hlavná úprava výberu']]],
   ];
   const shortcutGrid = () => shortcuts.map(([group, rows]) => `<h4 class="shortcut-group">${esc(group)}</h4><div class="shortcut-grid">${rows.map(([key,label])=>`<div><kbd>${esc(key)}</kbd><span>${esc(label)}</span></div>`).join('')}</div>`).join('');

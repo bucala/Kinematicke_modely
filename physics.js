@@ -4,6 +4,7 @@
    This is not a multibody/contact solver or a manufacturer gas-spring rating tool. */
 (function (global) {
   'use strict';
+  const now = () => global.performance?.now?.() ?? Date.now();
   const K = global.Kinematics, E = global.KinmoEditor;
   const settings = (project) => ({ ...K.simulationDefaults, ...project.simulation });
   const deltaAngle = (a, b) => ((((b - a + 180) % 360) + 360) % 360 - 180) * K.DEG;
@@ -113,7 +114,9 @@
     for (const b of [...bodies, ...particles]) {
       const members = project.elements.filter(K.isElastic).filter((e) => ['a','b'].some((key) => { const group = graph.groups.find((g) => g.id === graph.ports[`${e.id}:${key}`]); return group.id === b.id || group.anchors.some((r) => owners[r.elementId] === b.id); }));
       const stiffness = members.reduce((sum,e) => sum + Math.abs(axial(e,initial.poses[e.id].length).rate)*1000,0), damping = members.reduce((sum,e) => sum + Math.max(e.damping,e.dampingCompression||0,e.dampingExtension||0),config.damping);
-      maxStep = Math.min(maxStep, .1*Math.sqrt(b.mass/Math.max(1,stiffness)), .1*b.mass/Math.max(1,damping));
+      // Explicit damping is stable below 2·m/c; .8·m/c keeps a 2.5× margin. The former .1 (20×) made a light pin on a
+      // damped spring take thousands of substeps per frame, so its return after release played in jerks.
+      maxStep = Math.min(maxStep, .1*Math.sqrt(b.mass/Math.max(1,stiffness)), .8*b.mass/Math.max(1,damping));
     }
     if (maxStep < .00001) throw new Error('Zostava je príliš tuhá alebo silno tlmená. Upravte hmotnosť, tuhosť alebo tlmenie.');
     // A shared elastic port attached to several rigid bodies is one revolute support.
@@ -121,8 +124,9 @@
     return { project, config, profile, freedom, range:K.driveRange(project), scale:.001, elastic:project.elements.filter(K.isElastic), graph, particles, network:particles.length?{graph,particles,members:project.elements.filter(K.isElastic).filter((e)=>['a','b'].some((key)=>particles.some((g)=>g.id===graph.ports[`${e.id}:${key}`])))}:null, bodyDynamics:{ bodies, owners }, programStart:project.driveProgram?(initial.motion-K.driveRange(project).min)/(K.driveRange(project).max-K.driveRange(project).min)*project.driveProgram.duration:0, maxStep, collisions, initial, rows:[], estimated:true };
   }
   function bodyCenter(body, pose) { return K.worldPoint(pose, body.localCenter); }
-  function bodyLoads(context, state) {
-    const result = K.solve(context.project,state.motion,{ profile:context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0,collisions:false,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state) });
+  // reuse: the pose the previous substep's projection already solved for exactly this state (no drive motion between).
+  function bodyLoads(context, state, reuse = null) {
+    const result = reuse || K.solve(context.project,state.motion,{ profile:context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0,collisions:false,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state) });
     const loads = Object.fromEntries(context.bodyDynamics.bodies.map((b) => [b.id,{ x:0,y:b.mass*context.config.gravity,torque:0 }]));
     const tipLoads = Object.fromEntries(context.particles.map((g) => [g.id,{ x:0,y:g.mass*context.config.gravity }])), lengthRates = {};
     const endpoint = (e,key) => {
@@ -154,13 +158,15 @@
     }
     return result;
   }
-  function stepBodies(context,previous,elapsed) {
-    const state=K.copy(previous),count=Math.ceil(elapsed/context.maxStep),dt=elapsed/count;
+  function stepBodies(context,previous,elapsed,deadline=0) {
+    const state=K.copy(previous),count=Math.ceil(elapsed/context.maxStep),dt=elapsed/count,driven=context.project.elements.some(e=>e.drive);
     if(count>25000) throw new Error('Časový krok je príliš veľký pre tuhosť zostavy.');
+    let projected=null;
     const outsideStroke = result => context.elastic.some(e => { const length=result.poses[e.id]?.length; const tolerance=context.config.softStops?2:1e-6;return length < e.minLength-tolerance || length > e.maxLength+tolerance; });
     for(let i=0;i<count;i++) {
+      if(i&&deadline&&now()>=deadline)break;
       const h=Math.min(dt,context.config.duration-state.time); if(h<=0) break;
-      const before=K.copy(state);if(context.project.elements.some(e=>e.drive)){const range=K.driveRange(context.project),program=context.project.driveProgram;state.motion=K.clamp(program?range.min+((context.programStart||0)+state.time+h)/program.duration*(range.max-range.min):state.motion+(context.project.elements.find(e=>e.drive).driveSpeed??60)*h,range.min,range.max);}const value=bodyLoads(context,state);state.contacts=value.contacts;
+      const before=K.copy(state);if(context.project.elements.some(e=>e.drive)){const range=K.driveRange(context.project),program=context.project.driveProgram;state.motion=K.clamp(program?range.min+((context.programStart||0)+state.time+h)/program.duration*(range.max-range.min):state.motion+(context.project.elements.find(e=>e.drive).driveSpeed??60)*h,range.min,range.max);}const value=bodyLoads(context,state,driven||projected?.blocked?null:projected);state.contacts=value.contacts;
       for(const b of context.bodyDynamics.bodies) {
         const s=state.bodies[b.id],load=value.loads[b.id],center=bodyCenter(b,value.result.poses[b.id]);
         s.vx+=(load.x-context.config.damping*s.vx)/b.mass*h;s.vy+=(load.y-context.config.damping*s.vy)/b.mass*h;
@@ -169,7 +175,7 @@
         const offset=K.rotate(b.localCenter,s.angle);s.x=center.x+s.vx*h*1000-offset.x;s.y=center.y+s.vy*h*1000-offset.y;
       }
       for(const g of context.particles) {const p=state.particles[g.id],load=value.tipLoads[g.id];p.vx+=load.x/g.mass*h;p.vy+=load.y/g.mass*h;p.x+=p.vx*h*1000;p.y+=p.vy*h*1000;}
-      const result=projectBodies(context,state,value.result,h);state.time+=h;
+      const result=projectBodies(context,state,value.result,h);projected=result;state.time+=h;
       if(!Object.values(state.bodies).every((b)=>[b.x,b.y,b.angle,b.vx,b.vy,b.omega].every(Number.isFinite)) || !Object.values(state.particles).every(p=>[p.x,p.y,p.vx,p.vy].every(Number.isFinite))) {state.stopped=true;state.reason='Numericky nestabilná poloha zostavy.';}
       else if(result.blocked || outsideStroke(result)){
         const candidate=K.copy(state);let low=0,high=1,safe=value.result;
@@ -181,7 +187,7 @@
         }
         for(const b of context.bodyDynamics.bodies){const p=safe.poses[b.id];Object.assign(state.bodies[b.id],{x:p.a.x,y:p.a.y,angle:p.angle,vx:0,vy:0,omega:0});}
         for(const g of context.particles){const a=before.particles[g.id],z=candidate.particles[g.id];Object.assign(state.particles[g.id],{x:K.lerp(a.x,z.x,low),y:K.lerp(a.y,z.y,low),vx:0,vy:0});}
-        state.time=before.time+h*low;state.stopped=true;state.reason=result.issues[0] || 'Pracovný doraz pružného prvku.';
+        projected=null;state.time=before.time+h*low;state.stopped=true;state.reason=result.issues[0] || 'Pracovný doraz pružného prvku.';
       }
       if(state.time>=context.config.duration-1e-12){state.stopped=true;state.reason='Uplynul nastavený čas simulácie.';}
       if(state.stopped)break;
@@ -328,15 +334,18 @@
     };
   }
 
-  function step(context, previous, elapsed) {
+  // options.budgetMs bounds the wall-clock work of one call: a stiff, light assembly needs thousands of substeps per
+  // frame, and a frame that overruns makes the next one longer still. The caller sees the simulated time it got.
+  function step(context, previous, elapsed, options = {}) {
     if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > 0.25) throw new Error('Časový krok musí byť v rozsahu 0–0,25 s.');
-    const state = { ...previous };
+    const state = { ...previous }, deadline = options.budgetMs > 0 ? now() + options.budgetMs : 0;
     if (state.stopped || elapsed === 0) return state;
-    if(context.bodyDynamics)return stepBodies(context,previous,elapsed);
-    if (context.network) return stepNetwork(context, previous, elapsed);
+    if(context.bodyDynamics)return stepBodies(context,previous,elapsed,deadline);
+    if (context.network) return stepNetwork(context, previous, elapsed, deadline);
     const count = Math.ceil(elapsed / context.maxStep), baseDt = elapsed / count;
     if (count > 25000) throw new Error('Časový krok je príliš veľký pre nastavenú tuhosť.');
     for (let i = 0; i < count; i++) {
+      if (i && deadline && now() >= deadline) break;
       const dt = Math.min(baseDt, Math.max(0, context.config.duration - state.time));
       const value = generalized(context, state.motion, state.velocity);
       if (value.mass < 1e-9) { state.stopped = true; state.reason = 'Singulárna poloha alebo nulová efektívna hmotnosť.'; break; }
@@ -426,11 +435,12 @@
     return forces(context.project, result, rates);
   }
 
-  function stepNetwork(context, previous, elapsed) {
+  function stepNetwork(context, previous, elapsed, deadline = 0) {
     const state = { ...previous, particles: Object.fromEntries(Object.entries(previous.particles).map(([id, p]) => [id, { ...p }])) };
     const count = Math.ceil(elapsed / context.maxStep), baseDt = elapsed / count;
     if (count > 25000) throw new Error('Časový krok je príliš veľký pre nastavenú tuhosť.');
     for (let i = 0; i < count; i++) {
+      if (i && deadline && now() >= deadline) break;
       const safeState=context.config.softStops?K.copy(state):null;
       const dt = Math.min(baseDt, Math.max(0, context.config.duration - state.time));
       if (dt <= 0) { state.stopped = true; state.reason = 'Uplynul nastavený čas simulácie.'; break; }
