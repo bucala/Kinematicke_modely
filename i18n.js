@@ -930,7 +930,14 @@
  ["Ctrl + koliesko", "Ctrl + wheel", "Strg + Mausrad"],
  ["Zoom, aj štipnutie na trackpade", "Zoom, also pinch on a trackpad", "Zoom, auch Zusammenziehen auf dem Trackpad"],
  ["Alt + koliesko", "Alt + wheel", "Alt + Mausrad"],
- ["Poloha pohonu", "Drive position", "Antriebsposition"]
+ ["Poloha pohonu", "Drive position", "Antriebsposition"],
+ ["Dynamika potrebuje určené tuhé telesá a pohon alebo voľné pružné čapy. Zostáva {n} ďalších voľných súradníc. Voľne sa pohybuje: {x}.", "Dynamics needs determined rigid bodies and a drive or free elastic pins. {n} more free coordinates remain. Moving freely: {x}.", "Die Dynamik benötigt bestimmte starre Körper und einen Antrieb oder freie elastische Bolzen. Es bleiben {n} weitere freie Koordinaten. Frei beweglich: {x}."],
+ ["„{x}“ sa s pohonom nepohybuje, preto ho ťahanie neposunie. Pripojte ho k poháňanému mechanizmu alebo ho presuňte v Úprave geometrie.", "“{x}” does not move with the drive, so dragging does not move it. Connect it to the driven mechanism or move it in geometry editing.", "„{x}“ bewegt sich nicht mit dem Antrieb, daher verschiebt Ziehen es nicht. Verbinden Sie es mit dem angetriebenen Mechanismus oder verschieben Sie es in der Geometriebearbeitung."],
+ ["Ťuk dvoma prstami", "Two-finger tap", "Tippen mit zwei Fingern"],
+ ["Ťuk troma prstami", "Three-finger tap", "Tippen mit drei Fingern"],
+ ["Dvojťuk", "Double tap", "Doppeltippen"],
+ ["Vrátiť krok", "Undo step", "Schritt zurück"],
+ ["Zopakovať krok", "Redo step", "Schritt wiederholen"]
  ];
  // Rows may contain {n} (a number or range as the UI prints it), {s} (text translated on its own if possible, e.g. a model name)
  // and {x} (verbatim text such as a file name; never translated or reported as missing).

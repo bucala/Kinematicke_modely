@@ -1,5 +1,14 @@
 # História zmien
 
+## Nevydané: dotykové gestá a spoľahlivé ťahanie v simulácii
+
+- **Dotyk:** jeden prst po prázdnej ploche posúva plátno, ťuk dvoma prstami vráti krok a troma ho zopakuje (pohľad sa pri ťuku nemení, štipnutie ani dlhé podržanie krok nevracia). Dvojťuk a opakovaný ťuk fungujú ako dvojklik a opakovaný klik s väčšou toleranciou pre prst.
+- **Oprava:** čap vo vedení kulisy sa v simulácii nedal ťahať, keď bola k nemu pripojená pružina alebo piest. Pružina nie je kinematická väzba; jej koniec teraz čap sleduje.
+- **Oprava:** rameno otočne uložené na jednom pevnom čape (kyvadlo, páka) sa pri silovom ťahaní nehýbalo, lebo posun vrátil otočný kĺb. Teraz sa okolo čapu otočí za kurzorom.
+- V simulácii ťahanie spoločného bodu kĺbu hýbe pevným členom tohto kĺbu namiesto iba výberu. Ak ťaháte teleso, ktoré pohon nepohne, aplikácia to oznámi namiesto tichého nič.
+- Hlásenie odhadovej dynamiky menuje diely, ktoré sa ešte voľne pohybujú.
+- `npm run test:browser` overuje, že ťahanie v simulácii nikdy nezlyhá potichu (každý pohyblivý diel v piatich modeloch sa pohne alebo dostane vysvetlenie), a skutočné dotykové gestá cez DevTools protokol.
+
 ## Nevydané: ovládanie myšou, kolieskom a medzerníkom, kontextové ponuky podľa typu entity
 
 - **Opakovaný klik** na to isté miesto prepína prekrývajúce sa uzly, väzby a telesá; stlačenie a ťahanie na tom istom mieste posúva aktuálne vybranú entitu, nie ďalšiu.

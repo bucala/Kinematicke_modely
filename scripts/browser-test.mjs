@@ -114,6 +114,74 @@ try {
   check('Ovládanie myšou bez chýb stránky', !mouse.errors.length, mouse.errors.join(' | '));
   await mouse.view.close();
 
+  // Dragging in simulation never fails silently: every movable part either moves or the app says why.
+  const silent = await page(`${origin}/`);
+  await silent.view.waitForSelector('#workspace', { timeout: 15000 });
+  const models = await silent.view.evaluate(dragModels);
+  const quiet = [];
+  for (const model of models) {
+    await silent.view.evaluate((json) => { document.querySelector('dialog[open]')?.close(); loadProject(Kinematics.validateProject(JSON.parse(json))); setMode('simulate'); fitView(); renderScene(); window.__toasts = []; if (!window.__toastWrapped) { const original = toast; toast = (message, ...rest) => { window.__toasts.push(String(message)); return original(message, ...rest); }; window.__toastWrapped = true; } }, model.json);
+    for (const id of model.parts) {
+      const spot = await silent.view.evaluate((id) => {
+        const pose = state.result.poses[id], e = state.project.elements.find((v) => v.id === id), m = document.querySelector('#mechanism-canvas').getScreenCTM();
+        const at = e.type === 'bearing' || !pose.b ? pose.a : K.isElastic(e) ? pose.b : { x: pose.a.x + (pose.b.x - pose.a.x) * .6, y: pose.a.y + (pose.b.y - pose.a.y) * .6 };
+        window.__toasts = []; window.__before = JSON.stringify(state.result.poses);
+        return { name: e.name, x: at.x * m.a + at.y * m.c + m.e, y: at.x * m.b + at.y * m.d + m.f };
+      }, id);
+      await silent.view.mouse.move(spot.x, spot.y); await silent.view.mouse.down(); await silent.view.mouse.move(spot.x + 40, spot.y + 25, { steps: 6 }); await silent.view.mouse.up();
+      const reaction = await silent.view.evaluate(() => ({ moved: JSON.stringify(state.result.poses) !== window.__before, said: window.__toasts.length }));
+      if (!reaction.moved && !reaction.said) quiet.push(`${model.name} → ${spot.name}`);
+      await silent.view.evaluate((json) => { state.playing = false; document.querySelector('dialog[open]')?.close(); loadProject(Kinematics.validateProject(JSON.parse(json))); setMode('simulate'); fitView(); renderScene(); }, model.json);
+    }
+  }
+  check('Ťahanie v simulácii nikdy nezlyhá potichu', !quiet.length && !silent.errors.length, quiet.length ? `bez reakcie: ${quiet.join('; ')}` : `${models.reduce((n, m) => n + m.parts.length, 0)} dielov v ${models.length} modeloch${silent.errors.length ? ` · ${silent.errors.join(' | ')}` : ''}`);
+  await silent.view.close();
+
+  // Real touch through the DevTools protocol: one-finger pan, two- and three-finger taps, double tap.
+  const touchPage = await page(`${origin}/`, { width: 390, height: 844 }, { isMobile: true, hasTouch: true });
+  await touchPage.view.waitForSelector('#workspace', { timeout: 15000 });
+  await touchPage.view.evaluate(() => { const project = Kinematics.validateProject(Kinematics.preset('fourbar')); localStorage.setItem('kinematika.projects.v1', JSON.stringify([project])); localStorage.setItem('kinematika.last.v1', project.id); });
+  await touchPage.view.reload(); await touchPage.view.waitForSelector('#workspace', { timeout: 15000 });
+  await touchPage.view.evaluate(() => { makeEditable(); fitView(); renderScene(); });
+  const cdp = await touchPage.view.context().newCDPSession(touchPage.view);
+  const touches = async (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([x, y], id) => ({ x, y, id })) });
+  const pause = (ms) => touchPage.view.waitForTimeout(ms);
+  // An empty spot inside the canvas, clear of floating toolbars.
+  const spots = await touchPage.view.evaluate(() => {
+    const svg = document.querySelector('#mechanism-canvas'), m = svg.getScreenCTM(), r = svg.getBoundingClientRect();
+    const free = (x, y) => { const el = document.elementFromPoint(x, y); return svg.contains(el) && !canvasHit({ clientX: x, clientY: y, target: el, pointerType: 'touch' }); };
+    let empty = null;
+    for (let y = r.top + r.height * .35; y < r.bottom - 40 && !empty; y += 12) for (let x = r.left + 30; x < r.right - 30 && !empty; x += 12) if (free(x, y) && free(x + 60, y) && free(x, y + 40)) empty = { x, y };
+    return { empty };
+  });
+  const snapshot = () => touchPage.view.evaluate(() => ({ x: state.view.x, history: state.history.length, future: state.future.length, geometry: JSON.stringify(state.project.elements.map((e) => [e.x, e.y, e.angle])), dialog: document.querySelector('#modal[open]')?.querySelector('h2,h3,#modal-title')?.textContent || '' }));
+  if (!spots.empty) check('Dotykové gestá', false, 'na plátne sa nenašlo voľné miesto');
+  else {
+    let before = await snapshot();
+    await touches('touchStart', [[spots.empty.x, spots.empty.y]]); for (let i = 1; i <= 5; i++) { await touches('touchMove', [[spots.empty.x + i * 12, spots.empty.y + i * 6]]); } await touches('touchEnd', []);
+    let after = await snapshot();
+    check('Jeden prst po prázdnej ploche posúva plátno', after.x < before.x && after.geometry === before.geometry, `x ${before.x.toFixed(1)} → ${after.x.toFixed(1)}`);
+    // One undoable edit to take back: a small move of the coupler.
+    await touchPage.view.evaluate(() => { pushHistory(); state.project.elements.find((e) => e.name === 'Spojovacie tiahlo').x += 5; changed(); });
+    await pause(450); before = await snapshot();
+    await touches('touchStart', [[spots.empty.x, spots.empty.y], [spots.empty.x + 50, spots.empty.y]]); await pause(60); await touches('touchEnd', []);
+    after = await snapshot();
+    check('Ťuk dvoma prstami vráti krok', after.history === before.history - 1 && after.future === before.future + 1, `história ${before.history} → ${after.history}`);
+    await pause(450);
+    await touches('touchStart', [[spots.empty.x, spots.empty.y], [spots.empty.x + 40, spots.empty.y], [spots.empty.x + 20, spots.empty.y + 30]]); await pause(60); await touches('touchEnd', []);
+    const redone = await snapshot();
+    check('Ťuk troma prstami krok zopakuje', redone.history === before.history && redone.future === before.future, `história ${after.history} → ${redone.history}`);
+    await pause(450);
+    // In geometry editing a tap on the selected body's large edit handles opens the exact edit, so the double tap runs in simulation.
+    // The view moved with the one-finger pan, so the coupler is located again.
+    const coupler = await touchPage.view.evaluate(() => { setMode('simulate'); selectTarget(null); const m = document.querySelector('#mechanism-canvas').getScreenCTM(), pose = state.result.poses[state.project.elements.find((e) => e.name === 'Spojovacie tiahlo').id], mid = { x: pose.a.x + (pose.b.x - pose.a.x) / 3, y: pose.a.y + (pose.b.y - pose.a.y) / 3 }; return { x: mid.x * m.a + mid.y * m.c + m.e, y: mid.x * m.b + mid.y * m.d + m.f }; });
+    for (const offset of [0, 6]) { await touches('touchStart', [[coupler.x + offset, coupler.y + offset / 2]]); await pause(40); await touches('touchEnd', []); await pause(120); }
+    after = await snapshot();
+    check('Dvojťuk na ramene otvorí hlavnú úpravu', /Vlastnosti prvku/.test(after.dialog), after.dialog || 'dialóg sa neotvoril');
+  }
+  check('Dotykové gestá bez chýb stránky', !touchPage.errors.length, touchPage.errors.join(' | '));
+  await touchPage.view.close();
+
   // Translation coverage: open every template and run every non-destructive UI action in EN and DE.
   const allowed = JSON.parse(await readFile(path.join(root, 'tests/i18n-untranslated.json'), 'utf8'));
   for (const language of ['en', 'de']) {
@@ -135,6 +203,21 @@ try {
 } finally {
   await browser.close();
   server.kill();
+}
+// Runs in the page: small models whose movable parts a user would try to drag in simulation.
+function dragModels() {
+  const K = Kinematics, el = (type, x, y, extra = {}) => ({ ...K.makeElement(type, x, y), ...extra });
+  const joint = (a, ap, b, bp, type = 'revolute') => ({ id: K.uid(), name: 'Väzba', type, a: { elementId: a.id, point: ap }, b: { elementId: b.id, point: bp } });
+  const model = (name, elements, connections) => { const project = K.validateProject({ ...K.preset('custom'), name, elements, connections }); return { name, project }; };
+  const onSlot = (pin, slot, project) => { const path = K.solve(project, 0).poses[slot.id].path, at = path[Math.floor(path.length / 2)]; Object.assign(project.elements.find((e) => e.id === pin.id), { x: at.x, y: at.y }); };
+  const list = [];
+  { const g = el('ground', 0, 0), l = el('link', 0, 0, { mass: 1, angle: 90 }), s = el('spring-compression', 0, 0); list.push(model('Kyvadlo s pružinou', [g, l, s], [joint(g, 'a', l, 'a'), joint(s, 'a', g, 'b'), joint(s, 'b', l, 'b')])); }
+  { const slot = el('slot', 0, 0), pin = el('bearing', 0, 0), m = model('Čap v kulise', [slot, pin], [joint(pin, 'a', slot, 'curve', 'point-path')]); onSlot(pin, slot, m.project); list.push(m); }
+  { const slot = el('slot', 0, 0), pin = el('bearing', 0, 0), spring = el('spring-compression', 0, 0), base = el('ground', -300, 0), crank = el('link', -300, 0, { drive: true });
+    const m = model('Čap v kulise s pružinou a samostatným pohonom', [slot, pin, spring, base, crank], [joint(pin, 'a', slot, 'curve', 'point-path'), joint(spring, 'b', pin, 'a'), joint(spring, 'a', slot, 'b'), joint(base, 'a', crank, 'a')]); onSlot(pin, slot, m.project); list.push(m); }
+  { const base = el('ground', 0, 0), crank = el('link', 0, 0, { drive: true }), loose = el('link', 250, 80); list.push(model('Voľné teleso vedľa pohonu', [base, crank, loose], [joint(base, 'a', crank, 'a')])); }
+  { const p = K.preset('fourbar'); list.push({ name: 'Štvorkĺb', project: K.validateProject({ ...p, kind: 'custom', elements: p.elements.map((e) => ({ ...e, primary: false, locked: e.type === 'ground' })), connections: p.connections.map((c) => ({ ...c, builtin: false, type: 'revolute' })) }) }); }
+  return list.map(({ name, project }) => ({ name, json: JSON.stringify(project), parts: project.elements.filter((e) => !e.locked && !['ground', 'slot', 'rail'].includes(e.type)).map((e) => e.id) }));
 }
 // Runs in the page: builds the menu of every entity type in a model with all element kinds, then runs each item on a fresh copy.
 async function checkContextMenus() {

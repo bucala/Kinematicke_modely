@@ -190,10 +190,27 @@
   }
   function dragBody(context,previous,id,point,local) {
     if(!context.bodyDynamics||!previous.bodies[id]||![point.x,point.y].every(Number.isFinite))throw new Error('Vyberte pohyblivý člen silovej zostavy.');
-    const state=K.copy(previous),s=state.bodies[id],offset=K.rotate(local,s.angle);s.x=point.x-offset.x;s.y=point.y-offset.y;
+    const state=K.copy(previous),s=state.bodies[id],pivot=dragPivot(context,previous,id);
+    if(pivot){
+      // A body hinged at one fixed point turns towards the pointer; moving it sideways would be undone by the hinge.
+      const pose={a:{x:s.x,y:s.y},angle:s.angle},grabbed=K.worldPoint(pose,local),pivotLocal=K.localPoint(pose,pivot);
+      s.angle+=K.angleOf(pivot,point)-K.angleOf(pivot,grabbed);
+      const turned=K.rotate(pivotLocal,s.angle);s.x=pivot.x-turned.x;s.y=pivot.y-turned.y;
+    } else {const offset=K.rotate(local,s.angle);s.x=point.x-offset.x;s.y=point.y-offset.y;}
     const result=K.solve(context.project,state.motion,{profile:context.profile,softContact:true,strokeTolerance:context.config.softStops?2:0,collisions:false,forces:false,bodyPositions:bodyPositions(state),elasticPositions:elasticPositions(state)});
     for(const b of context.bodyDynamics.bodies){const p=result.poses[b.id];Object.assign(state.bodies[b.id],{x:p.a.x,y:p.a.y,angle:p.angle,vx:0,vy:0,omega:0});}
     state.time=0;state.stopped=false;state.reason='';return state;
+  }
+
+  // The single fixed hinge of a body: a revolute joint to a ground, locked or fixed point. Null when the body is free or held at several points.
+  function dragPivot(context,previous,id) {
+    const p=context.project,element=p.elements.find((e)=>e.id===id);if(!element)return null;
+    const immobile=(r)=>{const e=p.elements.find((v)=>v.id===r.elementId);return !!e&&(e.type==='ground'||e.locked||!!global.KinmoInteraction?.fixed(p,r));};
+    const hinges=p.connections.filter((j)=>!j.rigidAssemblyId&&(j.type||'revolute')==='revolute').map((j)=>j.a.elementId===id&&immobile(j.b)?j.b:j.b.elementId===id&&immobile(j.a)?j.a:null).filter(Boolean);
+    if(!hinges.length)return null;
+    const poses=K.solve(p,previous.motion,{profile:context.profile,softContact:true,collisions:false,forces:false,bodyPositions:bodyPositions(previous),elasticPositions:elasticPositions(previous)}).poses;
+    const points=[...new Map(hinges.map((r)=>poses[r.elementId]?.[r.point]).filter(Boolean).map((q)=>[`${Math.round(q.x*100)},${Math.round(q.y*100)}`,q])).values()];
+    return points.length===1?points[0]:null;
   }
 
   function prepare(project, options = {}) {
@@ -212,7 +229,11 @@
     if(bodies) { bodies.returning=!!options.returning; return bodies; }
     const graph = K.elasticGraph(p, initial.poses), particles = graph.groups.filter((g) => !g.anchors.length);
     const network = particles.length ? { graph, particles, members: p.elements.filter(K.isElastic).filter((e) => ['a', 'b'].some((key) => particles.some((g) => g.id === graph.ports[`${e.id}:${key}`]))) } : null;
-    if ((!freedom.driven && !network) || freedom.free) throw new Error(`Dynamika potrebuje určené tuhé telesá a pohon alebo voľné pružné čapy. Zostáva ${freedom.free} ďalších voľných súradníc.`);
+    if ((!freedom.driven && !network) || freedom.free) {
+      // Name the parts that still move freely, so the user knows what to anchor or drive.
+      const loose = [...new Set(freedom.directions.map((d) => p.elements.find((e) => e.id === d.elementId)?.name).filter(Boolean))];
+      throw new Error(`Dynamika potrebuje určené tuhé telesá a pohon alebo voľné pružné čapy. Zostáva ${freedom.free} ďalších voľných súradníc.${loose.length ? ` Voľne sa pohybuje: ${loose.join(', ')}.` : ''}`);
+    }
     const samples = options.samples?.length >= 3 ? options.samples : K.sample(p, 241, { profile, collisions: options.collisions !== false, forces: false });
     const config = settings(p);
     const elastic = p.elements.filter(K.isElastic), rigidElastic = elastic.filter((e) => !network?.members.some((m) => m.id === e.id));
