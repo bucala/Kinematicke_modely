@@ -229,6 +229,50 @@ try {
   await palette.view.close();
   }
 
+  // Performance: a spring, a piston and a pin in a slot together; zoom, playback and dragging with the CPU slowed 4×.
+  {
+    const perf = await page(`${origin}/`);
+    await perf.view.waitForSelector('#workspace', { timeout: 15000 });
+    await perf.view.evaluate(`(() => { const project = (${perfModel})(); localStorage.setItem('kinematika.projects.v1', JSON.stringify([project])); localStorage.setItem('kinematika.last.v1', project.id); })()`);
+    await perf.view.reload(); await perf.view.waitForSelector('#workspace', { timeout: 15000 });
+    await perf.view.evaluate(() => { setMode('simulate'); zoom(1 / 2.5); });
+    // Structure: zoom redraws neither bodies nor the swept positions; a rename keeps the 121-position sweep.
+    const structure = await perf.view.evaluate(async () => {
+      const svg = document.querySelector('#mechanism-canvas'), bodies = () => [...svg.querySelectorAll('.scene-part')].filter((part) => part.querySelector('.mechanism-element'));
+      const before = bodies(), ghosts = state.ghostCache?.samples, samples = state.samples;
+      let renders = 0; const original = renderScene; window.renderScene = function (...args) { renders++; return original.apply(this, args); };
+      const rect = svg.getBoundingClientRect(), wheel = (deltaY) => svg.dispatchEvent(new WheelEvent('wheel', { deltaY, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2, bubbles: true, cancelable: true }));
+      for (let i = 0; i < 6; i++) wheel(-40);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      window.renderScene = original;
+      const after = bodies(), kept = before.filter((part) => after.includes(part)).length;
+      pushHistory(); state.project.name += ' 2'; changed();
+      return { kept, total: before.length, renders, ghostsKept: state.ghostCache?.samples === ghosts, samplesKept: state.samples === samples };
+    });
+    check('Zoom neprekresľuje telesá a nerieši mechanizmus znova', structure.total > 0 && structure.kept === structure.total && structure.ghostsKept, `${structure.kept}/${structure.total} častí s telesami ponechaných`);
+    check('Šesť udalostí kolieska v jednom snímku sa vykreslí raz', structure.renders <= 2, `${structure.renders} prekreslení`);
+    check('Premenovanie neprepočíta 121 polôh pohybu', structure.samplesKept);
+    const wait = (ms) => perf.view.waitForTimeout(ms), cdp = await perf.view.context().newCDPSession(perf.view);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    const frames = async (run) => {
+      await perf.view.evaluate(() => { window.__frames = []; window.__stop = false; let last = performance.now(); const loop = (t) => { window.__frames.push(t - last); last = t; if (!window.__stop) requestAnimationFrame(loop); }; requestAnimationFrame(loop); });
+      await run();
+      return perf.view.evaluate(() => { window.__stop = true; const f = window.__frames.slice(2), sorted = [...f].sort((a, b) => a - b), total = f.reduce((a, b) => a + b, 0); return { fps: Math.round(f.length * 1000 / total), p95: Math.round(sorted[Math.floor(sorted.length * .95)]) }; });
+    };
+    const center = await perf.view.evaluate(() => { const r = document.querySelector('#mechanism-canvas').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    await perf.view.mouse.move(center.x, center.y);
+    const zoomed = await frames(async () => { for (let i = 0; i < 24; i++) { await perf.view.mouse.wheel(0, i < 12 ? -60 : 60); await wait(16); } });
+    const played = await frames(async () => { await perf.view.evaluate(() => actions.play()); await wait(2500); await perf.view.evaluate(() => { if (state.playing) actions.play(); }); });
+    const pin = await perf.view.evaluate(() => { const e = state.project.elements.find((e) => e.type === 'bearing'), p = state.result.poses[e.id].a, m = document.querySelector('#mechanism-canvas').getScreenCTM(); return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f }; });
+    const dragged = await frames(async () => { await perf.view.mouse.move(pin.x, pin.y); await perf.view.mouse.down(); for (let i = 1; i <= 30; i++) { await perf.view.mouse.move(pin.x + i * 3, pin.y + i); await wait(16); } await perf.view.mouse.up(); });
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    // Generous limits so a slow CI runner does not fail; before these changes zoom and drag reached 117–150 ms.
+    const limit = Number(process.env.PERF_P95_MS || 100), report = (name, r) => `${name} ${r.fps} sn./s, p95 ${r.p95} ms`;
+    check('Plynulosť pri 4× pomalšom CPU (pružina, piest, kulisa)', [zoomed, played, dragged].every((r) => r.p95 <= limit), [report('zoom', zoomed), report('prehrávanie', played), report('ťahanie', dragged)].join(' · ') + ` · limit p95 ${limit} ms`);
+    check('Výkonnostný test bez chýb stránky', !perf.errors.length, perf.errors.join(' | '));
+    await perf.view.close();
+  }
+
   // Translation coverage: open every template and run every non-destructive UI action in EN and DE.
   const allowed = JSON.parse(await readFile(path.join(root, 'tests/i18n-untranslated.json'), 'utf8'));
   for (const language of ['en', 'de']) {
@@ -252,6 +296,19 @@ try {
   server.kill();
 }
 // Runs in the page: small models whose movable parts a user would try to drag in simulation.
+// A spring, a piston and a pin in a curved slot driven by a four-bar: the combination users reported as jerky.
+function perfModel() {
+  const K = Kinematics, p = K.preset('fourbar');
+  const project = K.validateProject({ ...p, kind: 'custom', name: 'Výkon · pružina, piest a kulisa', elements: p.elements.map((e) => ({ ...e, primary: false, locked: e.type === 'ground' })), connections: p.connections.map((c) => ({ ...c, builtin: false, type: 'revolute' })) });
+  const el = (type, x, y, extra = {}) => ({ ...K.makeElement(type, x, y), ...extra }), joint = (a, ap, b, bp, type = 'revolute') => ({ id: K.uid(), name: 'Väzba', type, a: { elementId: a.id, point: ap }, b: { elementId: b.id, point: bp } });
+  const ground = project.elements.find((e) => e.type === 'ground'), links = project.elements.filter((e) => e.type === 'link'), [rocker, coupler] = [links.at(-1), links[1]];
+  const slot = el('slot', ground.x, ground.y + 180), pin = el('bearing', 0, 0), spring = el('spring-compression', 0, 0), piston = el('piston-push', 0, 0);
+  project.elements.push(slot, pin, spring, piston);
+  project.connections.push(joint(pin, 'a', slot, 'curve', 'point-path'), joint(spring, 'a', slot, 'b'), joint(spring, 'b', pin, 'a'), joint(piston, 'a', ground, 'a'), joint(piston, 'b', coupler, 'b'));
+  const path = K.solve(project, 0).poses[slot.id].path, at = path[Math.floor(path.length / 2)]; pin.x = at.x; pin.y = at.y;
+  return K.validateProject(project);
+}
+
 function dragModels() {
   const K = Kinematics, el = (type, x, y, extra = {}) => ({ ...K.makeElement(type, x, y), ...extra });
   const joint = (a, ap, b, bp, type = 'revolute') => ({ id: K.uid(), name: 'Väzba', type, a: { elementId: a.id, point: ap }, b: { elementId: b.id, point: bp } });

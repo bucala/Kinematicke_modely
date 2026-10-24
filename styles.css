@@ -335,7 +335,10 @@ input, textarea, [contenteditable] input, [contenteditable] textarea, input[cont
 .joint-node.node-free, .joint-node.node-driven { cursor: grab; }
 .joint-node.active .node-ring, .joint-node:focus-visible .node-ring { stroke: var(--accent); stroke-width: 3; }
 .joint-node.hovered .node-ring { stroke: var(--accent); stroke-width: 2.8; }
+.fps-meter { position: absolute; right: 20px; top: 62px; z-index: 6; pointer-events: none; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--paper); color: var(--secondary); font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .mechanism-element.hovered, .mechanism-element:focus-visible { filter: drop-shadow(0 0 2px var(--accent)); }
+/* A filtered group is re-rasterised every frame it moves; while dragging or playing the selection colour is enough. */
+body.canvas-dragging .mechanism-element.hovered, body.simulation-playing .mechanism-element.hovered { filter: none; }
 .canvas-joint { cursor: pointer; }
 .canvas-joint .joint-marker { opacity: .35; }
 .canvas-joint.active .joint-marker, .canvas-joint.hovered .joint-marker, .canvas-joint:focus-visible .joint-marker { opacity: 1; stroke: var(--accent); stroke-width: 2.5; }

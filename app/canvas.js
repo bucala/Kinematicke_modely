@@ -37,6 +37,11 @@
       if (a && b) candidates.push({ type: 'joint', key: I.jointKey(joint.id), a: screen(a), b: screen(b), marker: screen({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }) });
     }
     const hits = I.hitTargets(candidates, { x: event.clientX, y: event.clientY }, event.pointerType === 'touch' ? 22 : 12);
+    // In simulation a fixed guide or frame body cannot be dragged, so a moving part under the pointer wins (a wide slot hides its pin).
+    if (state.mode === 'simulate') {
+      const still = (key) => { const t = I.target(state.project, key), e = t?.element; return !['node', 'joint'].includes(t?.type) && !!e && (e.type === 'ground' || e.locked || ['slot', 'rail'].includes(e.type) && !e.parentId); };
+      hits.sort((a, b) => still(a) - still(b));
+    }
     const part = state.tool === 'select' && event.target?.closest?.('[data-context-key]'), partTarget = part && I.target(state.project, part.dataset.contextKey);
     if (['control', 'outline'].includes(partTarget?.type)) hits.unshift(part.dataset.contextKey);
     const dimension = !state.dimensionPick && event.target?.closest?.('[data-dimension]');
@@ -422,14 +427,15 @@
     }
     const pinch = event.ctrlKey || event.metaKey;
     if (!pinch && !event.shiftKey && event.deltaMode === 0 && event.deltaX && event.deltaY) state.trackpad = true;
-    if (pinch) { zoom(K.clamp(Math.exp(event.deltaY * 0.01), 0.5, 2), worldPoint(event)); return; }
-    if (!state.trackpad && !event.shiftKey) { zoom(event.deltaY > 0 ? 1.08 : 0.925, worldPoint(event)); return; }
+    // Several wheel events can arrive per frame; the view is updated each time and drawn once.
+    if (pinch) { zoom(K.clamp(Math.exp(event.deltaY * 0.01), 0.5, 2), viewPoint(event), true); return; }
+    if (!state.trackpad && !event.shiftKey) { zoom(event.deltaY > 0 ? 1.08 : 0.925, viewPoint(event), true); return; }
     const rect = $('#mechanism-canvas').getBoundingClientRect(), unit = event.deltaMode === 1 ? 16 : 1;
     const scale = Math.max(state.view.width / rect.width, state.view.height / rect.height) * unit;
     const dx = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX, dy = event.shiftKey ? 0 : event.deltaY;
     closeContextMenu();
     state.view = { ...state.view, x: state.view.x + dx * scale, y: state.view.y + dy * scale };
-    renderScene();
+    scheduleScene();
   }
   function startPan(event, extra = {}) {
     $('#mechanism-canvas').setPointerCapture(event.pointerId);
@@ -437,7 +443,7 @@
     document.body.classList.add('canvas-dragging');
   }
 
-  function zoom(factor, center) {
+  function zoom(factor, center, deferred = false) {
     if (state.gifExport) return;
     closeContextMenu();
     const view = state.view, base = state.baseView;
@@ -445,7 +451,7 @@
     const f = w / view.width;
     const c = center || { x: view.x + view.width / 2, y: view.y + view.height / 2 };
     state.view = { x: c.x - (c.x - view.x) * f, y: c.y - (c.y - view.y) * f, width: w, height: view.height * f };
-    renderScene();
+    if (deferred) scheduleScene(); else renderScene();
   }
 
   function worldPoint(event) {
@@ -486,7 +492,7 @@
     clearTimeout(touch.timer);
     if (touch.points.size > 1) {
       if (state.drag) onPointerUp({pointerId:state.drag.pointerId,cancelled:true,touchInternal:true});
-      state.project=touch.project; state.history=touch.history;state.historySelections=touch.historySelections;state.future=touch.future;state.futureSelections=touch.futureSelections;state.selectedElementIds=touch.selection;state.pendingJoint=touch.pendingJoint;state.insertingType=touch.insertingType;state.editPivot=touch.editPivot;state.tool=touch.tool;state.result=touch.result;state.samples=touch.samples;state.profile=touch.profile;state.dynamic=touch.dynamic;state.forceContext=touch.forceContext;
+      state.project=touch.project; state.history=touch.history;state.historySelections=touch.historySelections;state.future=touch.future;state.futureSelections=touch.futureSelections;state.selectedElementIds=touch.selection;state.pendingJoint=touch.pendingJoint;state.insertingType=touch.insertingType;state.editPivot=touch.editPivot;state.tool=touch.tool;state.result=touch.result;state.samples=touch.samples;state.samplesSignature=null;state.profile=touch.profile;state.dynamic=touch.dynamic;state.forceContext=touch.forceContext;
       if(state.magic&&touch.magic){Object.assign(state.magic,touch.magic);renderMagicImport();}
       repairSelection();renderTree();renderInspector();updateToolbar();renderPlacementTools();
       const [a,b] = [...touch.points.values()]; touch.pinching=true;touch.longPressed=false; touch.distance=Math.hypot(a.x-b.x,a.y-b.y)||1; touch.view=K.copy(state.view); touch.anchor=worldPoint({clientX:(a.x+b.x)/2,clientY:(a.y+b.y)/2});
@@ -711,7 +717,7 @@
     if (drag.kind === 'guide-follower') {
       const at = K.nearestOnPath(point, state.result.poses[drag.slotId].path), pose = state.result.poses[drag.id];
       const positions = { ...state.guidePositions, [drag.id]: { x: at.x, y: at.y, angle: pose.angle } };
-      const result = K.solve(state.project, state.motion, { profile: state.profile, collisions: state.collisions, bodyPositions: { ...P.bodyPositions(state.dynamic), ...positions }, elasticPositions: P.elasticPositions(state.dynamic) });
+      const result = K.solve(state.project, state.motion, { maxPasses: DRAG_PASSES, profile: state.profile, collisions: state.collisions, bodyPositions: { ...P.bodyPositions(state.dynamic), ...positions }, elasticPositions: P.elasticPositions(state.dynamic) });
       if (!result.blocked) { state.guidePositions = positions; state.result = result; renderScene(); updateMotion(); }
     } else if (drag.kind === 'force-body') {
       state.dynamic=P.dragBody(state.forceContext,state.dynamic,drag.id,point,drag.local);state.result=solveCurrent();state.result.forces=P.dynamicForces(state.forceContext,state.dynamic,state.result);renderScene();updateMotion();
@@ -786,7 +792,7 @@
       e.x = K.clamp(drag.x + delta.x, -5000, 5000);
       e.y = K.clamp(drag.y + delta.y, -5000, 5000);
       if (state.snap) { e.x = Math.round(e.x / 5) * 5; e.y = Math.round(e.y / 5) * 5; }
-      state.result = solveCurrent();
+      state.ghostEpoch = (state.ghostEpoch || 0) + 1; state.result = solveCurrent();
       renderScene(); updateMotion();
     } else if (drag.kind === 'resize') {
       const e = currentElement(), origin = drag.pose.controlOrigin || drag.pose.a;
@@ -800,7 +806,7 @@
         if (state.snap) e.length = Math.max(1, Math.round(e.length / 5) * 5);
         if (state.angleSnap && !state.snapSuppressed) { const parentAngle = e.parentId ? state.result.poses[e.parentId].angle : 0; e.angle = Math.round((e.angle + parentAngle) / 10) * 10 - parentAngle; }
       }
-      state.result = solveCurrent(); renderScene(); updateMotion();
+      state.ghostEpoch = (state.ghostEpoch || 0) + 1; state.result = solveCurrent(); renderScene(); updateMotion();
     } else if (['element-control', 'outline-control', 'control'].includes(drag.kind)) {
       if (drag.failed || !drag.moved && Math.hypot(event.clientX - drag.clientStart.x, event.clientY - drag.clientStart.y) < 3) return;
       if (!drag.moved) { pushHistory(); drag.moved = true; }
@@ -978,5 +984,7 @@
       toast('Kóta bola pridaná. Kliknutím na ňu nastavíte typ a odsadenie.');
     }
     if(drag){globalThis.KinmoDebug?.record('gesture-end',{kind:drag.kind,cancelled:!!event.cancelled||event.type==='pointercancel'});globalThis.KinmoDebug?.checkpoint('gesture-end',true);}
+    // Drag frames used a capped solver; the resting pose gets the full solve.
+    if (drag && state.mode === 'simulate' && !['pan', 'marquee'].includes(drag.kind)) { state.result = solveCurrent(); if (state.dynamic && state.forceContext) state.result.forces = P.dynamicForces(state.forceContext, state.dynamic, state.result); renderScene(); updateMotion(); }
     if (drag?.simulationMoved && !event.cancelled && event.type !== 'pointercancel') resumeElasticMotion();
   }

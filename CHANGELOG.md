@@ -1,5 +1,27 @@
 # História zmien
 
+## Nevydané: plynulá animácia, zoom a ťahanie
+
+Merané na modeli s pružinou, čapom v kulise a motorom pri 4× spomalenom CPU (bežný notebook):
+
+| | Pred | Po |
+|---|---|---|
+| Zoom kolieskom | 34 snímok/s, 95 % pod 117 ms | 54 snímok/s, 95 % pod 33 ms |
+| Ťahanie čapu | 25 snímok/s, 95 % pod 150 ms, výpadky do 367 ms | 41 snímok/s, 95 % pod 50 ms |
+| Ťahanie v pohybe zo síl | 32 snímok/s, 95 % pod 117 ms | 46 snímok/s, 95 % pod 50 ms |
+| Zapnutie pohybu zo síl / zmena modelu | 1076 ms | 120 ms |
+
+- **Scéna po častiach:** každý diel, väzba a skupina uzlov je samostatná časť plátna. Prepíšu sa iba časti, ktoré sa zmenili, takže pri zoome alebo pohybe jedného dielu prehliadač neprekresľuje celý mechanizmus.
+- **Zoom bez výpočtov:** krajné polohy a diagnostika väzieb sa počítajú iba pri zmene modelu alebo polohy. Doteraz sa pri každom snímku, aj pri zoome, riešil mechanizmus vo všetkých fázach. Mierka plátna sa zisťuje bez vynúteného prepočtu rozloženia stránky.
+- **Koliesko a trackpad:** viac udalostí v jednom snímku sa vykreslí raz.
+- **Panely** (nástroje, kontrola modelu, súhrn výberu) sa prepíšu iba pri zmene obsahu.
+- **Vzorky pohybu:** 121 polôh sa rieši s teplým štartom z predošlej polohy (pri určených mechanizmoch rovnaký výsledok, 1,5–6× rýchlejšie). Neprepočítavajú sa pri zmene názvu, nastavení simulácie, kót ani uložených dráh.
+- **Ťahanie:** riešič má počas ťahania strop opakovaní na snímok a po pustení dopočíta polohu presne. Pri ťahaní pohonu s pružinou proti dorazu sa hranica hľadá raz, nie pri každom pohybe myši.
+- **Rýchlejšie výpočty:** hľadanie bodu na kulise bez alokácií, vzdialenosť bez `Math.hypot`, formátovanie čísel s uloženými formátovačmi.
+- **Žiara** zvýraznenia (filter) sa počas ťahania a prehrávania vypína.
+- **Oprava:** v simulácii má pri chytení prednosť pohyblivý diel pred pevnou kulisou alebo rámom, takže široká kulisa už neprekryje čap.
+- Debug režim ukazuje snímky za sekundu, najdlhší snímok a čas vykreslenia scény. `npm run test:browser` pridáva výkonnostnú kontrolu.
+
 ## Nevydané: paleta príkazov a prehľad skratiek
 
 - **Ctrl/Cmd + K** otvorí paletu príkazov (aj tlačidlom s lupou v hlavičke). Ponúka viditeľné a povolené tlačidlá aplikácie, vkladanie prvkov z knižnice a výber dielov modelu podľa názvu. Hľadanie ignoruje diakritiku a veľkosť písmen a pozná aj skratky slov („zbr mriez“). Pri príkazoch je uvedená klávesová skratka. Režimy a Magic import obmedzujú paletu rovnako ako tlačidlá.

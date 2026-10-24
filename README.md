@@ -905,6 +905,8 @@ npm run test:browser
 
 Súčasťou je kontrola prekladov: v EN a DE prejde šablóny a všetky akcie rozhrania a zlyhá pri každom texte, ktorý zostal po slovensky. Nový text doplňte ako riadok `[sk, en, de]` do `i18n.js`; čísla zapíšte ako `{n}`, prekladané vložky ako `{s}` a doslovné vložky (názvy súborov) ako `{x}`.
 
+Výkonnostná kontrola zostaví model s pružinou, piestom a čapom v kulise. Overí, že zoom neprekresľuje telesá ani nerieši mechanizmus, koliesko kreslí najviac raz za snímok a premenovanie neprepočíta 121 polôh. Potom pri 4× spomalenom CPU meria zoom, prehrávanie a ťahanie; 95 % snímok musí byť pod 100 ms (limit mení `PERF_P95_MS`).
+
 Bez Node.js môžete otvoriť `tests/browser.html`. Spúšťa spoločné výpočtové testy; transportné, archivačné a VM UI testy bežia v Node.js. Pri vývojovom serveri otvorte [prehliadačové testy](http://localhost:5173/tests/browser.html).
 
 </details>
@@ -1055,7 +1057,7 @@ Pre stabilné Fusion párovanie použite doplnok **1.1.0**, potvrďte uloženie 
 
 ### Debug režim a priame aplikácie (2.1)
 
-V **Ďalšie nástroje → Debug režim** (na mobile tiež **Ponuka**) zapnite priebežné lokálne zaznamenávanie. Zopakujte chybu a v tom istom okne zvoľte **Exportovať debug súbor**. JSON obsahuje verziu, prostredie, akcie, JS chyby, aktuálny mechanizmus, nedávne zmeny a diagnostiku Fusion. Záznam je ohraničený a pretrvá obnovenie stránky. Párovacie kľúče sa odstraňujú; Magic import predloha sa pridá len na výslovné začiarknutie. Záznam možno vypnúť alebo vymazať.
+V **Ďalšie nástroje → Debug režim** (na mobile tiež **Ponuka**) zapnite priebežné lokálne zaznamenávanie. Zopakujte chybu a v tom istom okne zvoľte **Exportovať debug súbor**. JSON obsahuje verziu, prostredie, akcie, JS chyby, aktuálny mechanizmus, nedávne zmeny a diagnostiku Fusion. Záznam je ohraničený a pretrvá obnovenie stránky. Zapnutý debug režim ukazuje na plátne aj snímky za sekundu, najdlhší snímok a čas vykreslenia scény. Párovacie kľúče sa odstraňujú; Magic import predloha sa pridá len na výslovné začiarknutie. Záznam možno vypnúť alebo vymazať.
 
 Doplnok Fusion **1.2.0** rozlišuje zaneprázdnenie a odmietnutie udalosti. Pri odmietnutej automatickej udalosti použite tlačidlo **Kinmo: importovať čakajúci výkres** vo Fusion; neopakujte odoslanie. [Podrobný postup](cad/KinmoFusion/README.md).
 
