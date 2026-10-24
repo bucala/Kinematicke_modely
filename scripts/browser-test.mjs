@@ -57,6 +57,39 @@ try {
   check('Kontextové ponuky podľa typu entity', !menuReport.problems.length && !menus.errors.length, `${menuReport.menus} ponúk, ${menuReport.actions} spustených akcií${menus.errors.length ? ` · ${menus.errors.join(' | ')}` : ''}`);
   await menus.view.close();
 
+  // Real mouse: box selection, double click and repeated click on overlapping entities.
+  const mouse = await page(`${origin}/`);
+  await mouse.view.waitForSelector('#workspace', { timeout: 15000 });
+  await mouse.view.evaluate(() => { const project = Kinematics.validateProject(Kinematics.preset('fourbar')); localStorage.setItem('kinematika.projects.v1', JSON.stringify([project])); localStorage.setItem('kinematika.last.v1', project.id); });
+  await mouse.view.reload(); await mouse.view.waitForSelector('#workspace', { timeout: 15000 });
+  await mouse.view.evaluate(() => { makeEditable(); fitView(); renderScene(); });
+  const screen = (points) => mouse.view.evaluate((points) => { const m = document.querySelector('#mechanism-canvas').getScreenCTM(); return points.map((p) => ({ x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f })); }, points);
+  const geometry = await mouse.view.evaluate(() => { const ids = state.project.elements.map((e) => e.id), poses = state.result.poses, coupler = state.project.elements.find((e) => e.name === 'Spojovacie tiahlo').id; return { ids, couplerId: coupler, coupler: poses[coupler], all: Object.values(poses).flatMap((p) => [p.a, p.b].filter(Boolean)) }; });
+  const xs = geometry.all.map((p) => p.x), ys = geometry.all.map((p) => p.y);
+  const [corner1, corner2, couplerMid, joint] = await screen([{ x: Math.min(...xs), y: Math.min(...ys) }, { x: Math.max(...xs), y: Math.max(...ys) }, { x: (geometry.coupler.a.x + geometry.coupler.b.x) / 2, y: (geometry.coupler.a.y + geometry.coupler.b.y) / 2 }, geometry.coupler.a]);
+  const selected = () => mouse.view.evaluate(() => [...state.selectedElementIds]);
+  // A margin of 30 px around the mechanism stays clear of the toolbars that float over the canvas.
+  const topLeft = { x: Math.min(corner1.x, corner2.x) - 30, y: Math.min(corner1.y, corner2.y) - 30 }, bottomRight = { x: Math.max(corner1.x, corner2.x) + 30, y: Math.max(corner1.y, corner2.y) + 30 };
+  await mouse.view.mouse.move(topLeft.x, topLeft.y); await mouse.view.mouse.down(); await mouse.view.mouse.move(bottomRight.x, bottomRight.y, { steps: 6 });
+  const boxVisible = await mouse.view.evaluate(() => { const box = document.querySelector('.marquee-box'); return !!box && !box.hidden && box.offsetWidth > 20; });
+  await mouse.view.mouse.up();
+  const boxed = await selected(), boxGone = await mouse.view.evaluate(() => !document.querySelector('.marquee-box'));
+  check('Obdĺžnikový výber myšou', boxVisible && boxGone && boxed.length >= 4, `${boxed.length} vybraných prvkov`);
+  // From the empty inside of the four-bar towards the upper left, across the coupler only.
+  await mouse.view.mouse.move(couplerMid.x + 60, couplerMid.y + 60); await mouse.view.mouse.down(); await mouse.view.mouse.move(couplerMid.x - 20, couplerMid.y - 5, { steps: 6 }); await mouse.view.mouse.up();
+  const crossing = await selected();
+  check('Krížový výber sprava doľava zachytí dotknuté teleso', crossing.join() === `e:${geometry.couplerId}`, crossing.join(', '));
+  await mouse.view.mouse.click(10, 10); await mouse.view.keyboard.press('Escape');
+  await mouse.view.mouse.dblclick(couplerMid.x, couplerMid.y);
+  const dialog = await mouse.view.evaluate(() => document.querySelector('#modal[open]')?.querySelector('h2,h3,#modal-title')?.textContent || '');
+  check('Dvojklik otvorí hlavnú úpravu telesa', /Vlastnosti prvku/.test(dialog), dialog || 'dialóg sa neotvoril');
+  await mouse.view.evaluate(() => document.querySelector('#modal')?.close());
+  const cycle = [];
+  for (let i = 0; i < 3; i++) { await mouse.view.mouse.click(joint.x, joint.y); cycle.push((await selected()).join()); await mouse.view.waitForTimeout(450); }
+  check('Opakovaný klik na kĺbe prepína prekryté entity', new Set(cycle).size === 3, cycle.join(' → '));
+  check('Ovládanie myšou bez chýb stránky', !mouse.errors.length, mouse.errors.join(' | '));
+  await mouse.view.close();
+
   // Translation coverage: open every template and run every non-destructive UI action in EN and DE.
   const allowed = JSON.parse(await readFile(path.join(root, 'tests/i18n-untranslated.json'), 'utf8'));
   for (const language of ['en', 'de']) {
@@ -103,6 +136,7 @@ async function checkContextMenus() {
     if (top > 10) problems.push(`${name}: ${top} položiek na hornej úrovni`);
     for (const item of flat) {
       if (item.disabled && !item.items && !/chránená/.test(item.label)) problems.push(`${name}: neaktívna položka „${item.label}“`);
+      if (item.shortcut && KinmoI18n.missing(item.shortcut, 'en').some((part) => /\p{Ll}/u.test(part))) problems.push(`${name}: nepreložená skratka „${item.shortcut}“`);
       for (const language of ['en', 'de']) if (KinmoI18n.missing(item.label, language).some((part) => /\p{Ll}/u.test(part) && !state.project.elements.some((e) => part.includes(e.name)) && !state.project.connections.some((c) => part.includes(c.name)))) problems.push(`${name}: nepreložené „${item.label}“ (${language})`);
     }
     for (const id of ids.filter((id) => !id.startsWith('pick:') && !id.startsWith('assembly-'))) {

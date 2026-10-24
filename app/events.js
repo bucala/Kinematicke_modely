@@ -382,6 +382,7 @@
     else if (key === 'm') setTool('measure');
     else if (key === 'f') { event.preventDefault(); if (event.shiftKey) { fitView(); renderScene(); } else fixSelected(); }
     else if (key === 'delete' || key === 'backspace') { event.preventDefault(); deleteSelected(); }
+    else if (key === 'enter') { if (state.selectedElementIds.length && runPrimaryAction(state.selectedElementIds.at(-1))) event.preventDefault(); }
     else if (key === 'escape') { if (state.drag) onPointerUp({ pointerId: state.drag.pointerId, cancelled: true }); selectTarget(null); setInspectorOpen(false); setTool('select'); $('.sidebar').classList.remove('mobile-open'); }
     else if (key === 'arrowright' || key === 'arrowleft') { event.preventDefault(); setMotion(state.motion + (key === 'arrowright' ? 1 : -1) * (event.shiftKey ? 10 : 1)); }
   }

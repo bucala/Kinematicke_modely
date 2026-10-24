@@ -23,6 +23,7 @@
   const storageKey = 'kinematika.projects.v1';
   const lastKey = 'kinematika.last.v1';
   const settingsKey = 'kinematika.settings.v2';
+  const DOUBLE_CLICK_MS = 400;
   const collectionKeys = Object.freeze({ assembly: 'kinematika.assemblies.v1', revision: 'kinematika.revisions.v1' });
   const icons = {
     mechanism: '<path d="M4 19 11 4l9 11-16 4Z"/><circle cx="4" cy="19" r="2"/><circle cx="11" cy="4" r="2"/><circle cx="20" cy="15" r="2"/>',
@@ -103,6 +104,7 @@
   const state = {
     project: initialProject, selected: initialSelection,
     selectedElementIds: initialSelection ? [I.elementKey(initialSelection)] : [], hoveredTargetId: null,
+    press: null, lastClick: null,
     contextMenuState: { isOpen: false, x: 0, y: 0, targetId: null, targetType: 'canvas' },
     motion: K.driveRange(initialProject).min, playing: false, direction: 1, speed: 1, loop: true, cycle: 6,
     mainDimensions: false, grid: true, dimensions: true, ghosts: true, trace: true, labels: true, profileVisible: false, timelineVisible: false, collisions: true, snap: true, angleSnap: false,

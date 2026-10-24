@@ -78,7 +78,7 @@ function controller(width = 1440) {
     setMotion: (motion) => { state.motion = motion; }, lastFrame: 1000, lastInspector: 0, requestAnimationFrame() {},
     parseReference: (value) => { const [elementId, point] = value.split('|'); return { elementId, point }; },
     updateToolbar: () => { context.updateInspectorVisibility(); context.updatePanelVisibility(); },
-    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) }, storageKey: 'qa', lastKey: 'qa.last', settingsKey: 'qa.settings', DD: { NAME: 'Zásuvka', KIND: 'double-drawer' },
+    localStorage: { getItem: (key) => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key) }, storageKey: 'qa', lastKey: 'qa.last', DOUBLE_CLICK_MS: 400, settingsKey: 'qa.settings', DD: { NAME: 'Zásuvka', KIND: 'double-drawer' },
     collectionKeys: { assembly: 'qa.assemblies', revision: 'qa.revisions' },
     clearTimeout() {}, setTimeout: (callback) => { context.nextTimer = callback; return 1; }, autosaveTimer: null, latestSVG: '', updateHeader() {},
     URL: { revokeObjectURL: (url) => { (context.revokedURLs ||= []).push(url); } },
@@ -97,7 +97,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['updateSelectionSummary','motorParts','viewElementVisible','portVisible','guardMotorMotion','treeMemberHTML','assemblyTreeHTML','basicInspectorHTML','setDetailLevel','setMotorMode','isolateSelection','quantityTextInput','rigidAssemblyModal','submitRigidAssembly','reviewHoleOwnership','submitHoleOwnership','testDetectedMechanism','automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','tidyMenu','memberLink','selectedBodyCount','canvasMenu','templateMenu','jointMenu','curvePointMenu','pathMenu','nodeMenu','bodyTypeItems','bodyMenu','selectionMenu','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','snapTargetDiagram','repairDiagram','applyRepairPreview','motorHousing','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'mobileToolsModal', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['updateSelectionSummary','motorParts','viewElementVisible','portVisible','guardMotorMotion','treeMemberHTML','assemblyTreeHTML','basicInspectorHTML','setDetailLevel','setMotorMode','isolateSelection','quantityTextInput','rigidAssemblyModal','submitRigidAssembly','reviewHoleOwnership','submitHoleOwnership','testDetectedMechanism','automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','releasePointer','finishClick','repeatedClick','isMacPlatform','renderMarquee','finishMarquee','onDoubleClick','runPrimaryAction','primaryAction','menuHas','markPrimary','tidyMenu','memberLink','selectedBodyCount','canvasMenu','templateMenu','jointMenu','curvePointMenu','pathMenu','nodeMenu','bodyTypeItems','bodyMenu','selectionMenu','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','snapTargetDiagram','repairDiagram','applyRepairPreview','motorHousing','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'mobileToolsModal', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -2327,4 +2327,61 @@ test('A free node starts a new prismatic joint from its menu, never editing an e
   const joint = context.contextItems(I.target(state.project, 'j:existing-joint'));
   assert(joint.find((i) => i.label === 'Typ väzby').items.some((i) => i.id === 'joint-prismatic'));
   context.onContextAction('no-such-action'); assert.match(context.lastToast, /Neznáma akcia ponuky: no-such-action/);
+});
+
+test('A repeated click on the same spot cycles overlapping entities, but a double click and a drag do not', () => {
+  const { context, state } = controller(), hits = ['n:body:a', 'e:body', 'e:another-body'];
+  context.canvasHit = (_event, all) => (all ? hits : hits[0]);
+  const click = (time) => { context.onPointerDown(pointer(10, 20, { timeStamp: time })); context.onPointerUp(pointer(10, 20, { timeStamp: time + 60 })); };
+  click(1000); assert.deepEqual([...state.selectedElementIds], ['n:body:a']);
+  // A second click within the interval is a double click: it opens the main edit and does not cycle.
+  context.dialog = null; click(1200); assert.deepEqual([...state.selectedElementIds], ['n:body:a']); assert.match(context.dialog?.title || '', /súradnice/i);
+  click(2000); assert.deepEqual([...state.selectedElementIds], ['n:body:a']);
+  click(3000); assert.deepEqual([...state.selectedElementIds], ['e:body']);
+  click(4000); assert.deepEqual([...state.selectedElementIds], ['e:another-body']);
+  click(5000); assert.deepEqual([...state.selectedElementIds], ['n:body:a']);
+  // Pressing the same spot and dragging keeps the current entity instead of cycling further.
+  click(5600); assert.deepEqual([...state.selectedElementIds], ['e:body']);
+  context.onPointerDown(pointer(10, 20, { timeStamp: 6600 })); context.onPointerMove(pointer(40, 20, { timeStamp: 6650, buttons: 1 })); context.onPointerUp(pointer(40, 20, { timeStamp: 6700 }));
+  assert.deepEqual([...state.selectedElementIds], ['e:body']);
+  // A click elsewhere starts a new cycle.
+  click(7500); context.onPointerDown(pointer(300, 300, { timeStamp: 8500 })); context.onPointerUp(pointer(300, 300, { timeStamp: 8550 }));
+  assert.deepEqual([...state.selectedElementIds], ['n:body:a']);
+});
+test('On macOS Ctrl+click is left to the system right click instead of cycling or dragging', () => {
+  const { context, state } = controller(), hits = ['n:body:a', 'e:body'];
+  context.canvasHit = (_event, all) => (all ? hits : hits[0]); context.navigator = { platform: 'MacIntel' }; context.selectTarget('e:body');
+  context.onPointerDown(pointer(10, 20, { ctrlKey: true })); assert.deepEqual([...state.selectedElementIds], ['e:body']); assert(!state.drag);
+});
+test('Dragging on empty canvas selects with a window or a crossing box; Shift adds and a click clears', () => {
+  const { context, state } = controller(), I = globalThis.KinmoInteraction, empty = { target: { closest: () => null } };
+  context.canvasHit = (_event, all) => (all ? [] : null);
+  const box = (from, to, extra = {}) => { context.onPointerDown(pointer(from.x, from.y, { ...empty, ...extra })); context.onPointerMove(pointer(to.x, to.y, { ...empty, buttons: 1 })); context.onPointerUp(pointer(to.x, to.y, empty)); };
+  const everything = I.boxSelect(state.project, state.result, { a: { x: -1000, y: -1000 }, b: { x: 1000, y: 1000 } }, false).sort();
+  assert(everything.length >= 2);
+  box({ x: -1000, y: -1000 }, { x: 1000, y: 1000 }); assert.deepEqual([...state.selectedElementIds].sort(), everything);
+  const first = everything[0], body = state.result.poses[I.target(state.project, first).elementId], mid = { x: (body.a.x + (body.b?.x ?? body.a.x)) / 2, y: (body.a.y + (body.b?.y ?? body.a.y)) / 2 };
+  context.onPointerDown(pointer(5000, 5000, empty)); context.onPointerUp(pointer(5000, 5000, empty)); assert.equal(state.selectedElementIds.length, 0);
+  box({ x: mid.x + 6, y: mid.y + 6 }, { x: mid.x - 6, y: mid.y - 6 }); assert(state.selectedElementIds.includes(first), 'Krížový výber sprava doľava má zachytiť dotknuté teleso.');
+  context.selectTarget(null); box({ x: mid.x - 6, y: mid.y - 6 }, { x: mid.x + 6, y: mid.y + 6 }); assert(!state.selectedElementIds.includes(first), 'Okno zľava doprava nesmie zachytiť čiastočne zasiahnuté teleso.');
+  context.selectTarget(everything[1]); box({ x: mid.x + 6, y: mid.y + 6 }, { x: mid.x - 6, y: mid.y - 6 }, { shiftKey: true });
+  assert(state.selectedElementIds.includes(everything[1]) && state.selectedElementIds.includes(first), 'Shift pridáva k existujúcemu výberu.');
+});
+test('Double click and Enter run the main edit of the entity, which the menu marks', () => {
+  const { context, state } = controller(), I = globalThis.KinmoInteraction, event = { clientX: 10, clientY: 20, target: { closest: () => null }, preventDefault() {} };
+  context.canvasHit = () => 'e:body'; context.dialog = null; context.onDoubleClick(event);
+  assert.equal(context.dialog?.title, 'Vlastnosti prvku');
+  assert(context.contextItems(I.target(state.project, 'e:body')).some((i) => i.id === 'inspect' && i.shortcut === 'Dvojklik'));
+  context.canvasHit = () => 'n:body:a'; context.dialog = null; context.onDoubleClick(event);
+  assert.match(context.dialog?.title || '', /súradnice/i); assert.deepEqual([...state.selectedElementIds], ['n:body:a']);
+  context.dialog = null; context.selectTarget('e:body'); context.onKeyboard({ key: 'Enter', target: { closest: () => null }, preventDefault() {} });
+  assert.equal(context.dialog?.title, 'Vlastnosti prvku');
+  state.tool = 'pan'; context.dialog = null; context.onDoubleClick(event); assert.equal(context.dialog, null);
+});
+
+test('Two quick Shift clicks on one spot toggle the selection without opening the main edit', () => {
+  const { context, state } = controller(), hits = ['e:body', 'e:another-body'];
+  context.canvasHit = (_event, all) => (all ? hits : hits[0]); context.dialog = null;
+  for (const time of [1000, 1150]) { context.onPointerDown(pointer(10, 20, { timeStamp: time, shiftKey: true })); context.onPointerUp(pointer(10, 20, { timeStamp: time + 40, shiftKey: true })); }
+  assert.equal(context.dialog, null); assert.equal(state.selectedElementIds.length, 0);
 });
