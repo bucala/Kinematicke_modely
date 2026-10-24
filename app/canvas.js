@@ -62,91 +62,6 @@
     state.contextMenuState.isOpen = false;
   }
 
-  function contextItems(t) {
-    const items=elementContextItems(t),priority=['inspect','joint-revolute','selection-connect','fix','fix-body','disconnect','disconnect-body'];
-    if(t?.element&&!t.element.primary&&!['control','outline'].includes(t.type))items.unshift({id:'selection-connect',label:'Spojiť vybraný bod…'}, {separator:true});
-    const first=items.filter(i=>priority.includes(i.id)),rest=items.filter(i=>!priority.includes(i.id));
-    if (window.innerWidth <= 640 && items.filter(i => !i.separator).length > 7) {
-      const common = items.filter(i => !i.separator && (priority.includes(i.id) || i.id === 'rail-motion')).slice(0, 5);
-      return [...common, { label: 'Ďalšie možnosti…', items: items.filter(i => !common.includes(i)) }];
-    }
-    return first.length?[...first,{separator:true},...rest]:items;
-  }
-  function elementContextItems(t) {
-    if (t?.type === 'joint') return [
-      { id: 'edit-joint', label: 'Upraviť túto väzbu…', disabled: !!t.joint.builtin },
-      { label: 'Vybrať pripojený bod', items: [t.joint.a, t.joint.b].map((r) => ({ id: `pick:${I.nodeKey(r)}`, label: `${state.project.elements.find((e) => e.id === r.elementId)?.name} · ${K.pointName(r.point)}` })) },
-      { id: 'delete', label: 'Odstrániť iba túto väzbu', disabled: !!t.joint.builtin, danger: true, shortcut: 'Del' },
-      ...(t.joint.builtin ? [{ id: 'copy-editable', label: 'Vytvoriť voľnú kópiu na úpravy' }] : []),
-    ];
-    if (t?.type === 'dimension') return [{ id: 'edit-dimension', label: 'Upraviť rozmerovú kótu…' }, { id: 'delete-dimension', label: 'Vymazať iba túto kótu' }];
-    const r = I.reference(t), readonly = t?.element?.primary || t?.joint?.builtin;
-    const items = readonly ? [{ id: 'copy-editable', label: 'Vytvoriť voľnú kópiu na úpravy' }, { separator: true }] : [];
-    const item = (id, label, extra = {}) => ({ id, label, disabled: readonly, hint: readonly ? 'Pôvodná šablóna je chránená. Vytvorte voľnú kópiu.' : '', ...extra });
-    if (['control', 'outline'].includes(t?.type)) {
-      const control = t.type === 'control', points = control ? I.controlPoints(state.project, t.element) : t.element.outline, minimum = control ? t.element.curveKind === 'spline' ? 4 : 2 : 3;
-      items.push(item('part-point', `Lokálne súradnice ${control ? 'P' : 'V'}${t.index}…`));
-      if (control) items.push(item('control-add-after', `Pridať bod za P${t.index}`, { disabled: readonly || t.element.curveKind === 'arc' || points.length >= (t.element.curveKind === 'polyline' ? 1001 : 32), hint: 'Bézierove body riadia tvar; krivka cez vnútorný bod nemusí prechádzať.' }));
-      items.push(item(control ? 'control-delete' : 'outline-delete', `Odstrániť iba ${control ? 'P' : 'V'}${t.index}`, { disabled: readonly || points.length <= minimum, hint: `Minimum je ${minimum} bodov.`, danger: true }));
-      if (control) items.push({ separator: true }, item('curve-semicircle', 'Previesť kulisu na polkruh s R…'));
-      items.push({ separator: true }, { id: 'select-member', label: 'Vybrať celý člen' });
-      return items;
-    }
-    if (t?.element?.type === 'slot') items.push(item('curve-add-control', 'Pridať riadiaci bod tu', { disabled: readonly || t.element.curveKind === 'arc' || t.element.controls.length >= (t.element.curveKind === 'polyline' ? 1001 : 32), hint: 'Bod riadi tvar Bézierovej krivky, nie interpolovaný bod na nej.' }), item('curve-semicircle', t.element.curveSemicircle ? 'Polkruh · upraviť R a stranu…' : 'Previesť dráhu na polkruh s R…'), { separator: true });
-    if (t?.element?.type === 'cam') items.push(item('cam-profile', 'Tvar, polomer a zdvih vačky…'), item('cam-follower', 'Pridať vedený valčekový sledovač'), { separator: true });
-    if (!t) return [
-      { id: 'add-node', label: 'Pridať voľný uzol' }, { id: 'add-ground', label: 'Pridať pevný bod (Ground)' },
-      { id: 'add-guide', label: 'Pridať lineárne vedenie' }, { separator: true },
-      { label: 'Vložiť podzostavu', items: [{ id: 'assembly-fourbar', label: 'Štvorkĺbový mechanizmus' }, { id: 'assembly-crank', label: 'Kľukový mechanizmus' }] },
-      { id: 'open-library', label: 'Vložiť z vlastnej knižnice…' },
-      { separator: true }, { id: 'fit', label: 'Prispôsobiť pohľad', shortcut: 'Shift+F' },
-    ];
-    if (r) {
-      const e = state.project.elements.find((e) => e.id === r.elementId), root = I.root(state.project, e), refs = contextNodeReferences(r);
-      items.push(
-        { label: 'Zmeniť typ väzby', disabled: readonly, items: [item('joint-revolute', 'Otočný kĺb (Revolute)'), ...(!K.isElastic(e) ? [item('joint-prismatic', 'Posuvný kĺb (Prismatic)')] : []), ...(e.type === 'bearing' ? [item('joint-cam-contact', 'Vačkový kontakt s valčekom')] : []), item('joint-free', 'Voľný uzol / odpojiť')] },
-        item('inspect', 'Vlastnosti prvku · rozmery, sily a vzhľad…'),
-        item('thickness', 'Hrúbka / priemer…', { disabled: readonly || !W.thickness(e) }),
-        ...(K.isElastic(e) ? [item('elastic-fit', 'Prispôsobiť pracovný rozsah montáži')] : []),
-        item('fix', `${refs.every((r) => I.fixed(state.project, r)) ? 'Uvoľniť' : 'Ukotviť'}${refs.length > 1 ? ` vybrané uzly (${refs.length})` : ' uzol'}`, { shortcut: 'F' }),
-        ...(e.type === 'rail' && !e.parentId ? [item('rail-motion', e.movingRail ? 'Pohyblivý vozík, pevné vedenie' : 'Pohyblivé vedenie, pevný vozík')] : []),
-        ...(e.type==='cam'||e.type==='motor'?[item('spin','Zapnúť otáčanie'),item(e.type==='cam'?'surface-contact':'motor-spec',e.type==='cam'?'Kontaktná plocha…':'Parametre elektromotora…')]:[]),
-        item('motor', 'Priradiť / upraviť pohon…', { disabled: readonly || K.isElastic(e) || !!e.parentId && e.type !== 'motor' || ['ground', 'slot'].includes(e.type) || ['ct', 'cb'].includes(r.point) }),
-        item('limits', 'Pohybové limity…', { disabled: readonly || (!root?.drive && !state.project.connections.some((j) => !j.builtin && ['revolute', 'prismatic'].includes(j.type) && (sameReference(j.a, r) || sameReference(j.b, r)))) }),
-        { separator: true },
-        { label: 'Prichytenie / zarovnanie', disabled: readonly, items: [item('snap', 'Prichytiť na mriežku (5 mm)'), item('align-x', 'Rovnaké X, zvislo'), item('align-y', 'Rovnaké Y, vodorovne'), item('axis-x', 'Na os X (Y = 0)'), item('axis-y', 'Na os Y (X = 0)')] },
-        item('coordinates', 'Absolútne súradnice XYZ…', { disabled: readonly }),
-        { id: 'trace-node', label: 'Sledovať trajektóriu bodu…' }, { separator: true },
-        item('disconnect', 'Odpojiť naviazané väzby'),
-        item('delete', t.type === 'joint' ? 'Odstrániť iba túto väzbu' : ['bearing', 'node'].includes(e.type) ? 'Odstrániť iba tento uzol' : 'Odstrániť tento uzol a jeho člen…', { danger: true, shortcut: 'Del' }),
-      );
-      if (t.type === 'joint') items.unshift({ id: 'edit-joint', label: 'Upraviť túto väzbu…' });
-    } else {
-      const family = W.descendants(state.project, [t.elementId]), joints = state.project.connections.filter((j) => [j.a, j.b].some((r) => family.has(r.elementId)));
-      items.push(
-      { label: `Väzby člena a jeho bodov (${joints.length})`, items: joints.length ? joints.map((j) => ({ id: `pick:${I.jointKey(j.id)}`, label: `${j.name} · ${E.constraintNames[j.type]}` })) : [{ label: 'Člen nemá väzby', disabled: true }] },
-      item('disconnect-body', 'Odpojiť všetky väzby tohto člena a jeho bodov', { disabled: readonly || !joints.length && !t.element.parentId }),
-      ...(t.element.type === 'rail' ? [item('rail-motion', t.element.movingRail ? 'Pohyblivý vozík, pevné vedenie' : 'Pohyblivé vedenie, pevný vozík', { disabled: readonly || !!t.element.parentId })] : []),
-      item('fix-body', t.element.locked || t.element.type === 'ground' ? 'Uvoľniť celé teleso' : 'Ukotviť celé teleso', { disabled: readonly || K.isElastic(t.element) || ['slot', 'rail'].includes(t.element.type) }),
-      { label: 'Priradiť / upraviť pohon na uzle', disabled: readonly || t.element.role === 'motor-housing' || K.isElastic(t.element) || !!t.element.parentId && t.element.type !== 'motor' || ['ground', 'slot'].includes(t.element.type), items: I.pointKeys(t.element).filter((key) => ['cam', 'motor'].includes(t.element.type) ? key === 'a' : ['a', 'b'].includes(key) || key === 'c' && t.element.type === 'panel').map((key) => item(`motor-${key}`, `Uzol ${K.pointName(key, t.element)}`)) },
-      item('coordinates', 'Súradnice začiatku A…'),
-      { separator: true },
-      item('split', 'Rozdeliť rameno v polovici', { disabled: readonly || t.element.type !== 'link' || !!t.element.outline?.length }),
-      { id: 'poi', label: 'Pridať bod záujmu (POI) a dráhu', disabled: readonly || K.isElastic(t.element) }, item('inspect', K.isElastic(t.element) ? 'Rozmery, sila a tlmenie…' : 'Vlastnosti prvku…'),
-      item('thickness', 'Hrúbka / priemer…', { disabled: readonly || !W.thickness(t.element) }),
-      ...(K.isElastic(t.element) ? [item('elastic-fit', 'Prispôsobiť pracovný rozsah montáži')] : t.element.role === 'motor-housing' ? [item('motor-spec', 'Parametre elektromotora…')] : [item('properties', 'Dĺžka, tuhosť a farba…')]),
-      { separator: true }, item('delete', contextDeleteKeys(t).length > 1 ? `Odstrániť celý výber (${contextDeleteKeys(t).length})…` : 'Odstrániť tento člen a jeho väzby', { danger: true, shortcut: 'Del' }),
-      );
-    }
-    items.push({ separator: true }, { label: 'Kliknutia na plátne', items: [
-      { id: 'gesture-help', label: 'ĽT: výber / ťahanie; pružný uzol mení iba voľný koniec' },
-      { id: 'gesture-help', label: 'Shift + ĽT: pridať alebo odobrať z výberu' },
-      { id: 'gesture-help', label: 'Ctrl + ĽT: ďalšia prekrývajúca sa entita' },
-      { id: 'gesture-help', label: 'Alt + ťahanie: voľný pohyb bez siete a snappingu' },
-    ] }, { id: 'save-library', label: 'Uložiť výber do knižnice…', disabled: state.project.kind !== 'custom', hint: state.project.kind !== 'custom' ? 'Najskôr vytvorte voľnú kópiu šablóny.' : '' });
-    return items;
-  }
-
   function openContextMenu(event, key = canvasHit(event)) {
     if (state.drag) onPointerUp({ pointerId: state.drag.pointerId, cancelled: true });
     document.querySelectorAll('#workflow-tools details[open], #model-checks details[open]').forEach((el) => { el.open = false; });
@@ -241,7 +156,8 @@
     } else if (kind === 'joint') {
       title = 'Typ kinematickej väzby';
       const existing = state.project.connections.filter((j) => !j.builtin && (sameReference(j.a, r) || sameReference(j.b, r)));
-      const joint = existing.find((j) => j.id === jointId) || existing[0];
+      // 'new' starts a further joint instead of editing the node's first one.
+      const joint = jointId === 'new' ? null : existing.find((j) => j.id === jointId) || existing[0];
       let other = joint ? sameReference(joint.a, r) ? joint.b : joint.a : null;
       if (jointType === 'prismatic' && other?.point !== 'curve') other = state.project.elements.find((v) => v.type === 'rail') ? { elementId: state.project.elements.find((v) => v.type === 'rail').id, point: 'curve' } : null;
       const value = jointType === 'prismatic' && joint?.type === 'prismatic' ? joint.value * (sameReference(joint.a, r) ? 1 : -1) : 0;
@@ -289,8 +205,13 @@
     try {
       if (action === 'selection-connect') { selectTarget(state.contextMenuState.targetId || (t.type==='node'?I.nodeKey(I.reference(t)):I.elementKey(t.elementId))); beginSelectedConnection(); }
       else if (action.startsWith('pick:')) { openContextMenu({ clientX: state.contextMenuState.x, clientY: state.contextMenuState.y, target: $('#mechanism-canvas') }, action.slice(5)); }
-      else if (action === 'gesture-help') modal('Ovládanie plátna', '<p>Ľavé tlačidlo vyberá a ťahá. Shift pridáva alebo odoberá z výberu. Ctrl cykluje prekrývajúce sa entity. Alt dočasne vypne sieť aj snapping. Voľný koniec pružiny alebo piesta sa mení samostatne; namontovaný koniec sleduje uchytenie. Štvorcový priečny úchyt mení hrúbku alebo priemer.</p>');
       else if (action === 'inspect') { selectElement(t.elementId); propertiesOverview(); }
+      else if (action === 'motor-check') { selectElement(t.elementId); motorCapacityModal(); }
+      else if (action === 'edit-path') { selectElement(t.elementId); geometryModal(false); }
+      else if (action === 'select-assembly') actions['select-rigid-assembly']({ dataset: { id: t.elementId } });
+      else if (action === 'unbind-rigid') rigidAssemblyModal(true, t.elementId);
+      else if (action === 'bind-rigid') rigidAssemblyModal();
+      else if (action === 'isolate') isolateSelection();
       else if (action === 'thickness') { selectElement(t.elementId); setMode('edit'); transformModal('thickness'); }
       else if (action === 'elastic-fit') { const next = K.copy(p), e = next.elements.find((e) => e.id === t.elementId); e.rangeMode = 'auto'; editCanvas(K.fitElasticRanges(next, [e.id], state.result), 'Pracovný rozsah bol prispôsobený montáži.'); }
       else if (action === 'rail-motion' && t?.element?.type === 'rail') editCanvas(I.setRailMotion(p, t.elementId, !t.element.movingRail, state.result), t.element.movingRail ? 'Vozík sa pohybuje, vedenie je pevné.' : 'Vedenie sa pohybuje, vozík zostáva pevný.');
@@ -330,6 +251,7 @@
         jointModal(null, { type: 'cam-contact', a: r, b: { elementId: cam.id, point: 'curve' } });
       }
       else if (action === 'joint-revolute' || action === 'joint-prismatic') canvasDialog('joint', r, action.slice(6), t.type === 'joint' ? t.id : '');
+      else if (action === 'joint-new-prismatic') canvasDialog('joint', r, 'prismatic', 'new');
       else if (['coordinates', 'properties', 'motor', 'limits', 'cam-profile'].includes(action)) canvasDialog(action, r || { elementId: t.elementId, point: 'a' });
       else if (action === 'cam-follower') editCanvas(I.addCamFollower(p, t.elementId, state.result), 'Valček, jeho posúvač a vedenie boli pridané. Priraďte vačke otočný pohon.');
       else if (action === 'split') {
@@ -347,6 +269,7 @@
         });
         editCanvas(I.transformPoints(p, refs, transform, state.result), 'Vybrané uzly boli zarovnané.');
       }
+      else throw new Error(`Neznáma akcia ponuky: ${action}`);
     } catch (error) { toast(error.message, true); }
   }
 

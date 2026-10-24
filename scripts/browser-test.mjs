@@ -47,6 +47,16 @@ try {
   await mobile.view.waitForSelector('#workspace', { timeout: 15000 });
   check('Mobil 390 px bez vodorovného posúvania', !(await mobile.view.evaluate(() => document.documentElement.scrollWidth > innerWidth)) && !mobile.errors.length, mobile.errors.join(' | '));
 
+  // Context menus: one short menu per entity type, no duplicates or dead items, every item runs, every label translated.
+  const menus = await page(`${origin}/`);
+  menus.view.on('dialog', (dialog) => dialog.dismiss().catch(() => {}));
+  menus.view.on('download', (download) => download.cancel().catch(() => {}));
+  await menus.view.waitForSelector('#workspace', { timeout: 15000 });
+  const menuReport = await menus.view.evaluate(checkContextMenus);
+  for (const problem of menuReport.problems) console.log(`  ${problem}`);
+  check('Kontextové ponuky podľa typu entity', !menuReport.problems.length && !menus.errors.length, `${menuReport.menus} ponúk, ${menuReport.actions} spustených akcií${menus.errors.length ? ` · ${menus.errors.join(' | ')}` : ''}`);
+  await menus.view.close();
+
   // Translation coverage: open every template and run every non-destructive UI action in EN and DE.
   const allowed = JSON.parse(await readFile(path.join(root, 'tests/i18n-untranslated.json'), 'utf8'));
   for (const language of ['en', 'de']) {
@@ -68,6 +78,49 @@ try {
 } finally {
   await browser.close();
   server.kill();
+}
+// Runs in the page: builds the menu of every entity type in a model with all element kinds, then runs each item on a fresh copy.
+async function checkContextMenus() {
+  const K = Kinematics, I = KinmoInteraction, problems = [], messages = [];
+  const project = K.preset('custom'), add = (type, x, y) => { const e = K.makeElement(type, x, y); project.elements.push(e); return e; };
+  const ground = add('ground', 0, 200), link = add('link', 0, 200), link2 = add('link', 100, 100), slot = add('slot', 200, 100), cam = add('cam', 300, 200);
+  const rail = add('rail', 0, 300), spring = add('spring-compression', 50, 50), motor = add('motor', 400, 200), node = add('node', 150, 150), panel = add('panel', 250, 0);
+  project.connections.push({ id: 'menu-j1', name: 'Kĺb A', type: 'revolute', a: { elementId: ground.id, point: 'a' }, b: { elementId: link.id, point: 'a' } });
+  project.connections.push({ id: 'menu-j2', name: 'Kĺb B', type: 'revolute', a: { elementId: link.id, point: 'b' }, b: { elementId: link2.id, point: 'a' } });
+  const base = JSON.stringify(K.validateProject(project));
+  const cases = [
+    ['plocha', null], ['väzba', I.jointKey('menu-j1')], ['uzol ramena', I.nodeKey({ elementId: link.id, point: 'b' })], ['pevný bod', I.nodeKey({ elementId: ground.id, point: 'a' })],
+    ['voľný uzol', I.nodeKey({ elementId: node.id, point: 'a' })], ['dráha kulisy', I.pathKey(slot.id)], ['riadiaci bod', I.controlKey(slot.id, 1)],
+    ...[link, ground, slot, cam, rail, spring, motor, panel].map((e) => [`teleso ${e.type}`, I.elementKey(e.id)]),
+  ];
+  const originalToast = toast; toast = (message) => messages.push(String(message));
+  const fresh = (selection = []) => { document.querySelector('dialog[open]')?.close(); closeContextMenu(); loadProject(K.validateProject(JSON.parse(base))); state.selectedElementIds = selection; };
+  const runAll = async (name, key, selection) => {
+    fresh(selection); const t = key ? I.target(state.project, key) : null, items = contextItems(t);
+    const flat = items.flatMap((i) => i.items ? [i, ...i.items] : [i]).filter((i) => !i.separator);
+    const ids = flat.filter((i) => !i.items).map((i) => i.id).filter(Boolean), top = items.filter((i) => !i.separator).length;
+    if (new Set(ids).size !== ids.length) problems.push(`${name}: akcia je v ponuke dvakrát (${ids.filter((id, i) => ids.indexOf(id) !== i).join(', ')})`);
+    if (top > 10) problems.push(`${name}: ${top} položiek na hornej úrovni`);
+    for (const item of flat) {
+      if (item.disabled && !item.items && !/chránená/.test(item.label)) problems.push(`${name}: neaktívna položka „${item.label}“`);
+      for (const language of ['en', 'de']) if (KinmoI18n.missing(item.label, language).some((part) => /\p{Ll}/u.test(part) && !state.project.elements.some((e) => part.includes(e.name)) && !state.project.connections.some((c) => part.includes(c.name)))) problems.push(`${name}: nepreložené „${item.label}“ (${language})`);
+    }
+    for (const id of ids.filter((id) => !id.startsWith('pick:') && !id.startsWith('assembly-'))) {
+      fresh(selection); openContextMenu({ clientX: 300, clientY: 300, target: document.body }, key); messages.length = 0;
+      try { onContextAction(id); await new Promise((resolve) => setTimeout(resolve, 0)); } catch (error) { problems.push(`${name} → ${id}: ${error.message}`); }
+      for (const message of messages) if (/Neznáma akcia|is not|Cannot read|undefined/.test(message)) problems.push(`${name} → ${id}: ${message}`);
+      count++;
+    }
+  };
+  let count = 0;
+  try {
+    for (const [name, key] of cases) await runAll(name, key, key ? [key] : []);
+    await runAll('výber dvoch telies', I.elementKey(link.id), [I.elementKey(link.id), I.elementKey(link2.id)]);
+    const template = K.preset('fourbar'); loadProject(K.validateProject(template));
+    const templateItems = contextItems(I.target(state.project, I.elementKey('input-1')));
+    if (!templateItems.some((i) => i.id === 'copy-editable') || templateItems.filter((i) => i.disabled).length > 1) problems.push('šablóna: chýba cesta k voľnej kópii alebo obsahuje neaktívne úpravy');
+  } finally { toast = originalToast; fresh(); }
+  return { problems, menus: cases.length + 2, actions: count };
 }
 // Runs in the page: returns texts with parts left in Slovak after translation, numbers normalized to {n}; model and project names are skipped.
 async function untranslatedTexts(language) {

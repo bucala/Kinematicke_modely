@@ -29,6 +29,7 @@
     "app/dialogs.js",
     "app/events.js",
     "app/magic.js",
+    "app/menus.js",
     "app/output.js",
     "app/panels.js",
     "app/projects.js",

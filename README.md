@@ -149,7 +149,7 @@ Lokálny odkaz je dostupný až po spustení servera. Pre Fusion použite presne
 
 1. V hlavičkovej ponuke otvorte **Vlastný mechanizmus**.
 2. Pravým kliknutím na prázdne plátno pridajte samostatný voľný uzol.
-3. Na uzle otvorte **Zmeniť typ väzby → Posuvný kĺb (Prismatic)**.
+3. Na uzle otvorte **Posuvný kĺb po vedení…**.
 4. V dialógu kliknite na **Pridať nové lineárne vedenie**. Vznikne pevné priame vedenie od polohy uzla. Vyberte jeho dráhu a potvrďte **Použiť**.
 5. Na uzle otvorte **Priradiť / upraviť pohon…** a nastavte:
 
@@ -403,13 +403,17 @@ Všetky tri voľby si pamätajú nastavenia pracovného priestoru aj `.kinmo`. P
 
 Výber používa aj geometriu, takže nemusíte trafiť presný SVG element a prekrývajúca vrstva neodstráni dostupnosť člena. **Vybrať entitu pod kurzorom** rozlíši prekrývajúce sa uzly, kĺby a telesá. Podponuky sa otvoria kurzorom alebo pravou šípkou a neoreže ich posuvná hlavná ponuka. **Klik mimo číselného dialógu ho nezatvorí**, dialóg sa potvrdzuje alebo ruší výslovne.
 
+Každý typ entity má vlastnú krátku ponuku: najprv akcie typické pre daný typ, potom spoločné úpravy a odstránenie vždy na konci. Nedostupné akcie sa nezobrazujú. Každá akcia má jedno miesto: typ väzby mení väzba, pohon a vlastnosti patria telesu. Uzol väčšieho člena odkazuje na **Celý člen**. Chránená šablóna ponúka iba cestu k voľnej kópii.
+
 | Cieľ ponuky | Operácie |
 |---|---|
-| Bod / kĺb | Otočný alebo posuvný kĺb, odpojenie, fixácia, pohon, limity, absolútne XYZ, mriežka 5 mm, zarovnanie, trajektória a odstránenie |
-| Telo jednoduchého ramena | Zoznam väzieb, odpojenie všetkých väzieb, fixácia celého telesa, pohon vybraného konca, XYZ, rozdelenie v strede, pripojený POI, vlastnosti a odstránenie |
+| Uzol | Spojiť s iným bodom, posuvný kĺb po vedení, väzby uzla, ukotvenie, pohon a limity (ak sa dajú použiť), poloha a zarovnanie (absolútne XYZ, mriežka, osi), trajektória, celý člen, odpojenie |
+| Väzba | Typ (otočný / posuvný), pohybové limity, úprava typu, bodov a hodnoty, výber koncového bodu, odstránenie iba tejto väzby |
+| Teleso | Akcie typu (rameno: rozdelenie a POI; vačka: otáčanie, tvar, kontakt, sledovač; motor: zapnutie, overenie, parametre; vedenie: pohyblivá časť; kulisa: body dráhy a polkruh; pružina: pracovný rozsah), pohon na uzle, vlastnosti, hrúbka, ukotvenie, súradnice, väzby člena, odpojenie a odstránenie |
+| Výber dvoch a viac telies | Spojenie do pevnej zostavy, rozpojenie, izolovanie, uloženie do knižnice a odstránenie celého výberu |
 | Rozmerová kóta | Úprava a odstránenie iba tejto kóty a jej vlastnej riadiacej väzby, nie vybraných členov |
 | Riadiaci bod / vrchol obrysu | Lokálne súradnice, pridanie alebo odstránenie iba presnej časti; bod nie je montážny kĺb |
-| Dráha kulisy | Pridanie riadiaceho bodu a prevod na polkruh s R |
+| Dráha kulisy | Pridanie riadiaceho bodu, prevod na polkruh s R a úprava bodov dráhy |
 | Prázdne plátno | Samostatný bod, pevný Ground bod, priame vedenie, štvorkĺbová alebo kľuková podzostava a prispôsobenie pohľadu |
 
 <details>

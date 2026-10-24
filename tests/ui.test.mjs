@@ -97,7 +97,7 @@ function controller(width = 1440) {
   for (const name of ['magicScalePreview', 'applyMagicScale', 'selectMagicDetectionRegion', 'runMagicDetection', 'applyMagicDetection', 'magicDetectionSVG', 'readProjects', 'duplicateProject', 'deleteProjectModal', 'confirmProjectDelete', 'setWorkspaceView', 'renderAnalysis', 'sceneSVG', 'sameReference', 'quantityInput', 'quantityValue', 'startDimensionPick', 'cancelDimensionPick', 'pickDimensionPoint', 'dimensionModal', 'dimensionReferences', 'updateDimensionForm', 'submitDimension', 'nodeOptions', 'onPropertyChange', 'field', 'applyProject', 'setMode', 'panelPoints']) {
     vm.runInContext(source.match(new RegExp(`  (?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   }
-  for (const name of ['updateSelectionSummary','motorParts','viewElementVisible','portVisible','guardMotorMotion','treeMemberHTML','assemblyTreeHTML','basicInspectorHTML','setDetailLevel','setMotorMode','isolateSelection','quantityTextInput','rigidAssemblyModal','submitRigidAssembly','reviewHoleOwnership','submitHoleOwnership','testDetectedMechanism','automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','snapTargetDiagram','repairDiagram','applyRepairPreview','motorHousing','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'mobileToolsModal', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  for (const name of ['updateSelectionSummary','motorParts','viewElementVisible','portVisible','guardMotorMotion','treeMemberHTML','assemblyTreeHTML','basicInspectorHTML','setDetailLevel','setMotorMode','isolateSelection','quantityTextInput','rigidAssemblyModal','submitRigidAssembly','reviewHoleOwnership','submitHoleOwnership','testDetectedMechanism','automaticVersion','readAutomaticVersions','captureMeasurement','elementContextItems','tidyMenu','memberLink','selectedBodyCount','canvasMenu','templateMenu','jointMenu','curvePointMenu','pathMenu','nodeMenu','bodyTypeItems','bodyMenu','selectionMenu','typeDimension','liveDimensionSVG','elasticStatusSVG','railFreedomSVG','freedomBlockersSVG','chooseConnectionTarget','snapTargetDiagram','repairDiagram','applyRepairPreview','motorHousing','repairModel','referenceCalibrationModal','pickReferenceCalibration','elasticResponseModal','applyResponsePreset','reviewDetectedMechanism','commitDetectedReview','jointModal','beginGuideDrag', 'beginBodyDrag', 'beginElasticDrag', 'resumeElasticMotion', 'prepareForces', 'renderWorkflowTools', 'mobileToolsModal', 'referenceSVG', 'referenceSettings', 'freedomSVG', 'toggleTrial', 'trialSVG', 'kitModal', 'motionPlanModal', 'renderPlanRows', 'readPlanDraft', 'reviewImpact', 'magicPoseAlignment', 'pushDetectionHistory', 'undoDetection', 'editDetection', 'commitDetectionOutline', 'detectionEditSVG', 'workflowSubmit', 'cyclePlacementMount', 'renderPlacementTools', 'renderSnapChoices', 'dismissSnapChoices', 'selectionReference', 'renderBindingTools', 'beginSelectedConnection', 'renderModelChecks', 'focusModelCheck', 'toggleGridSnap', 'toggleAngleSnap', 'snapPaths', 'snapOptions', 'placementAt', 'snapDrawingPoint', 'renderSmartSnapPreview', 'canvasDialog', 'canvasOtherOptions', 'jointModal', 'contextNodeReferences', 'contextDeleteKeys', 'curveEditKeys', 'partPointModal', 'submitPartPoint', 'slotSemicircleModal', 'submitSlotSemicircle', 'tracePointOptions']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
   vm.runInContext(source.match(/  const traceReferences = \(\) => \[[\s\S]*?\n  \];/)[0], context);
   return { context, state, element, document, listeners, storage };
 }
@@ -996,8 +996,10 @@ test('The rail context menu switches the moving part and Undo restores the origi
   state.project.elements = [{ ...globalThis.Kinematics.makeElement('rail', 10, 20), id: 'body' }];
   state.result = globalThis.KinmoEditor.design(state.project, 0); context.selectTarget('n:body:b');
   const target = globalThis.KinmoInteraction.target(state.project, 'n:body:b');
-  assert(context.contextItems(target).some((item) => item.id === 'rail-motion' && /Pohyblivé vedenie/.test(item.label)));
-  state.contextMenuState.targetId = 'n:body:b'; context.onContextAction('rail-motion');
+  // The moving part belongs to the guide body; the node menu links to it instead of repeating the action.
+  assert(!context.contextItems(target).some((item) => item.id === 'rail-motion') && context.contextItems(target).some((item) => item.id === 'pick:e:body'));
+  assert(context.contextItems(globalThis.KinmoInteraction.target(state.project, 'e:body')).some((item) => item.id === 'rail-motion' && /Pohyblivé vedenie/.test(item.label)));
+  state.contextMenuState.targetId = 'e:body'; context.onContextAction('rail-motion');
   assert(state.project.elements[0].movingRail); assert.equal(state.history.length, 1);
   context.undo(); assert(!state.project.elements[0].movingRail);
 });
@@ -1353,11 +1355,14 @@ test('F toggles point fixation; Shift+F remains Fit View', () => {
 test('Node, member and background menu items stay within narrow ownership', () => {
   const { context, state } = controller(), I = globalThis.KinmoInteraction;
   const node = context.contextItems(I.target(state.project, 'n:body:a')), member = context.contextItems(I.target(state.project, 'e:body'));
-  assert(node.some((i) => i.id === 'coordinates') && !node.some((i) => i.id === 'split'));
+  const nodeItems = node.flatMap((i) => [i, ...(i.items || [])]);
+  assert(nodeItems.some((i) => i.id === 'coordinates') && !nodeItems.some((i) => i.id === 'split'));
   assert(member.some((i) => i.id === 'split') && member.some((i) => i.id === 'poi') && member.some((i) => i.id === 'coordinates'));
-  assert(member.some((i) => i.id === 'disconnect-body') && member.some((i) => i.id === 'fix-body'));
+  assert(member.some((i) => i.id === 'fix-body') && !member.some((i) => i.disabled));
+  // A protected template offers the way to an editable copy instead of a list of disabled edits.
   state.project = globalThis.Kinematics.preset('fourbar');
-  assert(context.contextItems(I.target(state.project, 'n:input-1:a')).find((i) => i.id === 'fix').disabled);
+  const template = context.contextItems(I.target(state.project, 'n:input-1:a'));
+  assert(template.some((i) => i.id === 'copy-editable') && !template.some((i) => i.id === 'fix'));
 });
 test('A right click on a canvas overlay still picks the underlying member geometrically', () => {
   const { context, state } = controller();
@@ -1365,7 +1370,7 @@ test('A right click on a canvas overlay still picks the underlying member geomet
   const event = { clientX: 55, clientY: 22, target: { closest: () => null }, preventDefault() { prevented = true; }, stopPropagation() {} };
   context.onContextMenu(event);
   assert(prevented); assert.equal(state.contextMenuState.targetId, 'e:body');
-  assert.equal(context.openedMenu.items.some((item) => item.id === 'disconnect-body'), true);
+  assert.equal(context.openedMenu.items.some((item) => item.id === 'delete' && /tento člen/.test(item.label)), true);
 });
 test('Coincident nodes, a joint and bodies remain individually accessible through the overlap chooser', () => {
   const { context, state } = controller();
@@ -1468,7 +1473,7 @@ test('The dimension context menu deletes only its dimension and owned constraint
   state.project = context.W.applyDimension(state.project, state.result, { a: { elementId: 'body', point: 'a' }, b: { elementId: 'another-body', point: 'a' }, driving: true, value: '40mm' });
   const d = state.project.dimensions[0]; state.result = context.E.design(state.project, 0);
   state.contextMenuState.targetId = `d:${d.id}`; state.selectedElementIds = ['e:body', `d:${d.id}`];
-  assert.equal(context.contextItems(context.I.target(state.project, `d:${d.id}`))[1].id, 'delete-dimension');
+  assert.equal(context.contextItems(context.I.target(state.project, `d:${d.id}`)).filter((i) => !i.separator)[1].id, 'delete-dimension');
   context.onContextAction('delete-dimension');
   assert.equal(state.project.elements.length, 2); assert.equal(state.project.dimensions.length, 0); assert.equal(state.project.connections.length, 0);
 });
@@ -2024,10 +2029,11 @@ test('Ctrl click cycles overlapping entities while Shift retains additive select
 test('Right menus cover every library body, node, and an actual joint without invalid operations',()=>{
   const {context,state}=controller(),K=context.K,types=K.TYPES;
   for(const type of types){const e=K.makeElement(type,0,0);state.project=K.preset('custom');state.project.elements=[e];state.result=context.E.design(state.project,0);
-    for(const key of [context.I.elementKey(e.id),context.I.nodeKey({elementId:e.id,point:'a'})]){const items=context.contextItems(context.I.target(state.project,key));assert(items.some(i=>i.id==='inspect'));assert(items.some(i=>i.id==='thickness'));if(K.isElastic(e))assert(!items.flatMap(i=>i.items||[]).some(i=>i.id==='joint-prismatic'));}
+    // Body properties live on the body; a node of a larger member links to it, a standalone point is its own body.
+    for(const key of [context.I.elementKey(e.id),context.I.nodeKey({elementId:e.id,point:'a'})]){const items=context.contextItems(context.I.target(state.project,key)),body=key.startsWith('e:')||['bearing','node'].includes(type);assert(body?items.some(i=>i.id==='inspect')&&items.some(i=>i.id==='thickness'):items.some(i=>i.id===`pick:${context.I.elementKey(e.id)}`),`${type} ${key}`);assert(!items.flatMap(i=>[i,...(i.items||[])]).some(i=>i.disabled));if(K.isElastic(e))assert(!items.flatMap(i=>i.items||[]).some(i=>i.id==='joint-prismatic'));}
   }
   const a=K.makeElement('link',0,0),b=K.makeElement('link',120,0),j={id:'menu-joint',type:'revolute',a:{elementId:a.id,point:'b'},b:{elementId:b.id,point:'a'}};state.project.elements=[a,b];state.project.connections=[j];
-  const menu=context.contextItems(context.I.target(state.project,context.I.jointKey(j.id)));assert(menu.some(i=>i.id==='edit-joint'));assert(menu.some(i=>i.id==='delete'&&i.label.includes('iba túto väzbu')));
+  const menu=context.contextItems(context.I.target(state.project,context.I.jointKey(j.id)));assert(menu.some(i=>i.id==='edit-joint'));assert(menu.find(i=>i.label==='Typ väzby').items.some(i=>i.id==='joint-revolute'&&i.label.endsWith('✓')));assert(menu.some(i=>i.id==='delete'&&i.label.includes('iba túto väzbu')));
 });
 
 test('Direct node drag offers overlapping destinations without global smart snap and creates one undoable joint',()=>{
@@ -2308,4 +2314,17 @@ test('Copying a grouped motor preserves its housing and descendants and produces
 test('Mobile selection menu exposes rigid binding and isolation and tree selection supports additive taps',()=>{
  const {context:c,state:s}=controller(390);s.multiSelect=true;c.selectElement('body');c.selectElement('another-body');assert.equal(s.selectedElementIds.length,2);c.mobileToolsModal('selection');assert.match(c.dialog.html,/data-action="bind-rigid"/);assert.match(c.dialog.html,/data-action="multi-select"/);assert.match(c.dialog.html,/data-action="isolate-selection"/);
  c.selectElement('body');assert.deepEqual([...s.selectedElementIds],['e:another-body']);
+});
+
+test('A free node starts a new prismatic joint from its menu, never editing an existing joint', () => {
+  const { context, state } = controller(), I = globalThis.KinmoInteraction;
+  const items = context.contextItems(I.target(state.project, 'n:body:a'));
+  assert(items.some((i) => i.id === 'joint-new-prismatic') && !items.some((i) => i.label === 'Zmeniť typ väzby'));
+  state.project.connections.push({ id: 'existing-joint', name: 'Pôvodná', a: { elementId: 'body', point: 'a' }, b: { elementId: 'another-body', point: 'a' }, type: 'revolute' });
+  state.project = context.K.validateProject(state.project); state.result = context.E.design(state.project, 0);
+  state.contextMenuState.targetId = 'n:body:a'; context.onContextAction('joint-new-prismatic');
+  assert.match(context.dialog.html, /<option value="">Nová väzba<\/option>/); assert.doesNotMatch(context.dialog.html, /value="existing-joint" selected/);
+  const joint = context.contextItems(I.target(state.project, 'j:existing-joint'));
+  assert(joint.find((i) => i.label === 'Typ väzby').items.some((i) => i.id === 'joint-prismatic'));
+  context.onContextAction('no-such-action'); assert.match(context.lastToast, /Neznáma akcia ponuky: no-such-action/);
 });
