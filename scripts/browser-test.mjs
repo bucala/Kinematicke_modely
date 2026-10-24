@@ -182,6 +182,53 @@ try {
   check('Dotykové gestá bez chýb stránky', !touchPage.errors.length, touchPage.errors.join(' | '));
   await touchPage.view.close();
 
+  // Command palette: real keys open it, search and Enter run a command, ? shows the shortcuts, and every listed command runs.
+  {
+  const palette = await page(`${origin}/`);
+  palette.view.on('dialog', (dialog) => dialog.dismiss().catch(() => {}));
+  palette.view.on('download', (download) => download.cancel().catch(() => {}));
+  await palette.view.waitForSelector('#workspace', { timeout: 15000 });
+  await palette.view.evaluate(() => { const project = Kinematics.validateProject(Kinematics.preset('fourbar')); localStorage.setItem('kinematika.projects.v1', JSON.stringify([project])); localStorage.setItem('kinematika.last.v1', project.id); });
+  await palette.view.reload(); await palette.view.waitForSelector('#workspace', { timeout: 15000 });
+  await palette.view.click('#mechanism-canvas', { position: { x: 5, y: 5 } }).catch(() => {});
+  await palette.view.keyboard.press('Control+k');
+  const opened = await palette.view.waitForSelector('#command-search', { timeout: 3000 }).then(() => true, () => false);
+  const focused = await palette.view.evaluate(() => document.activeElement?.id === 'command-search');
+  await palette.view.keyboard.type('mriez');
+  const first = await palette.view.evaluate(() => document.querySelector('.command-item.is-active .command-label')?.textContent);
+  const gridBefore = await palette.view.evaluate(() => state.grid);
+  await palette.view.keyboard.press('Enter');
+  const gridAfter = await palette.view.evaluate(() => ({ grid: state.grid, open: document.querySelector('#modal').open }));
+  check('Ctrl + K otvorí paletu, hľadanie a Enter spustí príkaz', opened && focused && /mriežk/i.test(first || '') && gridAfter.grid !== gridBefore && !gridAfter.open, `${first || 'bez výsledku'} · mriežka ${gridBefore} → ${gridAfter.grid}`);
+  await palette.view.keyboard.press('Control+k'); await palette.view.waitForSelector('#command-search');
+  const name = await palette.view.evaluate(() => state.project.elements.at(-1).name);
+  await palette.view.keyboard.type(name); await palette.view.keyboard.press('ArrowDown'); await palette.view.keyboard.press('ArrowUp'); await palette.view.keyboard.press('Enter');
+  const selected = await palette.view.evaluate(() => I.target(state.project, state.selectedElementIds.at(-1))?.element?.name);
+  check('Paleta vyberie prvok podľa názvu', selected === name, `${name} → ${selected}`);
+  await palette.view.keyboard.press('Control+k'); await palette.view.waitForSelector('#command-search'); await palette.view.keyboard.press('Control+k');
+  const toggled = await palette.view.evaluate(() => !document.querySelector('#modal').open);
+  await palette.view.keyboard.press('Control+k'); await palette.view.waitForSelector('#command-search'); await palette.view.keyboard.type('xyz'); await palette.view.keyboard.press('Escape');
+  const escaped = await palette.view.evaluate(() => !document.querySelector('#modal').open);
+  await palette.view.click('#mechanism-canvas', { position: { x: 5, y: 5 } }).catch(() => {});
+  await palette.view.keyboard.press('?');
+  const overview = await palette.view.evaluate(() => ({ open: document.querySelector('#modal').open, groups: document.querySelectorAll('#modal .shortcut-group').length, palette: document.querySelectorAll('#modal kbd').length }));
+  check('Druhé Ctrl + K aj Esc paletu zavrie a ? ukáže prehľad skratiek', toggled && escaped && overview.open && overview.groups >= 4, `${overview.groups} skupín, ${overview.palette} skratiek`);
+  // Every command listed on a fresh page runs without a page error.
+  const total = await palette.view.evaluate(() => collectCommands().length);
+  let ran = 0; const broken = [];
+  for (let index = 0; index < total; index++) {
+    await palette.view.reload(); await palette.view.waitForSelector('#workspace', { timeout: 15000 });
+    const before = palette.errors.length;
+    const result = await palette.view.evaluate(async (index) => { const command = collectCommands()[index]; if (!command) return null; let error = ''; try { command.run(); } catch (failure) { error = failure.message; } await new Promise((r) => setTimeout(r, 60)); return { label: command.label, error }; }, index);
+    if (!result) continue;
+    ran++;
+    if (result.error || palette.errors.length > before) broken.push(`${result.label} · ${result.error || palette.errors.slice(before).join(' | ')}`);
+  }
+  for (const problem of broken) console.log(`  ${problem}`);
+  check('Každý príkaz palety sa spustí bez chyby', ran > 20 && !broken.length && !palette.errors.length, `${ran} príkazov${palette.errors.length ? ` · ${palette.errors.join(' | ')}` : ''}`);
+  await palette.view.close();
+  }
+
   // Translation coverage: open every template and run every non-destructive UI action in EN and DE.
   const allowed = JSON.parse(await readFile(path.join(root, 'tests/i18n-untranslated.json'), 'utf8'));
   for (const language of ['en', 'de']) {

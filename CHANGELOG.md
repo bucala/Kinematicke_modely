@@ -1,5 +1,11 @@
 # História zmien
 
+## Nevydané: paleta príkazov a prehľad skratiek
+
+- **Ctrl/Cmd + K** otvorí paletu príkazov (aj tlačidlom s lupou v hlavičke). Ponúka viditeľné a povolené tlačidlá aplikácie, vkladanie prvkov z knižnice a výber dielov modelu podľa názvu. Hľadanie ignoruje diakritiku a veľkosť písmen a pozná aj skratky slov („zbr mriez“). Pri príkazoch je uvedená klávesová skratka. Režimy a Magic import obmedzujú paletu rovnako ako tlačidlá.
+- **?** otvorí prehľad klávesových skratiek rozdelený na Všeobecné, Plátno, Výber a Dotyk. Rovnaký zoznam používa obrázkový návod.
+- `npm run test:browser` overuje skutočné klávesy palety a spustí každý ponúknutý príkaz na čistej stránke bez chyby.
+
 ## Nevydané: dotykové gestá a spoľahlivé ťahanie v simulácii
 
 - **Dotyk:** jeden prst po prázdnej ploche posúva plátno, ťuk dvoma prstami vráti krok a troma ho zopakuje (pohľad sa pri ťuku nemení, štipnutie ani dlhé podržanie krok nevracia). Dvojťuk a opakovaný ťuk fungujú ako dvojklik a opakovaný klik s väčšou toleranciou pre prst.

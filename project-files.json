@@ -26,6 +26,7 @@
     "advanced.js",
     "app.js",
     "app/canvas.js",
+    "app/commands.js",
     "app/dialogs.js",
     "app/events.js",
     "app/magic.js",

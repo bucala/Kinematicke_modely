@@ -43,7 +43,7 @@
 
   function magicActionAllowed(action) {
     if (!state.magic || action.startsWith('magic-') || action.startsWith('detect-') || action === 'pose-pick') return true;
-    if (['help', 'close-modal', 'fit', 'zoom-in', 'zoom-out', 'tool-pan', 'toggle-sidebar', 'close-inspector'].includes(action)) return true;
+    if (['help', 'shortcuts', 'command-palette', 'close-modal', 'fit', 'zoom-in', 'zoom-out', 'tool-pan', 'toggle-sidebar', 'close-inspector'].includes(action)) return true;
     if (!magicWorking()) return false;
     return ['multi-select','bind-rigid','unbind-rigid','isolate-selection','detail-level','motor-mode','toggle-tree-group','select-motor-assembly','select-rigid-assembly','undo', 'redo', 'tool-select', 'tool-connect', 'tool-measure', 'smart-snap', 'grid-snap', 'angle-snap', 'mobile-tools', 'mobile-selection', 'mobile-handles', 'properties-overview', 'open-full-properties', 'construction', 'element-limits', 'connection-type', 'selection-settings', 'selection-connect', 'selection-support', 'selection-rail', 'selection-motor', 'snap-connect', 'snap-preview', 'snap-position', 'placement-mount', 'placement-cancel', 'check-model', 'grid', 'dimensions', 'select', 'visibility', 'sidebar-elements', 'sidebar-joints', 'toggle-inspector', 'inspector-geometry', 'inspector-joints', 'new-joint', 'edit-joint', 'delete-joint', 'new-dimension', 'edit-dimension', 'dimension-pick', 'delete-dimension', 'edit-numbers', 'edit-rotation', 'edit-pivot', 'edit-length', 'edit-thickness', 'add-menu', 'add-component', 'duplicate', 'delete', 'confirm-canvas-delete', 'canvas-add-guide', 'lock-selected', 'drive-selected', 'element-menu', 'edit-outline', 'edit-path', 'edit-com'].includes(action);
   }

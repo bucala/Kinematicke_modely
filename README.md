@@ -764,6 +764,8 @@ Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusio
 
 | Skratka | Akcia |
 |---|---|
+| Ctrl/Cmd + K | Paleta príkazov: hľadá v tlačidlách aplikácie, knižnici prvkov a dieloch modelu (bez diakritiky, aj skratky slov), ↑ ↓ a Enter spustí; tlačidlo s lupou v hlavičke ju otvorí aj dotykom |
+| ? | Prehľad klávesových skratiek podľa skupín |
 | Medzerník | Ťuknutie prehrá / pozastaví, podržanie + ťahanie posúva plátno |
 | V / H / J / M | Výber / posun plátna / spojenie / meranie |
 | F | Fixovať / uvoľniť vybrané body |

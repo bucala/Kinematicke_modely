@@ -2493,3 +2493,18 @@ test('Dragging a body the drive does not move explains why instead of doing noth
   context.onPointerMove(pointer(at.x + 40, at.y + 40, { ...target, buttons: 1 })); context.onPointerUp(pointer(at.x + 40, at.y + 40, target));
   assert.match(context.lastToast, /„Voľné rameno“ sa s pohonom nepohybuje/);
 });
+
+test('The command palette search ignores case and diacritics and ranks word starts first', () => {
+  const context = vm.createContext({});
+  for (const name of ['foldText', 'commandScore', 'filterCommands', 'commandShortcut']) vm.runInContext(source.match(new RegExp(`  function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], context);
+  const commands = [{ label: 'Exportovať', group: 'Projekt' }, { label: 'Zakrivená kulisa', group: 'Knižnica prvkov' }, { label: 'Uložiť', group: 'Projekt', keywords: 'save' }, { label: 'Kulisa 1', group: 'Vybrať v modeli' }, { label: 'Zobraziť mriežku', group: 'Zobrazenie' }];
+  const labels = (query) => context.filterCommands(commands, query).map((c) => c.label);
+  assert.deepEqual(labels('KULÍSA'), ['Kulisa 1', 'Zakrivená kulisa'], 'Diakritika a veľkosť písmen nehrajú rolu; zhoda na začiatku má prednosť.');
+  assert.deepEqual(labels('ulozit'), ['Uložiť']);
+  assert.deepEqual(labels('save'), ['Uložiť'], 'Hľadá sa aj v kľúčových slovách.');
+  assert.deepEqual(labels('zbr mriez'), ['Zobraziť mriežku'], 'Písmená v poradí stačia.');
+  assert.deepEqual(labels('kulisa export'), [], 'Každé slovo musí sedieť.');
+  assert.equal(labels('').length, commands.length, 'Prázdne hľadanie ukáže všetko v pôvodnom poradí.');
+  assert.equal(labels('')[0], 'Exportovať');
+  assert.equal(context.commandShortcut('undo'), 'Ctrl + Z'); assert.equal(context.commandShortcut('unknown'), '');
+});
