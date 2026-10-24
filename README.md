@@ -397,7 +397,7 @@ Všetky tri voľby si pamätajú nastavenia pracovného priestoru aj `.kinmo`. P
 
 ## Výber a kontextové úpravy
 
-Ľavým kliknutím vyberiete bod, kĺb alebo telo členu. Koncové body majú prednosť pred telesom a približovanie nemení veľkosť ich klikateľnej oblasti. **Shift/Cmd + klik** pridá alebo odoberie položku. Kliknutie na prázdne plátno výber zruší. Symboly a kurzor odlišujú pevné, voľné a poháňané body; akcent zvýrazňuje výber.
+Ľavým kliknutím vyberiete bod, kĺb alebo telo členu. Koncové body majú prednosť pred telesom a približovanie nemení veľkosť ich klikateľnej oblasti. **Shift/Cmd + klik** pridá alebo odoberie položku. Opakovaný klik na to isté miesto prepne na ďalšiu prekrytú entitu. Kliknutie na prázdne plátno výber zruší, ťahanie po ňom vyberá obdĺžnikom. **Dvojklik** alebo **Enter** otvorí hlavnú úpravu prvku; v ponuke je označená skratkou Dvojklik. Symboly a kurzor odlišujú pevné, voľné a poháňané body; akcent zvýrazňuje výber.
 
 **Pravé tlačidlo** otvorí vlastnú ponuku, nie ponuku prehliadača. Pravý klik na časť už zvýrazneného telesa zachová skupinu, ale cieľom ponuky ostáva presne kliknutý bod, vrchol či dráha. Pravý klik na pozadie výber neruší. Ponuka sa zmestí do viewportu a zavrie sa kliknutím mimo nej, Escape, posunom alebo priblížením plátna. Klávesnica podporuje Shift+F10, šípky, Home/End, Enter a Escape. Výber ani kontextové formuláre automaticky neotvárajú Vlastnosti. Na úzkych displejoch sú menej používané príkazy pod **Ďalšie možnosti…**; podponuky sa zobrazia v tom istom okne s tlačidlom **Späť**. Ponuku možno zavrieť aj krížikom, pri zmene veľkosti obrazovky sa zatvorí. Otvorenie dialógu alebo inej ponuky zatvorí predchádzajúce ponuky. Spodné ovládanie výberu a kontrola modelu majú spoločné rozloženie bez prekrývania; dlhé lišty možno vodorovne posúvať.
 
@@ -741,7 +741,11 @@ Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusio
 |---|---|
 | Ľavý klik na objekt | Vybrať bod, kĺb alebo člen |
 | Shift/Cmd + klik | Pridať alebo odobrať položku výberu |
-| Ctrl + klik | Prepnúť na ďalší prekrývajúci sa prvok, uzol alebo väzbu |
+| Opakovaný klik na to isté miesto | Prepnúť na ďalší prekrývajúci sa prvok, uzol alebo väzbu |
+| Ctrl + klik (Windows, Linux) | To isté ako opakovaný klik; na macOS je Ctrl + klik pravý klik a otvorí ponuku |
+| Dvojklik / Enter | Hlavná úprava: telo → vlastnosti, uzol → súradnice, väzba → úprava väzby, motor a vačka → parametre, dráha kulisy → nový riadiaci bod, prázdna plocha → prispôsobiť pohľad |
+| Ťahanie po prázdnej ploche zľava doprava | Obdĺžnikový výber telies celých vo vnútri (Shift/Cmd pridá k výberu) |
+| Ťahanie po prázdnej ploche sprava doľava | Krížový výber aj telies, ktoré obdĺžnik pretne |
 | Alt + ťahanie | Vypnúť prichytávanie počas ťahania |
 | Ťahanie vybraného objektu | Posun geometrie alebo skupiny v editačnom režime |
 | Ťahanie X/Y, otočného alebo dĺžkového úchytu | Priama úprava návrhovej geometrie |
@@ -750,12 +754,17 @@ Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusio
 | Klik na prázdne plátno | Zrušiť výber |
 | Pravý klik | Ponuka bodu, členu, kĺbu alebo plátna |
 | Pravý klik na vybraný objekt | Zachovať skupinu a otvoriť jej ponuku |
-| Koliesko | Priblížiť / oddialiť plátno |
+| Koliesko myši | Priblížiť / oddialiť plátno |
+| Ctrl + koliesko / štipnutie na trackpade | Plynulý zoom |
+| Dva prsty na trackpade | Posun plátna (trackpad sa rozpozná pri prvom šikmom posune) |
+| Shift + koliesko | Vodorovný posun plátna |
+| Alt + koliesko | Posunúť polohu pohonu o 1/60 rozsahu |
+| Ťahanie pravým alebo prostredným tlačidlom | Posun plátna; pravý klik bez pohybu otvorí ponuku |
 | Klik na graf | Nastaviť polohu pohonu |
 
 | Skratka | Akcia |
 |---|---|
-| Medzerník | Prehrať / pozastaviť |
+| Medzerník | Ťuknutie prehrá / pozastaví, podržanie + ťahanie posúva plátno |
 | V / H / J / M | Výber / posun plátna / spojenie / meranie |
 | F | Fixovať / uvoľniť vybrané body |
 | Shift + F | Prispôsobiť pohľad |

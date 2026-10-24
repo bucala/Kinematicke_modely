@@ -1,12 +1,18 @@
 # História zmien
 
-## Nevydané: kontextové ponuky podľa typu entity
+## Nevydané: ovládanie myšou, kolieskom a medzerníkom, kontextové ponuky podľa typu entity
 
+- **Opakovaný klik** na to isté miesto prepína prekrývajúce sa uzly, väzby a telesá; stlačenie a ťahanie na tom istom mieste posúva aktuálne vybranú entitu, nie ďalšiu.
+- **Obdĺžnikový výber** ťahaním po prázdnej ploche: zľava doprava vyberie telesá celé vo vnútri, sprava doľava aj telesá, ktoré obdĺžnik pretne. Shift/Cmd pridáva k výberu, klik bez pohybu výber zruší ako doteraz. Na dotykovej obrazovke sa správanie nemení.
+- **Dvojklik** a **Enter** otvoria hlavnú úpravu entity (vlastnosti telesa, súradnice uzla, úpravu väzby, parametre motora a vačky, body dráhy; na prázdnej ploche prispôsobia pohľad). Ponuka ju označuje skratkou Dvojklik. Dvojklik sa rozpoznáva z udalostí ukazovateľa, lebo prehliadač pri prekresľovaní plátna natívny `dblclick` nedoručí.
+- Na macOS Ctrl + klik už nevyberá ďalšiu entitu súčasne s otvorením systémovej ponuky; otvorí iba kontextovú ponuku.
+- **Posun plátna** aj ťahaním pravým tlačidlom (pravý klik bez pohybu ďalej otvorí ponuku, v poradí udalostí Windows aj Linux/macOS) a s **podržaným medzerníkom** nad čímkoľvek. Ťuknutie medzerníka prehráva ako doteraz, spúšťa sa pri pustení klávesu.
+- **Koliesko a trackpad:** koliesko myši zoomuje ako doteraz; trackpad sa rozpozná pri šikmom posune dvoma prstami a potom posúva, štipnutie a Ctrl + koliesko plynulo zoomujú. Shift + koliesko posúva vodorovne, **Alt + koliesko** posúva polohu pohonu o 1/60 rozsahu.
 - Každý typ entity má vlastnú krátku ponuku (uzol, väzba, teleso podľa typu, výber viacerých telies, dráha, riadiaci bod, kóta, plocha). Telesá predtým zdieľali 13 – 15 rovnakých položiek a ponúkali neaktívne akcie, ktoré sa na daný typ nehodili.
 - Každá akcia má jedno miesto. Typ väzby mení väzba (predtým uzol, aj bez väzby), pohon a vlastnosti patria telesu, uzol väčšieho člena odkazuje na **Celý člen**. Odstránené duplicity: dvojité odpojenie, tri cesty k vlastnostiam a dve cesty k pohonu.
 - Motor a vačka majú na telese zapnutie, overenie a parametre. Výber dvoch a viac telies ponúka spojenie do pevnej zostavy, izolovanie a uloženie do knižnice. Chránená šablóna ponúka iba cestu k voľnej kópii.
 - Z ponúk zmizol pomocník ku klikaniu (je v návode) a zápis do knižnice pri jednotlivých telesách. Kontextové ponuky sú preložené do EN a DE.
-- `npm run test:browser` kontroluje ponuky 12 typov entít: žiadne duplicity a neaktívne položky, najviac 10 položiek na hornej úrovni, každá položka sa vykoná a je preložená.
+- `npm run test:browser` kontroluje ponuky 12 typov entít: žiadne duplicity a neaktívne položky, najviac 10 položiek na hornej úrovni, každá položka sa vykoná a je preložená. Skutočnou myšou overuje obdĺžnikový a krížový výber, dvojklik a opakovaný klik.
 
 ## 2.5.0 · 2026-10-23: pevné zostavy, montáž a kontrola motora
 

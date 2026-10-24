@@ -649,11 +649,25 @@
     }).sort((a, b) => a.distance - b.distance || (b.priority || 0) - (a.priority || 0));
     return [...new Set([...parts, ...nodes, ...joints, ...bodies].map((c) => c.key))];
   }
+  // Box selection in world coordinates: a window keeps bodies lying fully inside, a crossing box also bodies it touches.
+  function boxSelect(project, result, corners, crossing = false, visible = (e) => e.visible !== false) {
+    const rect = { x: Math.min(corners.a.x, corners.b.x), y: Math.min(corners.a.y, corners.b.y), w: Math.abs(corners.a.x - corners.b.x), h: Math.abs(corners.a.y - corners.b.y) };
+    const inside = (p) => p.x >= rect.x && p.x <= rect.x + rect.w && p.y >= rect.y && p.y <= rect.y + rect.h;
+    const isPoint = (p) => Number.isFinite(p?.x) && Number.isFinite(p?.y);
+    return project.elements.filter(visible).filter((e) => {
+      const pose = result.poses[e.id]; if (!pose) return false;
+      const chains = [[pose.a, pose.b].filter(isPoint), (pose.path || []).filter(isPoint), [...(pose.outline || []), pose.outline?.[0]].filter(isPoint)];
+      const points = [...chains.flat(), ...[pose.c, pose.ct, pose.cb].filter(isPoint)];
+      if (!points.length) return false;
+      if (!crossing) return points.every(inside);
+      return points.some(inside) || chains.some((chain) => chain.some((p, i) => i > 0 && K.segmentRect(chain[i - 1], p, rect)));
+    }).map((e) => (['bearing', 'node'].includes(e.type) ? nodeKey({ elementId: e.id, point: 'a' }) : elementKey(e.id)));
+  }
   function hitTest(candidates, at, nodeRadius = 12, jointRadius = 8) {
     return hitTargets(candidates, at, nodeRadius, jointRadius)[0] || null;
   }
   global.KinmoInteraction = Object.freeze({
-    nodeKey, elementKey, jointKey, dimensionKey, controlKey, outlineKey, pathKey, controlPoints, pointKeys, target, reference, validSelection, select, fixed, status, root, suggestJoint, hitTest, hitTargets, setRailMotion,
+    nodeKey, elementKey, jointKey, dimensionKey, controlKey, outlineKey, pathKey, controlPoints, pointKeys, target, reference, validSelection, select, fixed, status, root, suggestJoint, hitTest, hitTargets, boxSelect, setRailMotion,
     addNode, disconnect, disconnectBody, toggleBodyFixed, setJoint, toggleFixed, deleteSelection, setCoordinates, transformPoints, translate,
     rigidMembers, bindRigid, unbindRigid, separateMotor, resizeMotorHousing, setDriver, setLimits, setJointLimits, setProperties, addPOI, addCamFollower, split, insertAssembly, removeControl, insertControl, setControlPoint, semicircle,
   });

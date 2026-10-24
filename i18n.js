@@ -910,7 +910,27 @@
  ["vodiaca dráha", "guide path", "Führungsbahn"],
  ["Rozmerová kóta", "Dimension", "Bemaßung"],
  ["Posuvný kĺb po vedení…", "Prismatic joint along a guide…", "Schubgelenk entlang einer Führung…"],
- ["Poloha a zarovnanie", "Position and alignment", "Position und Ausrichtung"]
+ ["Poloha a zarovnanie", "Position and alignment", "Position und Ausrichtung"],
+ ["Dvojklik", "Double-click", "Doppelklick"],
+ ["Kliknutím vyberiete prvok. Opakovaný klik na to isté miesto prepne na prekrytú entitu, Shift pridáva do výberu.", "Click to select an element. Clicking the same spot again switches to an overlapping entity; Shift adds to the selection.", "Klicken wählt ein Element. Erneutes Klicken auf dieselbe Stelle wechselt zu einem überlagerten Objekt; Umschalt erweitert die Auswahl."],
+ ["Ťahaním po prázdnej ploche vyberiete obdĺžnikom: zľava doprava celé telesá vo vnútri, sprava doľava aj telesá, ktoré obdĺžnik pretne.", "Drag on empty canvas to select with a box: left to right selects bodies fully inside, right to left also bodies the box crosses.", "Ziehen auf leerer Fläche wählt mit einem Rechteck: von links nach rechts ganz enthaltene Körper, von rechts nach links auch Körper, die das Rechteck schneidet."],
+ ["Dvojklik alebo Enter otvorí hlavnú úpravu prvku. Alt pri presune dočasne vypína prichytávanie. Pravé tlačidlo otvorí ponuku úprav.", "Double-click or Enter opens the element's main edit. Alt while moving temporarily turns off snapping. Right-click opens the edit menu.", "Doppelklick oder Eingabe öffnet die Hauptbearbeitung des Elements. Alt beim Verschieben schaltet das Fangen vorübergehend aus. Rechtsklick öffnet das Bearbeitungsmenü."],
+ ["Hlavná úprava výberu", "Main edit of the selection", "Hauptbearbeitung der Auswahl"],
+ ["Opakovaný klik", "Repeated click", "Erneuter Klick"],
+ ["Ďalšia prekrytá entita", "Next overlapping entity", "Nächstes überlagertes Objekt"],
+ ["Ťahanie po ploche", "Drag on canvas", "Ziehen auf der Fläche"],
+ ["Obdĺžnikový výber", "Box selection", "Rechteckauswahl"],
+ ["Enter", "Enter", "Eingabe"],
+ ["Del", "Del", "Entf"],
+ ["Shift+F", "Shift+F", "Umschalt+F"],
+ ["Shift + F prispôsobí pohľad. Plátno posuniete nástrojom Posun (H), ťahaním pravým alebo prostredným tlačidlom, s podržaným medzerníkom alebo dvoma prstami na trackpade; geometria sa nemení.", "Shift + F fits the view. Pan the canvas with the Pan tool (H), by dragging with the right or middle button, while holding Space, or with two fingers on a trackpad; geometry does not change.", "Umschalt + F passt die Ansicht an. Verschieben Sie die Zeichenfläche mit dem Werkzeug Verschieben (H), durch Ziehen mit der rechten oder mittleren Taste, mit gedrückter Leertaste oder mit zwei Fingern auf dem Trackpad; die Geometrie ändert sich nicht."],
+ ["Space + ťahanie", "Space + drag", "Leertaste + Ziehen"],
+ ["Pravé tlačidlo + ťahanie", "Right button + drag", "Rechte Taste + Ziehen"],
+ ["Posun plátna", "Pan canvas", "Zeichenfläche verschieben"],
+ ["Ctrl + koliesko", "Ctrl + wheel", "Strg + Mausrad"],
+ ["Zoom, aj štipnutie na trackpade", "Zoom, also pinch on a trackpad", "Zoom, auch Zusammenziehen auf dem Trackpad"],
+ ["Alt + koliesko", "Alt + wheel", "Alt + Mausrad"],
+ ["Poloha pohonu", "Drive position", "Antriebsposition"]
  ];
  // Rows may contain {n} (a number or range as the UI prints it), {s} (text translated on its own if possible, e.g. a model name)
  // and {x} (verbatim text such as a file name; never translated or reported as missing).

@@ -85,9 +85,32 @@
     if (state.gifExport) { event.preventDefault(); return; }
     if (state.magic && !magicWorking()) { event.preventDefault(); return; }
     event.preventDefault(); event.stopPropagation();
+    const drag = state.drag;
+    if (drag?.kind === 'pan' && drag.button === 2) { drag.menuPending = { clientX: event.clientX, clientY: event.clientY, target: event.target, preventDefault() {}, stopPropagation() {} }; return; }
+    if (state.suppressContextMenuUntil > Date.now()) { state.suppressContextMenuUntil = 0; return; }
     const row = event.target?.closest?.('[data-context-key]');
     try { openContextMenu(event, row ? row.dataset.contextKey : canvasHit(event)); }
     catch (error) { toast(`Ponuku sa nepodarilo otvoriť: ${error.message}`, true); }
+  }
+
+  // Double click runs the entity's main edit from its menu; on empty canvas it fits the view.
+  function onDoubleClick(event) {
+    if (state.gifExport || state.magic || state.tool !== 'select' || state.insertingType || state.drag) return;
+    if (event.target?.closest?.('[data-edit-handle],[data-dimension]')) return;
+    event.preventDefault?.();
+    runPrimaryAction(canvasHit(event), worldPoint(event));
+  }
+  function runPrimaryAction(key, at = null) {
+    const t = key ? I.target(state.project, key) : null;
+    let action = primaryAction(t);
+    // Adding a control point needs a location; without one the path's points are edited instead.
+    if (action === 'curve-add-control' && !at) action = 'edit-path';
+    if (!action || !menuHas(contextItems(t), action)) return false;
+    if (key && !state.selectedElementIds.includes(key)) selectTarget(key);
+    state.contextMenuState = { ...state.contextMenuState, isOpen: false, targetId: key, targetType: t?.type || 'canvas' };
+    state.contextWorldPoint = at || state.pointer;
+    onContextAction(action);
+    return true;
   }
 
   function editCanvas(next, message, keys = null) {
@@ -385,6 +408,35 @@
     deleteSelected();
   }
 
+  // Mouse wheel zooms. A trackpad, recognized by a diagonal two-finger scroll, pans; pinching (Ctrl+wheel) zooms.
+  // Shift+wheel pans horizontally and Alt+wheel scrubs the drive position.
+  function onWheel(event) {
+    event.preventDefault();
+    if (state.gifExport) return;
+    if (event.altKey) {
+      const range = K.driveRange(state.project), direction = Math.sign(event.deltaY || event.deltaX);
+      if (!direction || !(range.max > range.min)) return;
+      state.playing = false;
+      setMotion(K.clamp(state.motion + direction * (range.max - range.min) / 60, range.min, range.max));
+      return;
+    }
+    const pinch = event.ctrlKey || event.metaKey;
+    if (!pinch && !event.shiftKey && event.deltaMode === 0 && event.deltaX && event.deltaY) state.trackpad = true;
+    if (pinch) { zoom(K.clamp(Math.exp(event.deltaY * 0.01), 0.5, 2), worldPoint(event)); return; }
+    if (!state.trackpad && !event.shiftKey) { zoom(event.deltaY > 0 ? 1.08 : 0.925, worldPoint(event)); return; }
+    const rect = $('#mechanism-canvas').getBoundingClientRect(), unit = event.deltaMode === 1 ? 16 : 1;
+    const scale = Math.max(state.view.width / rect.width, state.view.height / rect.height) * unit;
+    const dx = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX, dy = event.shiftKey ? 0 : event.deltaY;
+    closeContextMenu();
+    state.view = { ...state.view, x: state.view.x + dx * scale, y: state.view.y + dy * scale };
+    renderScene();
+  }
+  function startPan(event, extra = {}) {
+    $('#mechanism-canvas').setPointerCapture(event.pointerId);
+    state.drag = { kind: 'pan', start: worldPoint(event), view: { ...state.view }, clientStart: { x: event.clientX, y: event.clientY }, pointerId: event.pointerId, moved: false, ...extra };
+    document.body.classList.add('canvas-dragging');
+  }
+
   function zoom(factor, center) {
     if (state.gifExport) return;
     closeContextMenu();
@@ -471,8 +523,12 @@
     if (state.gifExport) return;
     if (touchStart(event)) return;
     if(event.pointerType==='touch'&&!event.deferredTouch&&(state.tool==='connect'||state.insertingType||state.magic?.placementType)){state.touchGesture.deferred={pointerId:event.pointerId,clientX:event.clientX,clientY:event.clientY,button:event.button,target:event.target,pointerType:'touch',deferredTouch:true,preventDefault(){}};if(state.insertingType||state.magic?.placementType)clearTimeout(state.touchGesture.timer);return;}
-    if (event.button !== 0 && event.button !== 1) return;
     if (state.drag) return;
+    // Right button drag pans; a right click without movement still opens the menu (see onContextMenu).
+    if (event.button === 2 && event.pointerType !== 'touch') { event.preventDefault(); startPan(event, { button: 2 }); return; }
+    // Holding Space turns a left drag into panning anywhere on the canvas, also over entities.
+    if (state.spacePan && event.button === 0) { event.preventDefault(); closeContextMenu(); state.spacePan.used = true; startPan(event); return; }
+    if (event.button !== 0 && event.button !== 1) return;
     event.preventDefault();
     closeContextMenu();
     state.snapPreview = null; dismissSnapChoices();
@@ -504,7 +560,11 @@
       document.body.classList.add('canvas-dragging'); return;
     }
     const control = event.target.closest('[data-control]'), elementControl = event.target.closest('[data-element-control]');
-    const hit = canvasHit(event), selectedTarget = I.target(state.project, hit);
+    // A repeated plain click on the same spot keeps the current entity for dragging and cycles on release.
+    const hits = canvasHit(event, true), repeat = repeatedClick(event, hits);
+    const hit = repeat || hits[0] || null, selectedTarget = I.target(state.project, hit);
+    const plain = event.button === 0 && !(event.shiftKey || event.ctrlKey || event.metaKey || event.altKey);
+    state.press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, hits, cycle: repeat, plain };
     const e = selectedTarget?.element || state.project.elements.find((e) => e.id === event.target.closest('[data-element]')?.dataset.element);
     const nodeReference = I.reference(selectedTarget);
     const nodeTarget = nodeReference ? { dataset: { element: nodeReference.elementId, point: nodeReference.point } } : null;
@@ -519,10 +579,12 @@
       return;
     }
     if (state.tool === 'select' && event.button === 0 && event.ctrlKey && !event.shiftKey) {
-      const hits = canvasHit(event, true), current = state.selectedElementIds.at(-1), index = hits.indexOf(current);
+      // On macOS Ctrl+click is the system right click; the contextmenu event opens the menu instead.
+      if (isMacPlatform()) return;
+      const current = state.selectedElementIds.at(-1), index = hits.indexOf(current);
       selectTarget(hits.length ? hits[(index + 1) % hits.length] : null); return;
     }
-    if (state.tool === 'select' && event.button === 0 && (event.shiftKey || event.metaKey || state.multiSelect)) { selectTarget(hit, true); return; }
+    if (state.tool === 'select' && event.button === 0 && (event.shiftKey || event.metaKey || state.multiSelect) && (hit || event.pointerType === 'touch')) { selectTarget(hit, true); return; }
     svg.setPointerCapture(event.pointerId);
     if (state.tool === 'pan' || event.button === 1) {
       state.drag = { kind: 'pan', start: point, view: { ...state.view }, clientStart: { x: event.clientX, y: event.clientY }, pointerId: event.pointerId };
@@ -588,6 +650,11 @@
       } else if (!e.primary && !e.locked) {
         state.drag = { kind: 'inverse', id: e.id, key: nodeTarget?.dataset.point, fraction: K.nearestOnSegment(point, pose.a, pose.b).t, pointerId: event.pointerId };
       }
+    } else if (state.tool === 'select' && event.button === 0 && event.pointerType !== 'touch') {
+      // Dragging on empty canvas selects with a box (Shift/Cmd adds); a plain click there still clears the selection.
+      const additive = event.shiftKey || event.metaKey;
+      if (!additive) selectTarget(null);
+      state.drag = { kind: 'marquee', pointerId: event.pointerId, start: point, end: point, clientStart: { x: event.clientX, y: event.clientY }, clientEnd: { x: event.clientX, y: event.clientY }, additive, base: [...state.selectedElementIds], moved: false };
     } else selectTarget(null);
     if (state.drag) {
       document.body.classList.add('canvas-dragging');
@@ -619,6 +686,11 @@
     }
     if (!drag || event.pointerId !== drag.pointerId) { if (!state.contextMenuState.isOpen) updateHover(canvasHit(event)); return; }
     event.preventDefault();
+    if (drag.kind === 'marquee') {
+      drag.end = point; drag.clientEnd = { x: event.clientX, y: event.clientY };
+      drag.moved ||= Math.hypot(event.clientX - drag.clientStart.x, event.clientY - drag.clientStart.y) > 4;
+      renderMarquee(drag); return;
+    }
     if (['rail', 'panel', 'custom-rail', 'inverse', 'crank', 'custom-crank', 'elastic-tip', 'force-body'].includes(drag.kind)) drag.simulationMoved = true;
     if (drag.kind === 'guide-follower') {
       const at = K.nearestOnPath(point, state.result.poses[drag.slotId].path), pose = state.result.poses[drag.id];
@@ -684,6 +756,7 @@
     else if (drag.kind === 'crank' || drag.kind === 'custom-crank') { let angle = (K.angleOf(drag.center, point) - (drag.offset || 0) + 720) % 360; if (state.angleSnap && !state.snapSuppressed) angle = Math.round(angle / 10) * 10; setMotion(angle); }
     else if (drag.kind === 'inverse') setMotion(K.inverseDrive(state.project, point, drag.fraction, { profile: state.profile, collisions: false, elementId: drag.id, point: drag.key }));
     else if (drag.kind === 'pan') {
+      drag.moved ||= Math.hypot(event.clientX - drag.clientStart.x, event.clientY - drag.clientStart.y) > 4;
       const rect = $('#mechanism-canvas').getBoundingClientRect();
       const scale = Math.max(drag.view.width / rect.width, drag.view.height / rect.height);
       state.view = { ...drag.view, x: drag.view.x - (event.clientX - drag.clientStart.x) * scale, y: drag.view.y - (event.clientY - drag.clientStart.y) * scale };
@@ -787,6 +860,52 @@
     onPointerUp({pointerId:event.pointerId,cancelled:true});
   }
   function onPointerUp(event) {
+    const press = state.press; state.press = null;
+    releasePointer(event);
+    finishClick(press, event);
+  }
+  // A plain click (no movement) on the spot of the previous click selects the next overlapping entity.
+  function repeatedClick(event, hits) {
+    const last = state.lastClick, time = event.timeStamp ?? Date.now();
+    if (!last || state.tool !== 'select' || event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return null;
+    if (hits.length < 2 || !hits.includes(last.key) || Math.hypot(event.clientX - last.x, event.clientY - last.y) > 4) return null;
+    // A second click within the double-click interval is a double click, not a cycle.
+    if (time - last.time < DOUBLE_CLICK_MS || state.selectedElementIds.length !== 1 || state.selectedElementIds[0] !== last.key) return null;
+    return last.key;
+  }
+  // Double clicks are recognized from pointer releases: the canvas re-renders between clicks and
+  // pointerdown is prevented, so the browser's own dblclick event is not delivered reliably.
+  function finishClick(press, event) {
+    if (!press || event.pointerId !== press.pointerId || event.cancelled || event.type === 'pointercancel' || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4) return;
+    // Only plain left clicks count towards double clicks and cycling; Shift/Ctrl clicks start over.
+    if (!press.plain) { state.lastClick = null; return; }
+    const time = event.timeStamp ?? Date.now(), last = state.lastClick;
+    if (!press.cycle && last && time - last.time < DOUBLE_CLICK_MS && Math.hypot(press.x - last.x, press.y - last.y) <= 4) { state.lastClick = null; onDoubleClick(event); return; }
+    const key = press.cycle ? press.hits[(press.hits.indexOf(press.cycle) + 1) % press.hits.length] : state.selectedElementIds.at(-1) ?? null;
+    if (press.cycle) selectTarget(key);
+    state.lastClick = { x: press.x, y: press.y, time, key };
+  }
+  function isMacPlatform() {
+    return /Mac|iPhone|iPad|iPod/.test(globalThis.navigator?.userAgentData?.platform || globalThis.navigator?.platform || '');
+  }
+  function renderMarquee(drag) {
+    const area = $('#canvas-area');
+    if (!area?.getBoundingClientRect || !document.createElement) return;
+    let box = area.querySelector('.marquee-box');
+    if (!box) { box = document.createElement('div'); box.className = 'marquee-box'; box.setAttribute('aria-hidden', 'true'); area.append(box); }
+    const bounds = area.getBoundingClientRect(), a = drag.clientStart, b = drag.clientEnd;
+    box.classList.toggle('crossing', b.x < a.x); box.hidden = !drag.moved;
+    Object.assign(box.style, { left: `${Math.min(a.x, b.x) - bounds.left}px`, top: `${Math.min(a.y, b.y) - bounds.top}px`, width: `${Math.abs(b.x - a.x)}px`, height: `${Math.abs(b.y - a.y)}px` });
+  }
+  // Left to right selects bodies fully inside the box, right to left also bodies the box touches.
+  function finishMarquee(drag, event) {
+    $('#canvas-area').querySelector?.('.marquee-box')?.remove();
+    if (!drag.moved || event.cancelled || event.type === 'pointercancel') return;
+    const keys = I.boxSelect(state.project, state.result, { a: drag.start, b: drag.end }, drag.clientEnd.x < drag.clientStart.x, (e) => e.visible && viewElementVisible(e.id));
+    state.selectedElementIds = [...new Set([...(drag.additive ? drag.base : []), ...keys])];
+    state.editPivot = null; repairSelection(); renderTree(); renderInspector(); renderScene(); updateToolbar();
+  }
+  function releasePointer(event) {
     const touch=state.touchGesture,deferred=touch?.deferred;
     if (touchEnd(event)) return;
     if(deferred&&deferred.pointerId===event.pointerId&&!event.cancelled&&event.type!=='pointercancel'){if(state.insertingType||state.magic?.placementType||!touch.moved)onPointerDown(deferred);return;}
@@ -795,6 +914,14 @@
     state.drag = null;
     state.snapPreview = null;
     document.body.classList.remove('canvas-dragging');
+    if (drag?.kind === 'pan' && drag.button === 2) {
+      if ($('#mechanism-canvas').hasPointerCapture(event.pointerId)) $('#mechanism-canvas').releasePointerCapture(event.pointerId);
+      // Windows sends contextmenu after the release, Linux and macOS at the press (kept as menuPending).
+      if (drag.moved) { if (!drag.menuPending) state.suppressContextMenuUntil = Date.now() + 500; }
+      else if (drag.menuPending && !event.cancelled && event.type !== 'pointercancel') onContextMenu(drag.menuPending);
+      return;
+    }
+    if (drag?.kind === 'marquee') { if ($('#mechanism-canvas').hasPointerCapture(event.pointerId)) $('#mechanism-canvas').releasePointerCapture(event.pointerId); finishMarquee(drag, event); return; }
     if ($('#mechanism-canvas').hasPointerCapture(event.pointerId)) $('#mechanism-canvas').releasePointerCapture(event.pointerId);
     if (drag?.kind === 'guide-follower' && (event.cancelled || event.type === 'pointercancel')) { state.guidePositions = drag.before; state.result = solveCurrent(); renderScene(); updateMotion(); return; }
     if (['elastic-tip','force-body'].includes(drag?.kind) && (event.cancelled || event.type === 'pointercancel')) { state.dynamic = drag.before; state.result = solveCurrent(); renderScene(); updateMotion(); return; }

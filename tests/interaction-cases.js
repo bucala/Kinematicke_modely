@@ -453,5 +453,15 @@
     const next = I.toggleFixed(p, [ref(marker)], K.solve(p, 70));
     assert(JSON.stringify(next.elements.filter((e) => e.primary)) === before && I.fixed(next, ref(marker)));
   });
+  add('Obdĺžnikový výber: okno berie iba celé telesá, krížový výber aj dotknuté', () => {
+    const a = { ...link(), id: 'box-a', x: 10, y: 20 }, b = { ...link(), id: 'box-b', x: 200, y: 20 }, point = { ...K.makeElement('node', 60, 80), id: 'box-node' };
+    const hidden = { ...link(), id: 'box-hidden', x: 10, y: 40, visible: false }, project = custom(a, b, point, hidden), result = E.design(project, 0);
+    const keys = (corners, crossing) => I.boxSelect(project, result, corners, crossing).sort();
+    assert(keys({ a: { x: 0, y: 0 }, b: { x: 150, y: 100 } }, false).join() === ['e:box-a', 'n:box-node:a'].sort().join(), 'Okno má obsahovať celé rameno A a uzol.');
+    assert(!keys({ a: { x: 50, y: 0 }, b: { x: 150, y: 50 } }, false).length, 'Okno nesmie vybrať čiastočne zasiahnuté rameno.');
+    assert(keys({ a: { x: 50, y: 0 }, b: { x: 150, y: 50 } }, true).join() === 'e:box-a', 'Krížový výber má vybrať dotknuté rameno.');
+    assert(keys({ a: { x: 40, y: 10 }, b: { x: 45, y: 30 } }, true).join() === 'e:box-a', 'Krížový výber má vybrať rameno, ktoré obdĺžnik iba pretína.');
+    assert(!keys({ a: { x: 0, y: 0 }, b: { x: 400, y: 200 } }, false).includes('e:box-hidden'), 'Skrytý prvok sa nevyberá.');
+  });
   global.KinematicsTestCases = [...(global.KinematicsTestCases || []), ...cases];
 })(globalThis);

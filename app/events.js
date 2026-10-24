@@ -375,15 +375,25 @@
     else if (modifier && key === 'y') { event.preventDefault(); undo(true); }
     else if (modifier && key === 'd') { event.preventDefault(); duplicateElement(); }
     else if (modifier) return;
-    else if (event.code === 'Space') { event.preventDefault(); actions.play(); }
+    // Space plays on release; held down it pans with a left drag (see onPointerDown and onKeyUp).
+    else if (event.code === 'Space') { event.preventDefault(); if (!event.repeat && !state.spacePan) { state.spacePan = { used: false }; document.body.classList.add('space-pan'); } }
     else if (key === 'v') setTool('select');
     else if (key === 'h') setTool('pan');
     else if (key === 'j') setTool('connect');
     else if (key === 'm') setTool('measure');
     else if (key === 'f') { event.preventDefault(); if (event.shiftKey) { fitView(); renderScene(); } else fixSelected(); }
     else if (key === 'delete' || key === 'backspace') { event.preventDefault(); deleteSelected(); }
+    else if (key === 'enter') { if (state.selectedElementIds.length && runPrimaryAction(state.selectedElementIds.at(-1))) event.preventDefault(); }
     else if (key === 'escape') { if (state.drag) onPointerUp({ pointerId: state.drag.pointerId, cancelled: true }); selectTarget(null); setInspectorOpen(false); setTool('select'); $('.sidebar').classList.remove('mobile-open'); }
     else if (key === 'arrowright' || key === 'arrowleft') { event.preventDefault(); setMotion(state.motion + (key === 'arrowright' ? 1 : -1) * (event.shiftKey ? 10 : 1)); }
+  }
+
+  function onKeyUp(event) {
+    if (event.key === 'Alt') { state.snapSuppressed = false; const type = state.draggedPaletteType || state.insertingType || state.magic?.placementType; if (type) state.snapPreview = placementAt(type, state.pointer).preview; renderSmartSnapPreview(); }
+    if (event.code === 'Space' && state.spacePan) {
+      const { used } = state.spacePan; state.spacePan = null; document.body.classList.remove('space-pan');
+      if (!used && !$('#modal').open) actions.play();
+    }
   }
 
   function animate(time) {
@@ -463,7 +473,8 @@
     document.addEventListener('keydown', onKeyboard);
     document.addEventListener('pointerup', (event) => { if(event.pointerType==='touch'&&!$('#mechanism-canvas').contains(event.target))touchEnd(event); });
     document.addEventListener('pointercancel', (event) => { if(event.pointerType==='touch'&&!$('#mechanism-canvas').contains(event.target))touchEnd(event); });
-    document.addEventListener('keyup', (event) => { if (event.key === 'Alt') { state.snapSuppressed = false; const type = state.draggedPaletteType || state.insertingType || state.magic?.placementType; if (type) state.snapPreview = placementAt(type, state.pointer).preview; renderSmartSnapPreview(); } });
+    document.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', () => { state.spacePan = null; document.body.classList.remove('space-pan'); });
     window.addEventListener?.('blur', () => { state.snapSuppressed = false; });
     document.addEventListener('selectstart', (event) => { if (!canSelectText(event.target)) event.preventDefault(); });
     $('#motion-range').addEventListener('input', (event) => { if (!state.gifExport) setMotion(Number(event.target.value)); });
@@ -477,7 +488,7 @@
     svg.addEventListener('pointerleave', () => { if (!state.drag) updateHover(null); });
     svg.addEventListener('lostpointercapture', onLostPointerCapture);
     svg.addEventListener('dragstart', (event) => event.preventDefault());
-    svg.addEventListener('wheel', (event) => { event.preventDefault(); zoom(event.deltaY > 0 ? 1.08 : 0.925, worldPoint(event)); }, { passive: false });
+    svg.addEventListener('wheel', onWheel, { passive: false });
     $('#palette').addEventListener('dragstart', (event) => {
       const component = event.target.closest('[data-component]');
       if (state.gifExport || !component || component.disabled || state.magic && state.magic.step !== 4) { event.preventDefault(); return; }

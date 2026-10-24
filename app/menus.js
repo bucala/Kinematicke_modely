@@ -8,9 +8,29 @@
     const items = elementContextItems(t).filter(Boolean), actions = items.filter((i) => !i.separator);
     if (window.innerWidth <= 640 && actions.length > 7) {
       const common = actions.slice(0, 5);
-      return [...common, { label: 'Ďalšie možnosti…', items: items.filter((i) => !common.includes(i)) }];
+      return markPrimary([...common, { label: 'Ďalšie možnosti…', items: items.filter((i) => !common.includes(i)) }], t);
     }
-    return tidyMenu(items);
+    return markPrimary(tidyMenu(items), t);
+  }
+  // The main edit of an entity type, opened by double click or Enter; it is always one of the menu items.
+  function primaryAction(t) {
+    if (!t) return 'fit';
+    if (t.type === 'joint') return 'edit-joint';
+    if (t.type === 'dimension') return 'edit-dimension';
+    if (t.element?.primary) return t.type === 'link' ? 'inspect' : null;
+    if (['control', 'outline'].includes(t.type)) return 'part-point';
+    if (t.type === 'path') return 'curve-add-control';
+    if (I.reference(t)) return 'coordinates';
+    const e = t.element;
+    return e.role === 'motor-housing' || e.type === 'motor' ? 'motor-spec' : e.type === 'cam' ? 'cam-profile' : e.type === 'slot' ? 'edit-path' : 'inspect';
+  }
+  function menuHas(items, id) {
+    return items.some((item) => item.id === id && !item.disabled || item.items && menuHas(item.items, id));
+  }
+  function markPrimary(items, t) {
+    const id = primaryAction(t);
+    const mark = (list) => list.map((item) => (item.items ? { ...item, items: mark(item.items) } : item.id === id && !item.shortcut ? { ...item, shortcut: 'Dvojklik' } : item));
+    return id && menuHas(items, id) ? mark(items) : items;
   }
   // Drops leading, trailing and doubled separators left after optional items were omitted.
   function tidyMenu(items) {
