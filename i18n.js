@@ -922,7 +922,15 @@
  ["Obdĺžnikový výber", "Box selection", "Rechteckauswahl"],
  ["Enter", "Enter", "Eingabe"],
  ["Del", "Del", "Entf"],
- ["Shift+F", "Shift+F", "Umschalt+F"]
+ ["Shift+F", "Shift+F", "Umschalt+F"],
+ ["Shift + F prispôsobí pohľad. Plátno posuniete nástrojom Posun (H), ťahaním pravým alebo prostredným tlačidlom, s podržaným medzerníkom alebo dvoma prstami na trackpade; geometria sa nemení.", "Shift + F fits the view. Pan the canvas with the Pan tool (H), by dragging with the right or middle button, while holding Space, or with two fingers on a trackpad; geometry does not change.", "Umschalt + F passt die Ansicht an. Verschieben Sie die Zeichenfläche mit dem Werkzeug Verschieben (H), durch Ziehen mit der rechten oder mittleren Taste, mit gedrückter Leertaste oder mit zwei Fingern auf dem Trackpad; die Geometrie ändert sich nicht."],
+ ["Space + ťahanie", "Space + drag", "Leertaste + Ziehen"],
+ ["Pravé tlačidlo + ťahanie", "Right button + drag", "Rechte Taste + Ziehen"],
+ ["Posun plátna", "Pan canvas", "Zeichenfläche verschieben"],
+ ["Ctrl + koliesko", "Ctrl + wheel", "Strg + Mausrad"],
+ ["Zoom, aj štipnutie na trackpade", "Zoom, also pinch on a trackpad", "Zoom, auch Zusammenziehen auf dem Trackpad"],
+ ["Alt + koliesko", "Alt + wheel", "Alt + Mausrad"],
+ ["Poloha pohonu", "Drive position", "Antriebsposition"]
  ];
  // Rows may contain {n} (a number or range as the UI prints it), {s} (text translated on its own if possible, e.g. a model name)
  // and {x} (verbatim text such as a file name; never translated or reported as missing).

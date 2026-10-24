@@ -104,7 +104,7 @@
   const state = {
     project: initialProject, selected: initialSelection,
     selectedElementIds: initialSelection ? [I.elementKey(initialSelection)] : [], hoveredTargetId: null,
-    press: null, lastClick: null,
+    press: null, lastClick: null, spacePan: null, trackpad: false, suppressContextMenuUntil: 0,
     contextMenuState: { isOpen: false, x: 0, y: 0, targetId: null, targetType: 'canvas' },
     motion: K.driveRange(initialProject).min, playing: false, direction: 1, speed: 1, loop: true, cycle: 6,
     mainDimensions: false, grid: true, dimensions: true, ghosts: true, trace: true, labels: true, profileVisible: false, timelineVisible: false, collisions: true, snap: true, angleSnap: false,

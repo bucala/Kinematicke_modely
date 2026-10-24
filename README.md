@@ -754,12 +754,17 @@ Podrobný postup a obmedzenia sú v [`cad/KinmoFusion/README.md`](cad/KinmoFusio
 | Klik na prázdne plátno | Zrušiť výber |
 | Pravý klik | Ponuka bodu, členu, kĺbu alebo plátna |
 | Pravý klik na vybraný objekt | Zachovať skupinu a otvoriť jej ponuku |
-| Koliesko | Priblížiť / oddialiť plátno |
+| Koliesko myši | Priblížiť / oddialiť plátno |
+| Ctrl + koliesko / štipnutie na trackpade | Plynulý zoom |
+| Dva prsty na trackpade | Posun plátna (trackpad sa rozpozná pri prvom šikmom posune) |
+| Shift + koliesko | Vodorovný posun plátna |
+| Alt + koliesko | Posunúť polohu pohonu o 1/60 rozsahu |
+| Ťahanie pravým alebo prostredným tlačidlom | Posun plátna; pravý klik bez pohybu otvorí ponuku |
 | Klik na graf | Nastaviť polohu pohonu |
 
 | Skratka | Akcia |
 |---|---|
-| Medzerník | Prehrať / pozastaviť |
+| Medzerník | Ťuknutie prehrá / pozastaví, podržanie + ťahanie posúva plátno |
 | V / H / J / M | Výber / posun plátna / spojenie / meranie |
 | F | Fixovať / uvoľniť vybrané body |
 | Shift + F | Prispôsobiť pohľad |

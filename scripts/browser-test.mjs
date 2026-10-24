@@ -87,6 +87,30 @@ try {
   const cycle = [];
   for (let i = 0; i < 3; i++) { await mouse.view.mouse.click(joint.x, joint.y); cycle.push((await selected()).join()); await mouse.view.waitForTimeout(450); }
   check('Opakovaný klik na kĺbe prepína prekryté entity', new Set(cycle).size === 3, cycle.join(' → '));
+  // Panning and the wheel: right drag, Space held, Alt+wheel scrubbing and Ctrl+wheel (pinch) zoom.
+  const viewState = () => mouse.view.evaluate(() => ({ x: state.view.x, width: state.view.width, motion: state.motion, playing: state.playing, menu: !!document.querySelector('.canvas-context-menu:not([hidden])'), geometry: JSON.stringify(state.project.elements.map((e) => [e.x, e.y, e.angle])) }));
+  await mouse.view.keyboard.press('Escape');
+  const empty = { x: couplerMid.x + 60, y: couplerMid.y + 60 };
+  let before = await viewState();
+  await mouse.view.mouse.move(empty.x, empty.y); await mouse.view.mouse.down({ button: 'right' }); await mouse.view.mouse.move(empty.x + 80, empty.y + 30, { steps: 5 }); await mouse.view.mouse.up({ button: 'right' });
+  let after = await viewState();
+  check('Ťahanie pravým tlačidlom posúva plátno bez ponuky', after.x < before.x && !after.menu, `x ${before.x.toFixed(1)} → ${after.x.toFixed(1)}`);
+  await mouse.view.mouse.click(empty.x, empty.y, { button: 'right' }); after = await viewState();
+  check('Pravý klik bez pohybu otvorí ponuku', after.menu);
+  await mouse.view.keyboard.press('Escape');
+  before = await viewState();
+  await mouse.view.keyboard.down('Space'); await mouse.view.mouse.move(couplerMid.x, couplerMid.y); await mouse.view.mouse.down(); await mouse.view.mouse.move(couplerMid.x - 70, couplerMid.y, { steps: 5 }); await mouse.view.mouse.up(); await mouse.view.keyboard.up('Space');
+  after = await viewState();
+  check('Podržaný medzerník + ťahanie posúva plátno, nie prvok', after.x > before.x && after.geometry === before.geometry && !after.playing);
+  await mouse.view.keyboard.press('Space'); after = await viewState();
+  check('Ťuknutie medzerníka spustí simuláciu', after.playing); await mouse.view.keyboard.press('Space');
+  before = await viewState();
+  await mouse.view.mouse.move(empty.x, empty.y); await mouse.view.keyboard.down('Alt'); await mouse.view.mouse.wheel(0, 100); await mouse.view.keyboard.up('Alt');
+  after = await viewState();
+  check('Alt + koliesko posunie polohu pohonu', after.motion !== before.motion && after.width === before.width, `${before.motion} → ${after.motion}`);
+  await mouse.view.keyboard.down('Control'); await mouse.view.mouse.wheel(0, -60); await mouse.view.keyboard.up('Control');
+  after = await viewState();
+  check('Ctrl + koliesko (štipnutie) zoomuje plátno', after.width < before.width);
   check('Ovládanie myšou bez chýb stránky', !mouse.errors.length, mouse.errors.join(' | '));
   await mouse.view.close();
 

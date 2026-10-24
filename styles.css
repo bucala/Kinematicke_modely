@@ -1405,3 +1405,6 @@ dialog::backdrop { background: #10182066; backdrop-filter: blur(4px); }
 /* Box selection: a window (left to right) is solid, a crossing box (right to left) is dashed, as in CAD tools. */
 .marquee-box { position: absolute; z-index: 4; pointer-events: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .marquee-box.crossing { border-style: dashed; border-color: var(--green); background: color-mix(in srgb, var(--green) 8%, transparent); }
+/* Held Space turns the canvas into a hand tool. */
+body.space-pan #mechanism-canvas { cursor: grab; }
+body.space-pan.canvas-dragging #mechanism-canvas { cursor: grabbing; }

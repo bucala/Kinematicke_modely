@@ -85,6 +85,9 @@
     if (state.gifExport) { event.preventDefault(); return; }
     if (state.magic && !magicWorking()) { event.preventDefault(); return; }
     event.preventDefault(); event.stopPropagation();
+    const drag = state.drag;
+    if (drag?.kind === 'pan' && drag.button === 2) { drag.menuPending = { clientX: event.clientX, clientY: event.clientY, target: event.target, preventDefault() {}, stopPropagation() {} }; return; }
+    if (state.suppressContextMenuUntil > Date.now()) { state.suppressContextMenuUntil = 0; return; }
     const row = event.target?.closest?.('[data-context-key]');
     try { openContextMenu(event, row ? row.dataset.contextKey : canvasHit(event)); }
     catch (error) { toast(`Ponuku sa nepodarilo otvoriť: ${error.message}`, true); }
@@ -405,6 +408,35 @@
     deleteSelected();
   }
 
+  // Mouse wheel zooms. A trackpad, recognized by a diagonal two-finger scroll, pans; pinching (Ctrl+wheel) zooms.
+  // Shift+wheel pans horizontally and Alt+wheel scrubs the drive position.
+  function onWheel(event) {
+    event.preventDefault();
+    if (state.gifExport) return;
+    if (event.altKey) {
+      const range = K.driveRange(state.project), direction = Math.sign(event.deltaY || event.deltaX);
+      if (!direction || !(range.max > range.min)) return;
+      state.playing = false;
+      setMotion(K.clamp(state.motion + direction * (range.max - range.min) / 60, range.min, range.max));
+      return;
+    }
+    const pinch = event.ctrlKey || event.metaKey;
+    if (!pinch && !event.shiftKey && event.deltaMode === 0 && event.deltaX && event.deltaY) state.trackpad = true;
+    if (pinch) { zoom(K.clamp(Math.exp(event.deltaY * 0.01), 0.5, 2), worldPoint(event)); return; }
+    if (!state.trackpad && !event.shiftKey) { zoom(event.deltaY > 0 ? 1.08 : 0.925, worldPoint(event)); return; }
+    const rect = $('#mechanism-canvas').getBoundingClientRect(), unit = event.deltaMode === 1 ? 16 : 1;
+    const scale = Math.max(state.view.width / rect.width, state.view.height / rect.height) * unit;
+    const dx = event.shiftKey && !event.deltaX ? event.deltaY : event.deltaX, dy = event.shiftKey ? 0 : event.deltaY;
+    closeContextMenu();
+    state.view = { ...state.view, x: state.view.x + dx * scale, y: state.view.y + dy * scale };
+    renderScene();
+  }
+  function startPan(event, extra = {}) {
+    $('#mechanism-canvas').setPointerCapture(event.pointerId);
+    state.drag = { kind: 'pan', start: worldPoint(event), view: { ...state.view }, clientStart: { x: event.clientX, y: event.clientY }, pointerId: event.pointerId, moved: false, ...extra };
+    document.body.classList.add('canvas-dragging');
+  }
+
   function zoom(factor, center) {
     if (state.gifExport) return;
     closeContextMenu();
@@ -491,8 +523,12 @@
     if (state.gifExport) return;
     if (touchStart(event)) return;
     if(event.pointerType==='touch'&&!event.deferredTouch&&(state.tool==='connect'||state.insertingType||state.magic?.placementType)){state.touchGesture.deferred={pointerId:event.pointerId,clientX:event.clientX,clientY:event.clientY,button:event.button,target:event.target,pointerType:'touch',deferredTouch:true,preventDefault(){}};if(state.insertingType||state.magic?.placementType)clearTimeout(state.touchGesture.timer);return;}
-    if (event.button !== 0 && event.button !== 1) return;
     if (state.drag) return;
+    // Right button drag pans; a right click without movement still opens the menu (see onContextMenu).
+    if (event.button === 2 && event.pointerType !== 'touch') { event.preventDefault(); startPan(event, { button: 2 }); return; }
+    // Holding Space turns a left drag into panning anywhere on the canvas, also over entities.
+    if (state.spacePan && event.button === 0) { event.preventDefault(); closeContextMenu(); state.spacePan.used = true; startPan(event); return; }
+    if (event.button !== 0 && event.button !== 1) return;
     event.preventDefault();
     closeContextMenu();
     state.snapPreview = null; dismissSnapChoices();
@@ -720,6 +756,7 @@
     else if (drag.kind === 'crank' || drag.kind === 'custom-crank') { let angle = (K.angleOf(drag.center, point) - (drag.offset || 0) + 720) % 360; if (state.angleSnap && !state.snapSuppressed) angle = Math.round(angle / 10) * 10; setMotion(angle); }
     else if (drag.kind === 'inverse') setMotion(K.inverseDrive(state.project, point, drag.fraction, { profile: state.profile, collisions: false, elementId: drag.id, point: drag.key }));
     else if (drag.kind === 'pan') {
+      drag.moved ||= Math.hypot(event.clientX - drag.clientStart.x, event.clientY - drag.clientStart.y) > 4;
       const rect = $('#mechanism-canvas').getBoundingClientRect();
       const scale = Math.max(drag.view.width / rect.width, drag.view.height / rect.height);
       state.view = { ...drag.view, x: drag.view.x - (event.clientX - drag.clientStart.x) * scale, y: drag.view.y - (event.clientY - drag.clientStart.y) * scale };
@@ -877,6 +914,13 @@
     state.drag = null;
     state.snapPreview = null;
     document.body.classList.remove('canvas-dragging');
+    if (drag?.kind === 'pan' && drag.button === 2) {
+      if ($('#mechanism-canvas').hasPointerCapture(event.pointerId)) $('#mechanism-canvas').releasePointerCapture(event.pointerId);
+      // Windows sends contextmenu after the release, Linux and macOS at the press (kept as menuPending).
+      if (drag.moved) { if (!drag.menuPending) state.suppressContextMenuUntil = Date.now() + 500; }
+      else if (drag.menuPending && !event.cancelled && event.type !== 'pointercancel') onContextMenu(drag.menuPending);
+      return;
+    }
     if (drag?.kind === 'marquee') { if ($('#mechanism-canvas').hasPointerCapture(event.pointerId)) $('#mechanism-canvas').releasePointerCapture(event.pointerId); finishMarquee(drag, event); return; }
     if ($('#mechanism-canvas').hasPointerCapture(event.pointerId)) $('#mechanism-canvas').releasePointerCapture(event.pointerId);
     if (drag?.kind === 'guide-follower' && (event.cancelled || event.type === 'pointercancel')) { state.guidePositions = drag.before; state.result = solveCurrent(); renderScene(); updateMotion(); return; }
